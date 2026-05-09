@@ -1,0 +1,113 @@
+# --- Build outputs ---
+
+# Rust / Cargo
+target/
+**/*.rs.bk
+*.pdb
+
+# Gleam
+_build/
+build/
+**/*.beam
+**/.gleam_cache/
+
+# Tauri / web bundling
+apps/desktop/target/
+apps/desktop/bin/*.exe
+apps/desktop/resources/frontend/*
+!apps/desktop/resources/frontend/index.html
+!apps/desktop/resources/frontend/app.css
+!apps/desktop/resources/frontend/app.js
+node_modules/
+dist/
+.parcel-cache/
+
+# Wasm plugin per-crate target dirs
+plugins/examples/*/target/
+
+# Gleam manifest.toml is a regenerated lockfile
+apps/*/manifest.toml
+
+# Plugin .wasm artifacts (rebuildable; included in releases not git)
+plugins/examples/*/plugin.wasm
+
+# Nix
+result
+result-*
+.direnv/
+
+# --- Editor / IDE ---
+
+.idea/
+.vscode/
+!.vscode/settings.json.example
+!.vscode/extensions.json.example
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs and runtime data ---
+
+*.log
+*.log.*
+logs/
+
+# Local Mycelium runtime data (when run from repo root for dev)
+.mycelium-dev/
+db/
+attachments/
+
+# --- Secrets and local configs ---
+
+.env
+.env.local
+*.pem
+*.key
+*.crt
+secrets/
+
+# --- OS-specific cruft ---
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon\r
+!apps/desktop/icons/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# --- Test artifacts ---
+
+coverage/
+*.profraw
+*.gcov
+proptest-regressions/
+
+# --- Misc ---
+
+*.pid
+*.seed
+*.tgz
+.cache/
+
+# --- Release artifacts (uploaded to GitHub release, not committed) ---
+release-artifacts/
+.claude/

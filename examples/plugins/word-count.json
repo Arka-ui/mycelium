@@ -1,0 +1,13 @@
+{
+  "manifest": {
+    "id": "word-count",
+    "name": "Word count",
+    "version": "1.0.0",
+    "author": "Mycelium examples",
+    "description": "Logs word + character counts every time a note is saved.",
+    "homepage": "https://github.com/Arka-ui/mycelium",
+    "entry": "index.js",
+    "permissions": ["note:read"]
+  },
+  "code": "mycelium.on('note:saved', (note) => { const words = (note.body || '').trim().split(/\\s+/).filter(Boolean).length; const chars = (note.body || '').length; mycelium.log('saved', note.title || 'Untitled', '-', words, 'words /', chars, 'chars'); });"
+}

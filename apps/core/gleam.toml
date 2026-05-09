@@ -1,0 +1,20 @@
+name = "mycelium"
+version = "0.1.0"
+target = "erlang"
+licences = ["AGPL-3.0-or-later"]
+description = "Mycelium application core"
+
+[dependencies]
+gleam_stdlib  = ">= 0.71.0 and < 2.0.0"
+gleam_otp     = ">= 1.0.0  and < 2.0.0"
+gleam_erlang  = ">= 1.0.0  and < 2.0.0"
+gleam_json    = ">= 3.0.0  and < 4.0.0"
+gleam_http    = ">= 4.0.0  and < 5.0.0"
+gleam_crypto  = ">= 1.4.0  and < 2.0.0"
+mist          = ">= 5.0.0  and < 7.0.0"
+lustre        = ">= 5.7.0  and < 6.0.0"
+simplifile    = ">= 2.0.0  and < 3.0.0"
+envoy         = ">= 1.0.0  and < 2.0.0"
+
+[dev-dependencies]
+gleeunit      = ">= 1.2.0 and < 2.0.0"

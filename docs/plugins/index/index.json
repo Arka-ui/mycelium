@@ -1,0 +1,86 @@
+{
+  "index_version": "1.0",
+  "updated_at": "2026-05-09T00:00:00Z",
+  "operator": {
+    "name": "Mycelium Project (placeholder)",
+    "key": "ed25519:PLACEHOLDER0000000000000000000000000000000000=",
+    "signature": "ed25519:PLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDER00=="
+  },
+  "plugins": [
+    {
+      "name": "mermaid",
+      "display_name": "Mermaid Diagrams",
+      "description": "Render Mermaid diagrams (flowcharts, sequences, class, gantt) inline.",
+      "tags": ["renderer", "writing"],
+      "category": "official",
+      "downloads_count": 0,
+      "rating": 0,
+      "author": {
+        "name": "The Mycelium Authors",
+        "url": "https://github.com/mycelium-app/mycelium",
+        "key": "ed25519:PLACEHOLDER0000000000000000000000000000000000=",
+        "verified": true
+      },
+      "versions": [
+        {
+          "version": "0.0.1",
+          "manifest_url": "https://example.invalid/plugins/mermaid-0.0.1/manifest.json",
+          "wasm_url": "https://example.invalid/plugins/mermaid-0.0.1/plugin.wasm",
+          "wasm_hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+          "released_at": "2026-05-09T00:00:00Z",
+          "min_mycelium_version": "0.1.0"
+        }
+      ]
+    },
+    {
+      "name": "translate",
+      "display_name": "Translate selection",
+      "description": "Translate the current selection between language pairs using a local model.",
+      "tags": ["command", "writing"],
+      "category": "official",
+      "downloads_count": 0,
+      "rating": 0,
+      "author": {
+        "name": "The Mycelium Authors",
+        "url": "https://github.com/mycelium-app/mycelium",
+        "key": "ed25519:PLACEHOLDER0000000000000000000000000000000000=",
+        "verified": true
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "manifest_url": "https://example.invalid/plugins/translate-0.1.0/manifest.json",
+          "wasm_url": "https://example.invalid/plugins/translate-0.1.0/plugin.wasm",
+          "wasm_hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+          "released_at": "2026-05-09T00:00:00Z",
+          "min_mycelium_version": "0.1.0"
+        }
+      ]
+    },
+    {
+      "name": "ical_import",
+      "display_name": "iCal import",
+      "description": "Import calendar events from .ics files as nodes of kind 'event'.",
+      "tags": ["import", "command", "productivity"],
+      "category": "official",
+      "downloads_count": 0,
+      "rating": 0,
+      "author": {
+        "name": "The Mycelium Authors",
+        "url": "https://github.com/mycelium-app/mycelium",
+        "key": "ed25519:PLACEHOLDER0000000000000000000000000000000000=",
+        "verified": true
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "manifest_url": "https://example.invalid/plugins/ical_import-0.1.0/manifest.json",
+          "wasm_url": "https://example.invalid/plugins/ical_import-0.1.0/plugin.wasm",
+          "wasm_hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+          "released_at": "2026-05-09T00:00:00Z",
+          "min_mycelium_version": "0.1.0"
+        }
+      ]
+    }
+  ]
+}

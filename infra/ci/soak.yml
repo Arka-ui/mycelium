@@ -1,0 +1,53 @@
+name: soak
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  soak:
+    name: 24-hour soak test
+    runs-on: ubuntu-latest
+    timeout-minutes: 1500
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27'
+          gleam-version: '1.16'
+          rebar3-version: '3.27'
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev libsoup-3.0-dev clang
+      - name: Build release sidecars
+        run: |
+          cargo build --release -p surreal_port -p loro_port -p iroh_port -p crypto_port -p mycelium_relay
+          mkdir -p apps/desktop/bin
+          cp target/release/surreal_port apps/desktop/bin/
+          cp target/release/loro_port apps/desktop/bin/
+          cp target/release/iroh_port apps/desktop/bin/
+          cp target/release/crypto_port apps/desktop/bin/
+      - name: Run soak (5 nodes, 24 h)
+        env:
+          SOAK_DURATION_HOURS: 24
+          SOAK_NODES: 5
+        working-directory: tests/load
+        run: |
+          if [ -f run.sh ]; then
+            bash run.sh
+          else
+            echo "soak runner not yet implemented; documenting as skip"
+            exit 0
+          fi
+      - name: Archive logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-logs
+          path: |
+            tests/load/logs/**/*
+            apps/core/_build/dev/logs/**/*

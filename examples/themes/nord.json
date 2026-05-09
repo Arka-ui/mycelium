@@ -1,0 +1,23 @@
+{
+  "id": "nord",
+  "name": "Nord",
+  "author": "Mycelium examples",
+  "builtin": false,
+  "colors": {
+    "--bg": "#2e3440",
+    "--bg-2": "#3b4252",
+    "--bg-3": "#434c5e",
+    "--border": "#4c566a",
+    "--text": "#eceff4",
+    "--text-2": "#d8dee9",
+    "--text-3": "#81a1c1",
+    "--accent": "#88c0d0",
+    "--accent-fg": "#2e3440",
+    "--danger": "#bf616a"
+  },
+  "radii": { "--radius": "10px", "--radius-sm": "6px" },
+  "typography": {
+    "--font-family": "-apple-system, \"Segoe UI\", Roboto, sans-serif",
+    "--font-size": "14px"
+  }
+}

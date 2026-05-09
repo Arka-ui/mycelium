@@ -1,0 +1,30 @@
+[package]
+name = "surreal_port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mycelium SurrealDB embedded sidecar: line-framed JSON-RPC over stdio (port protocol)"
+
+[[bin]]
+name = "surreal_port"
+path = "src/main.rs"
+
+[[bench]]
+name = "bench_main"
+harness = false
+path = "benches/bench_main.rs"
+
+[dependencies]
+surrealdb = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-std", "io-util", "signal"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ciborium = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+blake3 = "1.5"

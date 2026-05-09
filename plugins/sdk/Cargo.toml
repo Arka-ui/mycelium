@@ -1,0 +1,16 @@
+[package]
+name = "mycelium_plugin_sdk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+description = "Mycelium plugin SDK — Rust bindings for the WIT contract (M2 — surface stub in M0)"
+
+[lib]
+name = "mycelium_plugin_sdk"
+path = "src/lib.rs"
+
+[dependencies]
+wit-bindgen = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

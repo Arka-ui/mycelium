@@ -1,0 +1,22 @@
+name = "frontend"
+version = "0.1.0"
+
+# Mycelium frontend bootstrap.
+#
+# Compiled to JavaScript. The actual UI lives on the BEAM (Lustre server-
+# component mode, per ADR-0007); this module only wires the
+# server-component runtime into the page.
+
+target = "javascript"
+licences = ["AGPL-3.0-or-later"]
+description = "Mycelium frontend bootstrap (compiled to JS)"
+
+[dependencies]
+gleam_stdlib = ">= 0.45.0 and < 2.0.0"
+lustre       = ">= 5.0.0  and < 6.0.0"
+
+[dev-dependencies]
+gleeunit     = ">= 1.2.0 and < 2.0.0"
+
+[javascript]
+typescript_declarations = false

@@ -1,0 +1,12 @@
+{
+  "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated by .github/workflows/release.yml on every release; do not edit by hand. The signature field carries a minisign signature of the corresponding installer; the matching public key is baked into apps/desktop/tauri.conf.json under plugins.updater.pubkey.",
+  "version": "0.1.0",
+  "notes": "Mycelium v0.1.0-beta.1 first beta. See https://github.com/Arka-ui/mycelium/releases for full notes.",
+  "pub_date": "2026-05-09T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WU45ZUM4cFI3NTJ3djgzOXNGeUxhbWxFVXlaV09MM0N5UjROTG00cVdjTlVpTlRZbktwV1BZUjc3UHBldnFrU2RGYkMybnV0WndFd1FQamUzc1pxYlF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4MzM1NTY4CWZpbGU6TXljZWxpdW1fMC4xLjBfeDY0LXNldHVwLmV4ZQo5NkFwa0JKUjhWY0U1empmbGp1YmxRNyt1R3VySFlzL1BkTXFRdXA2blpzZEhhc2pudklIVlFvVEU0VnkxVVgyOFowRVAvNjFxZmRtMWZ3aURkVGFEUT09Cg==",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_x64-setup.exe"
+    }
+  }
+}

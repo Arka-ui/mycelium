@@ -1,0 +1,23 @@
+[package]
+name = "iroh_port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mycelium Iroh P2P sidecar"
+
+[[bin]]
+name = "iroh_port"
+path = "src/main.rs"
+
+[dependencies]
+iroh = { version = "0.92", features = ["discovery-local-network"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-std", "io-util", "sync"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+base64 = "0.22"
+hex = "0.4"
+futures-lite = "2"

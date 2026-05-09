@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mycelium</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="theme-dark">
+<div id="app">
+  <aside id="sidebar" aria-label="Notes">
+    <header class="side-head">
+      <div class="brand">Mycelium</div>
+      <div class="head-actions">
+        <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
+        <button id="theme-btn" class="icon-btn" title="Cycle theme (Ctrl+,)">&#9728;</button>
+      </div>
+    </header>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search notes (/)" autocomplete="off" spellcheck="false">
+    </div>
+    <button id="new-note" class="primary-btn" title="New note (Ctrl+N)">+ New note</button>
+    <ul id="note-list" class="note-list"></ul>
+    <footer class="side-foot">
+      <span id="status">ready</span>
+      <span id="version"></span>
+    </footer>
+  </aside>
+  <main id="editor-pane">
+    <div id="empty-state" class="empty">
+      <h1>Welcome to Mycelium</h1>
+      <p>Create a note to get started.</p>
+      <p class="hint">Shortcuts: <kbd>Ctrl</kbd>+<kbd>N</kbd> new note &middot; <kbd>/</kbd> focus search &middot; <kbd>Ctrl</kbd>+<kbd>,</kbd> cycle theme</p>
+    </div>
+    <article id="editor" class="editor hidden">
+      <input id="title" class="title-input" placeholder="Untitled" autocomplete="off" spellcheck="false">
+      <div id="meta" class="meta"></div>
+      <textarea id="body" class="body-input" placeholder="Start writing..." spellcheck="true"></textarea>
+      <footer class="ed-foot">
+        <button id="delete-btn" class="danger-btn">Delete note</button>
+        <span id="save-state">saved</span>
+      </footer>
+    </article>
+  </main>
+</div>
+
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="modal-title">
+    <header class="modal-head">
+      <h2 id="modal-title">Settings</h2>
+      <button id="modal-close" class="icon-btn" title="Close (Esc)">&times;</button>
+    </header>
+    <nav class="modal-tabs">
+      <button class="tab-btn active" data-tab="general">General</button>
+      <button class="tab-btn" data-tab="themes">Themes</button>
+      <button class="tab-btn" data-tab="plugins">Plugins</button>
+      <button class="tab-btn" data-tab="updates">Updates</button>
+      <button class="tab-btn" data-tab="about">About</button>
+    </nav>
+    <div class="modal-body">
+
+      <section class="tab-pane active" data-pane="general">
+        <div class="setting-group">
+          <h3>Theme</h3>
+          <div class="setting-row">
+            <select id="active-theme-select" class="select"></select>
+            <button id="open-theme-editor-btn" class="ghost-btn">Edit themes</button>
+          </div>
+          <p class="setting-help">Choose a built-in theme or one you have created. The theme cycles with <kbd>Ctrl</kbd>+<kbd>,</kbd> when you have multiple favourites.</p>
+        </div>
+        <div class="setting-group">
+          <h3>Storage</h3>
+          <div class="setting-row">
+            <button id="open-data-btn" class="ghost-btn">Open data folder</button>
+          </div>
+          <p class="setting-help">Notes, themes, plugins and settings live in <code>%APPDATA%\Mycelium\</code>.</p>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="themes">
+        <div class="setting-group">
+          <h3>Your themes</h3>
+          <ul id="theme-list" class="thing-list"></ul>
+          <div class="setting-row">
+            <button id="new-theme-btn" class="primary-btn small">+ New custom theme</button>
+            <button id="import-theme-btn" class="ghost-btn">Import from JSON...</button>
+          </div>
+        </div>
+        <div id="theme-editor" class="theme-editor hidden">
+          <h3>Theme editor</h3>
+          <div class="grid-2">
+            <label>Name <input id="te-name" class="text-input"></label>
+            <label>ID <input id="te-id" class="text-input" placeholder="my-theme"></label>
+          </div>
+          <h4>Colours</h4>
+          <div id="te-colors" class="color-grid"></div>
+          <h4>Radii (CSS lengths)</h4>
+          <div class="grid-2">
+            <label>Card radius <input id="te-radius" class="text-input" placeholder="10px"></label>
+            <label>Small radius <input id="te-radius-sm" class="text-input" placeholder="6px"></label>
+          </div>
+          <h4>Typography</h4>
+          <div class="grid-2">
+            <label>Font family <input id="te-font" class="text-input" placeholder="-apple-system, Segoe UI, Roboto, sans-serif"></label>
+            <label>Base font size <input id="te-font-size" class="text-input" placeholder="14px"></label>
+          </div>
+          <div class="te-actions">
+            <button id="te-save-btn" class="primary-btn small">Save theme</button>
+            <button id="te-export-btn" class="ghost-btn">Export JSON</button>
+            <button id="te-cancel-btn" class="ghost-btn">Cancel</button>
+            <button id="te-delete-btn" class="danger-btn hidden">Delete</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="plugins">
+        <div class="setting-group">
+          <h3>Installed plugins</h3>
+          <p class="setting-help">Plugins extend the app with custom commands and reactions to events. They run in a sandboxed Web Worker with no network or filesystem access.</p>
+          <ul id="plugin-list" class="thing-list"></ul>
+          <div class="setting-row">
+            <button id="install-plugin-btn" class="primary-btn small">+ Install plugin from JSON...</button>
+            <button id="open-plugins-folder-btn" class="ghost-btn">Open plugins folder</button>
+          </div>
+        </div>
+        <div class="setting-group">
+          <h3>API for plugin authors</h3>
+          <pre class="code-block">// manifest.json
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": ["note:read", "note:write"]
+}
+
+// index.js — runs in a Web Worker
+mycelium.on("note:saved", (note) => {
+  // mutate, notify, transform...
+});
+mycelium.command("uppercase", (ctx) => {
+  ctx.note.body = ctx.note.body.toUpperCase();
+  ctx.save();
+});</pre>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="updates">
+        <div class="setting-group">
+          <h3>Auto-update</h3>
+          <label class="setting-row">
+            <input id="opt-auto-update" type="checkbox">
+            <div>
+              <div class="setting-name">Check for updates automatically</div>
+              <div class="setting-help">Mycelium looks for new versions on launch and once per session. Updates are signed; only matching signatures are installed.</div>
+            </div>
+          </label>
+          <div class="setting-row">
+            <button id="check-update-btn" class="primary-btn small">Check now</button>
+            <button id="open-releases-btn" class="ghost-btn">View releases on GitHub</button>
+            <span id="update-status" class="setting-help"></span>
+          </div>
+          <div id="update-available" class="update-card hidden">
+            <div class="update-head">
+              <strong>Update available</strong>
+              <span id="update-version" class="setting-help"></span>
+            </div>
+            <pre id="update-notes" class="update-notes"></pre>
+            <div class="update-actions">
+              <button id="install-update-btn" class="primary-btn">Download &amp; install</button>
+              <button id="skip-update-btn" class="ghost-btn">Skip for now</button>
+            </div>
+            <div id="update-progress" class="update-progress hidden">
+              <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
+              <span id="bar-label">Downloading...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="about">
+        <div class="setting-group">
+          <h3>About Mycelium</h3>
+          <p>Version: <strong id="about-version">v0.1.0</strong></p>
+          <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
+          <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
+          <p class="setting-help">Mycelium beta.1 ships a Tauri-native build. The full BEAM/Lustre/Iroh/SurrealDB architecture lands in beta.2+.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<input id="file-input" type="file" accept=".json" class="hidden">
+<script src="app.js"></script>
+</body>
+</html>

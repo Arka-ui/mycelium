@@ -1,0 +1,26 @@
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# Order matters: the last matching pattern wins.
+
+# Default owner: project lead
+*                                  @Arka-ui
+
+# Security-sensitive surfaces — require a second reviewer when one exists.
+/sidecars/loro_port/               @Arka-ui
+/sidecars/iroh_port/               @Arka-ui
+/sidecars/crypto_port/             @Arka-ui
+/sidecars/wasmedge_port/           @Arka-ui
+/apps/core/src/mycelium/crypto_server.gleam  @Arka-ui
+/apps/core/src/mycelium/identity_server.gleam @Arka-ui
+/apps/core/src/mycelium/network/               @Arka-ui
+/apps/core/src/mycelium/sync/                  @Arka-ui
+/apps/core/src/mycelium/storage/at_rest.gleam  @Arka-ui
+
+# Protocol contracts and threat model: spec changes need lead review.
+/proto/                            @Arka-ui
+/docs/protocols/                   @Arka-ui
+/docs/threat_model.md              @Arka-ui
+
+# CI + release pipeline.
+/.github/                          @Arka-ui
+/infra/ci/                         @Arka-ui
+/latest.json                       @Arka-ui

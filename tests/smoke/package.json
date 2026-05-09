@@ -1,0 +1,13 @@
+{
+  "name": "mycelium-webdriver-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "mocha webdriver.spec.js"
+  },
+  "devDependencies": {
+    "chai": "^4.4.1",
+    "mocha": "^10.7.0",
+    "selenium-webdriver": "^4.25.0"
+  }
+}

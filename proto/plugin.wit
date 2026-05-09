@@ -1,0 +1,161 @@
+// Mycelium Plugin Contract
+//
+// WIT (WebAssembly Interface Types) definition of the host/guest interface.
+// Plugins compile to wasm32-wasi and import the `host` interface; they
+// export the `guest` interface.
+//
+// Status: M2 — the host runtime (WasmEdge sandbox) is not implemented in
+// M0/M1. The contract is published today so plugin authors can target it.
+//
+// Authoritative reference: docs/plugins/contract.md
+
+package mycelium:plugin@0.1.0;
+
+interface types {
+    /// A node identifier — ULID Crockford-base32, 26 chars.
+    type node-id = string;
+
+    /// A block identifier within a node's body.
+    type block-id = string;
+
+    /// Wall-clock time, milliseconds since the unix epoch.
+    type timestamp = u64;
+
+    /// A graph edge.
+    record edge {
+        source: node-id,
+        target: node-id,
+        relation: string,
+    }
+
+    /// A node, returned by query operations.
+    record node {
+        id: node-id,
+        kind: string,
+        title: string,
+        body-json: string,           // JSON-encoded body for codec freedom
+        created-at: timestamp,
+        updated-at: timestamp,
+    }
+
+    /// Errors returned by host calls.
+    variant host-error {
+        capability-denied(string),
+        not-found(string),
+        invalid-argument(string),
+        internal(string),
+    }
+
+    /// Event kinds a plugin can subscribe to.
+    enum event-kind {
+        node-created,
+        node-changed,
+        node-deleted,
+        query-run,
+    }
+
+    /// An event payload delivered to the plugin.
+    record event {
+        kind: event-kind,
+        node-id: option<node-id>,
+        timestamp: timestamp,
+    }
+}
+
+interface graph {
+    use types.{node, node-id, edge, host-error};
+
+    /// Run a SurrealQL query restricted to the plugin's granted subgraph.
+    query: func(surql: string) -> result<list<node>, host-error>;
+
+    /// Read a single node by ID. Returns not-found if outside the granted
+    /// subgraph.
+    get: func(id: node-id) -> result<option<node>, host-error>;
+
+    /// Create a node. The plugin is recorded as the author.
+    create: func(kind: string, title: string, body-json: string)
+        -> result<node-id, host-error>;
+
+    /// Patch an existing node. The plugin must hold write capability.
+    update: func(id: node-id, title: option<string>, body-json: option<string>)
+        -> result<_, host-error>;
+}
+
+interface events {
+    use types.{event-kind, host-error};
+
+    /// Subscribe to an event kind. The host calls back via the guest's
+    /// `on-event` export.
+    subscribe: func(kind: event-kind) -> result<_, host-error>;
+
+    /// Unsubscribe from a previously subscribed event kind.
+    unsubscribe: func(kind: event-kind) -> result<_, host-error>;
+}
+
+interface kv {
+    use types.{host-error};
+
+    /// Plugin-private key-value store. Keys and values are opaque bytes.
+    /// Quotas: 100 MB per plugin, 64 KB max value size.
+    get: func(key: string) -> result<option<list<u8>>, host-error>;
+    set: func(key: string, value: list<u8>) -> result<_, host-error>;
+    delete: func(key: string) -> result<_, host-error>;
+    list-keys: func(prefix: string) -> result<list<string>, host-error>;
+}
+
+interface http {
+    use types.{host-error};
+
+    /// Metered HTTP egress. Hosts must be on the user-allowlisted set
+    /// declared in the plugin manifest. Rate limited per plugin per host.
+    record http-request {
+        method: string,                              // GET, POST, PUT, DELETE
+        url: string,
+        headers: list<tuple<string, string>>,
+        body: option<list<u8>>,
+    }
+
+    record http-response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+
+    fetch: func(req: http-request) -> result<http-response, host-error>;
+}
+
+/// The host world a plugin imports.
+world host {
+    import types;
+    import graph;
+    import events;
+    import kv;
+    import http;
+}
+
+/// The guest world a plugin must implement.
+world plugin {
+    use types.{event, host-error};
+
+    /// Called once after the plugin is loaded and capabilities are granted.
+    export activate: func() -> result<_, host-error>;
+
+    /// Called when the user disables the plugin or the host is shutting
+    /// down. The plugin should release any external resources.
+    export deactivate: func() -> result<_, host-error>;
+
+    /// Delivered when a subscribed event fires. The plugin returns whether
+    /// it consumed the event.
+    export on-event: func(ev: event) -> result<_, host-error>;
+
+    /// Delivered when the user invokes a slash-command registered by this
+    /// plugin. `selection` is the user's current selection (may be empty).
+    /// The plugin returns text to insert (or empty string for no-op).
+    export on-command: func(name: string, args: string, selection: string)
+        -> result<string, host-error>;
+
+    /// Renderer for plugin-provided block kinds. Returns sandboxed HTML or
+    /// SVG. The host post-processes the output to strip script tags.
+    export render-block: func(kind: string, content: string)
+        -> result<string, host-error>;
+}

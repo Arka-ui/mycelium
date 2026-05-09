@@ -1,0 +1,23 @@
+{
+  "id": "solarized-dark",
+  "name": "Solarized Dark",
+  "author": "Mycelium examples",
+  "builtin": false,
+  "colors": {
+    "--bg": "#002b36",
+    "--bg-2": "#073642",
+    "--bg-3": "#0a4654",
+    "--border": "#2a5a64",
+    "--text": "#fdf6e3",
+    "--text-2": "#93a1a1",
+    "--text-3": "#586e75",
+    "--accent": "#268bd2",
+    "--accent-fg": "#002b36",
+    "--danger": "#dc322f"
+  },
+  "radii": { "--radius": "8px", "--radius-sm": "4px" },
+  "typography": {
+    "--font-family": "-apple-system, \"Segoe UI\", Roboto, sans-serif",
+    "--font-size": "14px"
+  }
+}

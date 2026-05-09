@@ -1,0 +1,24 @@
+﻿{
+  "name": "translate",
+  "version": "0.0.1",
+  "display_name": "Translate selection",
+  "description": "Slash command /translate that translates the current selection between language pairs using a local model.",
+  "license": "MIT",
+  "author": {
+    "name": "The Mycelium Authors",
+    "key": "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  },
+  "wasm_hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+  "wit_version": "0.1.0",
+  "capabilities": [
+    { "kind": "kv" }
+  ],
+  "commands": [
+    {
+      "name": "translate",
+      "label": "Translate",
+      "description": "Translate the current selection."
+    }
+  ],
+  "signature": "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+}

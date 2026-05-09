@@ -1,0 +1,29 @@
+﻿{
+  "name": "ical_import",
+  "version": "0.0.1",
+  "display_name": "iCal import",
+  "description": "Imports calendar events from .ics files as nodes of kind 'event'.",
+  "license": "MIT",
+  "author": {
+    "name": "The Mycelium Authors",
+    "key": "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  },
+  "wasm_hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+  "wit_version": "0.1.0",
+  "capabilities": [
+    {
+      "kind": "subgraph",
+      "filter": "kind = 'event' OR kind = 'calendar'",
+      "write": true
+    },
+    { "kind": "kv" }
+  ],
+  "commands": [
+    {
+      "name": "import-ics",
+      "label": "Import .ics file",
+      "description": "Reads a .ics file and creates one node per VEVENT."
+    }
+  ],
+  "signature": "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+}

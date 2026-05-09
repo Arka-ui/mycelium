@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mycelium.invalid/schemas/plugin-manifest-1.0.json",
+  "title": "Mycelium Plugin Manifest",
+  "description": "Manifest accompanying every plugin. Distributed alongside the .wasm file. Signed by the author key.",
+  "type": "object",
+  "required": ["name", "version", "author", "wasm_hash", "capabilities", "signature"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{2,63}$",
+      "description": "Lowercase, kebab-or-underscore. Globally unique inside the community plugin index."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+      "description": "SemVer 2.0.0."
+    },
+    "display_name": { "type": "string", "maxLength": 80 },
+    "description": { "type": "string", "maxLength": 500 },
+    "homepage": { "type": "string", "format": "uri" },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier (or 'custom' with a license_url)."
+    },
+    "license_url": { "type": "string", "format": "uri" },
+
+    "author": {
+      "type": "object",
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9+/=]{43,44}$",
+          "description": "Ed25519 public key, base64-encoded."
+        }
+      }
+    },
+
+    "wasm_hash": {
+      "type": "string",
+      "pattern": "^blake3:[a-f0-9]{64}$",
+      "description": "BLAKE3 of the .wasm file. Verified at install."
+    },
+
+    "min_mycelium_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+
+    "wit_version": {
+      "type": "string",
+      "const": "0.1.0",
+      "description": "The WIT contract version this plugin targets. Must match proto/plugin.wit."
+    },
+
+    "capabilities": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["kind", "filter"],
+            "properties": {
+              "kind": { "const": "subgraph" },
+              "filter": {
+                "type": "string",
+                "description": "SurrealQL WHERE clause. The plugin sees only nodes matching this filter."
+              },
+              "write": {
+                "type": "boolean",
+                "default": false,
+                "description": "Grant write access in addition to read."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["kind", "events"],
+            "properties": {
+              "kind": { "const": "events" },
+              "events": {
+                "type": "array",
+                "items": {
+                  "enum": ["node-created", "node-changed", "node-deleted", "query-run"]
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "const": "kv" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["kind", "hosts"],
+            "properties": {
+              "kind": { "const": "http" },
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Hostname or wildcard pattern (e.g. *.example.com)."
+                }
+              },
+              "rate_limit_per_minute": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000,
+                "default": 60
+              }
+            }
+          }
+        ]
+      }
+    },
+
+    "commands": {
+      "type": "array",
+      "description": "Slash commands the plugin registers.",
+      "items": {
+        "type": "object",
+        "required": ["name", "label"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,30}$"
+          },
+          "label": { "type": "string", "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+
+    "block_kinds": {
+      "type": "array",
+      "description": "Custom block kinds rendered by this plugin.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "label"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,30}$"
+          },
+          "label": { "type": "string" }
+        }
+      }
+    },
+
+    "signature": {
+      "type": "string",
+      "pattern": "^ed25519:[A-Za-z0-9+/=]{86,88}$",
+      "description": "Ed25519 signature over the canonical JSON of every other field, by the author key."
+    }
+  }
+}

@@ -1,0 +1,72 @@
+; Mycelium Port Protocol — message envelopes
+;
+; CDDL (Concise Data Definition Language, RFC 8610) schema for messages
+; exchanged between the BEAM and a Rust sidecar over stdin/stdout.
+;
+; In M0 these envelopes are line-framed JSON (one envelope per line,
+; UTF-8, terminated by 0x0A). In M2 the same envelopes will be CBOR-
+; encoded, so this CDDL is the canonical schema today.
+;
+; Authoritative spec: docs/protocols/port.md
+
+start = port-message
+
+port-message = request / response / notification
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Request — BEAM -> sidecar with a response expected.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+request = {
+    id     : request-id,
+    method : tstr,
+    ? params : params-value
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Response — sidecar -> BEAM, in reply to a request with the same id.
+; Exactly one of `result` or `error` is present.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+response = success-response / error-response
+
+success-response = {
+    id     : request-id,
+    result : any
+}
+
+error-response = {
+    id    : request-id,
+    error : rpc-error
+}
+
+rpc-error = {
+    code    : int,
+    message : tstr,
+    ? data  : any
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Notification — either direction, no response expected. The `id` field
+; is absent (distinguishes notification from request).
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+notification = {
+    method : tstr,
+    ? params : params-value
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Common types
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+request-id   = uint / tstr
+params-value = { * tstr => any } / [ * any ]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Standard error codes
+;
+;     -32600  invalid request (envelope failed to decode)
+;     -32601  method not found
+;     -32602  invalid params
+;     -32603  internal error (sidecar bug)
+;     -32000  to -32099  reserved for sidecar-specific errors
+;
+; Sidecar-specific error codes are documented in docs/protocols/port.md.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

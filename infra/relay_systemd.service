@@ -1,0 +1,57 @@
+# Sample systemd unit for the Mycelium relay node (FR-DEPLOY-08).
+#
+# Install:
+#   sudo cp infra/relay_systemd.service /etc/systemd/system/mycelium-relay.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now mycelium-relay
+#
+# Per ../docs/SPECIFICATION.md C-06, the relay's resident memory must stay below
+# 100 MB at idle for one ring. The MemoryMax= directive enforces the cap.
+#
+# The relay is a single binary distributed as `mycelium-server-linux-x64`
+# and `mycelium-server-linux-arm64` (per FR-DEPLOY-03). M3 work.
+
+[Unit]
+Description=Mycelium relay node (store-and-forward buffer for ciphertext CRDT operations)
+Documentation=https://github.com/mycelium-app/mycelium/blob/main/docs/architecture/roadmap.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mycelium
+Group=mycelium
+ExecStart=/usr/bin/mycelium-server --config /etc/mycelium/relay.toml
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits (per C-06)
+MemoryMax=100M
+CPUQuota=50%
+
+# Filesystem isolation
+ReadWritePaths=/var/lib/mycelium
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+LockPersonality=true
+RestrictNamespaces=true
+RestrictRealtime=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Network: only what the relay needs
+RestrictAddressFamilies=AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=any   # M3: restrict to the user-configured peer DNS zone
+
+[Install]
+WantedBy=multi-user.target

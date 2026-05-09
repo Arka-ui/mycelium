@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mycelium.invalid/schemas/plugin-index-1.0.json",
+  "title": "Mycelium Plugin Community Index",
+  "description": "Curated registry of community plugins. Hosted as a static JSON file; updated via signed PR.",
+  "type": "object",
+  "required": ["index_version", "updated_at", "operator", "plugins"],
+  "additionalProperties": false,
+  "properties": {
+    "index_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "The schema version of this file."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the last index update."
+    },
+    "operator": {
+      "type": "object",
+      "required": ["name", "key", "signature"],
+      "properties": {
+        "name": { "type": "string" },
+        "key": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9+/=]{43,44}$",
+          "description": "The index operator's Ed25519 public key. Clients pin this key; index updates are rejected if signed by a different key."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9+/=]{86,88}$",
+          "description": "Ed25519 signature over the canonical JSON of every other field, by the operator key."
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/plugin_entry"
+      }
+    }
+  },
+  "$defs": {
+    "plugin_entry": {
+      "type": "object",
+      "required": ["name", "versions", "tags"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+        },
+        "display_name": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 500 },
+        "homepage": { "type": "string", "format": "uri" },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["renderer", "command", "import", "export", "automation", "developer", "productivity", "writing", "research"]
+          }
+        },
+        "category": {
+          "type": "string",
+          "enum": ["official", "community-trusted", "community", "experimental", "deprecated"]
+        },
+        "downloads_count": { "type": "integer", "minimum": 0 },
+        "rating": { "type": "number", "minimum": 0, "maximum": 5 },
+        "author": {
+          "type": "object",
+          "required": ["name", "key"],
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string", "format": "uri" },
+            "key": {
+              "type": "string",
+              "pattern": "^ed25519:[A-Za-z0-9+/=]{43,44}$"
+            },
+            "verified": {
+              "type": "boolean",
+              "description": "True if the operator has verified the author's identity (e.g. by domain ownership or social proof)."
+            }
+          }
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["version", "manifest_url", "wasm_url", "wasm_hash"],
+            "properties": {
+              "version": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+              },
+              "manifest_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL to download the signed manifest.json"
+              },
+              "wasm_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL to download the .wasm binary"
+              },
+              "wasm_hash": {
+                "type": "string",
+                "pattern": "^blake3:[a-f0-9]{64}$"
+              },
+              "released_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "min_mycelium_version": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+              },
+              "yanked": {
+                "type": "boolean",
+                "default": false,
+                "description": "If true, the version is removed from default search results but remains accessible by direct URL."
+              },
+              "yanked_reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,140 @@
+; Mycelium Wire Protocol — peer-to-peer message envelopes
+;
+; CDDL schema for messages exchanged between two devices in a ring over
+; QUIC streams (provided by Iroh). All envelopes are CBOR-encoded.
+;
+; Status: DRAFT — implementation is M1 work.
+;
+; Authoritative spec: docs/protocols/wire.md
+; Cryptographic model: MYCELIUM.md §11
+
+start = wire-message
+
+wire-message = handshake-msg / sync-msg / blob-msg / control-msg
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Phase 1 — Authentication handshake
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+handshake-msg = hello-msg / auth-challenge / auth-response
+
+hello-msg = {
+    type       : "hello",
+    protocol   : "mycelium-wire",
+    version    : uint,
+    node-id    : ed25519-pub,
+    ring-id    : ed25519-pub,
+    nonce      : bstr .size 32,
+    capabilities : [ * tstr ]   ; e.g. "snapshots", "blobs", "ops-v1"
+}
+
+auth-challenge = {
+    type      : "auth-challenge",
+    nonce     : bstr .size 32
+}
+
+auth-response = {
+    type            : "auth-response",
+    signature       : ed25519-sig,
+    member-cert     : member-certificate
+}
+
+member-certificate = {
+    device-pub      : ed25519-pub,
+    issued-at       : uint,         ; unix epoch seconds
+    issued-by       : ed25519-pub,  ; ring key
+    not-after       : uint,
+    cert-signature  : ed25519-sig   ; over the previous fields
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Phase 2 — Version vector exchange
+; Phase 3 — Operation transfer
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+sync-msg = vv-announce / op-batch / snapshot-offer / snapshot-chunk / ack
+
+vv-announce = {
+    type     : "vv-announce",
+    docs     : { * doc-id => version-vector }
+}
+
+version-vector = { * device-id => uint }   ; device-id is BLAKE3(node-pub) prefix
+
+op-batch = {
+    type      : "op-batch",
+    doc-id    : doc-id,
+    ops       : [ + encrypted-op ],
+    seq-from  : uint,
+    seq-to    : uint,
+    compressed : bool
+}
+
+encrypted-op = {
+    lamport      : uint,
+    author       : device-id,
+    dek-id       : uint,           ; ring data-encryption-key generation
+    ciphertext   : bstr            ; age-encrypted CRDT op
+}
+
+snapshot-offer = {
+    type      : "snapshot-offer",
+    doc-id    : doc-id,
+    snap-hash : blake3-hash,
+    size      : uint,
+    chunks    : uint
+}
+
+snapshot-chunk = {
+    type      : "snapshot-chunk",
+    doc-id    : doc-id,
+    snap-hash : blake3-hash,
+    index     : uint,
+    payload   : bstr
+}
+
+ack = {
+    type   : "ack",
+    doc-id : doc-id,
+    upto   : uint
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Blob (attachment) transfer — content-addressed
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+blob-msg = blob-request / blob-chunk
+
+blob-request = {
+    type      : "blob-request",
+    blob-hash : blake3-hash
+}
+
+blob-chunk = {
+    type      : "blob-chunk",
+    blob-hash : blake3-hash,
+    index     : uint,
+    last      : bool,
+    payload   : bstr
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Backpressure / control
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+control-msg = grant-credit / pause / resume / bye
+
+grant-credit = {
+    type    : "grant-credit",
+    credits : uint,
+    rtt-us  : uint
+}
+
+pause  = { type : "pause",  reason : tstr }
+resume = { type : "resume" }
+bye    = { type : "bye",    reason : tstr }
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Common types
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ed25519-pub  = bstr .size 32
+ed25519-sig  = bstr .size 64
+blake3-hash  = bstr .size 32
+device-id    = bstr .size 16    ; BLAKE3(node-pub) [0..16]
+doc-id       = tstr .size 26    ; ULID Crockford-base32

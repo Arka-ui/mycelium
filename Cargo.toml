@@ -1,0 +1,84 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/desktop",
+    "sidecars/surreal_port",
+    "sidecars/loro_port",
+    "sidecars/iroh_port",
+    "sidecars/fastembed_port",
+    "sidecars/wasmedge_port",
+    "sidecars/crypto_port",
+    "sidecars/port_codec",
+    "plugins/sdk",
+    "apps/relay",
+]
+
+[workspace.package]
+version = "0.1.0-m0"
+edition = "2021"
+rust-version = "1.78"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/mycelium-app/mycelium"
+authors = ["The Mycelium Authors"]
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.40", default-features = false }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Errors and logging
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Embedded SurrealDB (M0)
+surrealdb = { version = "2.1", default-features = false, features = ["kv-rocksdb"] }
+
+# CRDT (M1)
+# loro = "1.0"
+
+# P2P (M1)
+# iroh = "0.28"
+# iroh-blobs = "0.28"
+# iroh-net = "0.28"
+
+# Embeddings (M2)
+# fastembed = "4.0"
+
+# Plugin sandbox (M2)
+# wasmedge-sdk = "0.14"
+
+# Plugin SDK (host bindings)
+wit-bindgen = "0.36"
+
+# CBOR codec (port protocol M2+ encoding)
+ciborium = "0.2"
+
+# Tauri (desktop host)
+tauri = { version = "2.0", default-features = false }
+tauri-build = "2.0"
+
+# Windows-specific (named pipes)
+windows-sys = "0.59"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+
+# RocksDB / Tokio benefit from optimization even in dev builds.
+[profile.dev.package.surrealdb]
+opt-level = 2
+[profile.dev.package.tokio]
+opt-level = 2

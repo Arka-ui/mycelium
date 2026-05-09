@@ -1,0 +1,8 @@
+{
+  "_comment": "Recorded on Windows 11 / AMD64 dev machine. Authoritative numbers must be captured on the baseline (Apple M1, 16 GB) per E.6.",
+  "_recorded_at": "2026-05-09T00:00:00Z",
+  "_host": "windows-11-amd64-dev",
+  "bench_now_ms": 17,
+  "bench_json_encode": 0,
+  "bench_blake3": 0
+}

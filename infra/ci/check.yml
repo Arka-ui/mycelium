@@ -1,0 +1,187 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install LLVM (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install llvm --no-progress
+      - name: Install system deps (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libsoup-3.0-dev clang
+      - name: Format check
+        run: cargo fmt --all --check
+      - name: Build workspace
+        run: cargo build --workspace --release
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- --deny warnings
+      - name: Tests with coverage
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Cinstrument-coverage'
+          LLVM_PROFILE_FILE: 'target/coverage/cargo-test-%p-%m.profraw'
+        run: cargo test --workspace
+      - name: Coverage report
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install grcov --locked || true
+          grcov target/coverage --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info || true
+      - name: Coverage gate
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ -f lcov.info ]; then
+            covered=$(grep -c '^DA:.*,[1-9]' lcov.info || echo 0)
+            total=$(grep -c '^DA:' lcov.info || echo 1)
+            pct=$(( covered * 100 / total ))
+            echo "Coverage: $pct%"
+            if [ "$pct" -lt 75 ]; then
+              echo "Coverage $pct% < 75% threshold (NFR-MAINT-01)"
+              exit 1
+            fi
+          fi
+
+  gleam:
+    name: Gleam apps
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [core, cli, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27'
+          gleam-version: '1.16'
+          rebar3-version: '3.27'
+      - name: gleam format check
+        working-directory: apps/${{ matrix.app }}
+        run: gleam format --check
+      - name: gleam build
+        working-directory: apps/${{ matrix.app }}
+        run: gleam build
+      - name: gleam test
+        working-directory: apps/${{ matrix.app }}
+        run: gleam test
+
+  wasm-plugins:
+    name: Wasm reference plugins
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [translate, ical_import]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Build plugin
+        working-directory: plugins/examples/${{ matrix.plugin }}
+        run: cargo build --release --target wasm32-unknown-unknown
+      - name: Verify .wasm exists
+        run: |
+          test -f plugins/examples/${{ matrix.plugin }}/target/wasm32-unknown-unknown/release/*.wasm
+
+  protocol-schemas:
+    name: Protocol schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate JSON schemas
+        run: |
+          npm install --no-save ajv-cli ajv-formats
+          npx ajv compile -s plugins/manifest_schema.json
+          for m in plugins/examples/*/manifest.json; do
+            npx ajv validate -s plugins/manifest_schema.json -d "$m" || exit 1
+          done
+
+  vulnerability-scan:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit
+        run: cargo audit --deny warnings
+
+  requirements-gate:
+    name: Requirements traceability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run gate
+        run: python infra/ci/requirements_gate.py
+
+  perf-bench:
+    name: Performance benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run benches
+        run: cargo bench -p surreal_port -- 2>&1 | tee bench-output.txt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Perf gate
+        run: python infra/ci/perf_gate.py bench-output.txt
+
+  reproducibility:
+    name: Reproducible build (Nix)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+      - name: Build twice, compare hashes
+        run: |
+          nix build .#relay --out-link result-1 || true
+          nix build .#relay --out-link result-2 || true
+          if [ -e result-1 ] && [ -e result-2 ]; then
+            h1=$(sha256sum result-1/bin/mycelium-relay | cut -d' ' -f1)
+            h2=$(sha256sum result-2/bin/mycelium-relay | cut -d' ' -f1)
+            if [ "$h1" != "$h2" ]; then
+              echo "Reproducibility broken: $h1 != $h2"
+              exit 1
+            fi
+            echo "Hashes match: $h1"
+          fi

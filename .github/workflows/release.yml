@@ -22,16 +22,20 @@ jobs:
         include:
           - os: windows-latest
             artifact-glob: |
-              target/release/bundle/nsis/*
-              target/release/bundle/msi/*
+              target/release/bundle/nsis/*.exe
+              target/release/bundle/nsis/*.exe.sig
+              target/release/bundle/msi/*.msi
+              target/release/bundle/msi/*.msi.sig
           - os: macos-latest
             artifact-glob: |
-              target/release/bundle/dmg/*
-              target/release/bundle/macos/*
+              target/release/bundle/dmg/*.dmg
+              target/release/bundle/macos/*.app.tar.gz
+              target/release/bundle/macos/*.app.tar.gz.sig
           - os: ubuntu-latest
             artifact-glob: |
-              target/release/bundle/deb/*
-              target/release/bundle/appimage/*
+              target/release/bundle/deb/*.deb
+              target/release/bundle/appimage/*.AppImage
+              target/release/bundle/appimage/*.AppImage.sig
     steps:
       - uses: actions/checkout@v4
 

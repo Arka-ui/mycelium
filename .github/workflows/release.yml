@@ -45,12 +45,32 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --locked
 
-      - name: Build signed bundle
+      - name: Detect signing secrets
+        id: signing
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "Signing secrets present; will build signed updater bundle."
+            echo "have_signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY secret is not set. Building UNSIGNED bundle (no .sig produced; auto-update from this build will not verify)."
+            echo "have_signing=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed bundle (with updater artefacts)
+        if: steps.signing.outputs.have_signing == 'true'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         working-directory: apps/desktop
         run: cargo tauri build
+
+      - name: Build unsigned bundle (no signing key configured)
+        if: steps.signing.outputs.have_signing != 'true'
+        working-directory: apps/desktop
+        run: cargo tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload artefacts
         uses: actions/upload-artifact@v4

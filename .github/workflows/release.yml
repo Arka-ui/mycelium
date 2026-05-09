@@ -21,11 +21,17 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact-glob: 'target/release/bundle/{nsis,msi}/*'
+            artifact-glob: |
+              target/release/bundle/nsis/*
+              target/release/bundle/msi/*
           - os: macos-latest
-            artifact-glob: 'target/release/bundle/{dmg,macos}/*'
+            artifact-glob: |
+              target/release/bundle/dmg/*
+              target/release/bundle/macos/*
           - os: ubuntu-latest
-            artifact-glob: 'target/release/bundle/{deb,appimage}/*'
+            artifact-glob: |
+              target/release/bundle/deb/*
+              target/release/bundle/appimage/*
     steps:
       - uses: actions/checkout@v4
 
@@ -91,9 +97,11 @@ jobs:
           path: artifacts
       - name: Compute SHA-256 sums
         run: |
+          mkdir -p artifacts
           cd artifacts
           find . -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) -print0 \
-            | xargs -0 sha256sum > sha256sums.txt || true
+            | xargs -0 -r sha256sum > sha256sums.txt || true
+          ls -la
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:

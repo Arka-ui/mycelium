@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Inter, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0b0e"/>
+      <stop offset="0.5" stop-color="#0e0f12"/>
+      <stop offset="1" stop-color="#16181d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#7aa6ff" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#7aa6ff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#7aa6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="myc" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#9ec1ff"/>
+      <stop offset="1" stop-color="#5a86df"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="360" fill="url(#bg)"/>
+  <rect width="1280" height="360" fill="url(#glow)"/>
+
+  <!-- Mycelium "tendrils" pattern in background -->
+  <g stroke="#2a3038" stroke-width="0.7" fill="none" opacity="0.45">
+    <path d="M 0 180 Q 200 60, 400 180 T 800 180 T 1280 180"/>
+    <path d="M 0 200 Q 250 320, 500 200 T 1000 200 T 1280 200"/>
+    <path d="M 0 160 Q 180 100, 360 160 T 720 160 T 1080 160 T 1280 160"/>
+    <path d="M 100 80 L 200 130 L 280 95 L 360 140"/>
+    <path d="M 350 280 L 450 230 L 530 270 L 620 220"/>
+    <path d="M 850 100 L 920 145 L 990 95 L 1080 150"/>
+    <path d="M 800 290 L 880 240 L 960 285 L 1040 230"/>
+    <circle cx="200" cy="130" r="2" fill="#3a4048"/>
+    <circle cx="450" cy="230" r="2" fill="#3a4048"/>
+    <circle cx="920" cy="145" r="2" fill="#3a4048"/>
+    <circle cx="880" cy="240" r="2" fill="#3a4048"/>
+  </g>
+
+  <!-- Logo mark: stylised hyphal node -->
+  <g transform="translate(110, 180)">
+    <circle cx="0" cy="0" r="44" fill="url(#myc)" opacity="0.9"/>
+    <circle cx="0" cy="0" r="44" fill="none" stroke="#9ec1ff" stroke-opacity="0.4" stroke-width="1"/>
+    <g stroke="#0e0f12" stroke-width="2.5" fill="none" stroke-linecap="round">
+      <path d="M -22 -8 Q 0 -28, 22 -8"/>
+      <path d="M -22 8 Q 0 28, 22 8"/>
+      <path d="M -28 0 L 28 0"/>
+      <circle cx="-22" cy="-8" r="3.5" fill="#0e0f12"/>
+      <circle cx="22" cy="-8" r="3.5" fill="#0e0f12"/>
+      <circle cx="-22" cy="8" r="3.5" fill="#0e0f12"/>
+      <circle cx="22" cy="8" r="3.5" fill="#0e0f12"/>
+      <circle cx="-28" cy="0" r="3.5" fill="#0e0f12"/>
+      <circle cx="28" cy="0" r="3.5" fill="#0e0f12"/>
+    </g>
+  </g>
+
+  <!-- Wordmark + tagline -->
+  <g transform="translate(200, 0)">
+    <text x="0" y="160" fill="#e6e6e6" font-size="72" font-weight="700" letter-spacing="-1">Mycelium</text>
+    <text x="0" y="200" fill="#a8aab0" font-size="20" font-weight="400">Local-first &middot; end-to-end encrypted &middot; peer-to-peer</text>
+    <text x="0" y="226" fill="#6f7177" font-size="14">Notes, documents, tasks, links, semantic search &mdash; everything on your devices, nothing on our servers.</text>
+
+    <!-- pill row -->
+    <g transform="translate(0, 256)" font-size="11.5" font-weight="500">
+      <rect x="0" y="0" width="64" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="32" y="15" text-anchor="middle" fill="#7aa6ff">BEAM</text>
+      <rect x="72" y="0" width="62" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="103" y="15" text-anchor="middle" fill="#88c0d0">Rust</text>
+      <rect x="142" y="0" width="62" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="173" y="15" text-anchor="middle" fill="#88c0d0">Tauri</text>
+      <rect x="212" y="0" width="58" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="241" y="15" text-anchor="middle" fill="#a8aab0">Loro</text>
+      <rect x="278" y="0" width="58" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="307" y="15" text-anchor="middle" fill="#a8aab0">Iroh</text>
+      <rect x="344" y="0" width="106" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="397" y="15" text-anchor="middle" fill="#a8aab0">SurrealDB</text>
+      <rect x="458" y="0" width="84" height="22" rx="11" fill="#16181d" stroke="#2a3038"/>
+      <text x="500" y="15" text-anchor="middle" fill="#a8aab0">AGPL-3.0</text>
+    </g>
+  </g>
+</svg>

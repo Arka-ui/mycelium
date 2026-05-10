@@ -1,96 +1,128 @@
-# Mycelium
+<p align="center">
+  <img src="docs/screenshots/hero.svg" alt="Mycelium" width="100%">
+</p>
 
-[![ci](https://github.com/Arka-ui/mycelium/actions/workflows/ci.yml/badge.svg)](https://github.com/Arka-ui/mycelium/actions/workflows/ci.yml)
-[![security](https://github.com/Arka-ui/mycelium/actions/workflows/security.yml/badge.svg)](https://github.com/Arka-ui/mycelium/actions/workflows/security.yml)
-[![license: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![release](https://img.shields.io/github/v/release/Arka-ui/mycelium?include_prereleases)](https://github.com/Arka-ui/mycelium/releases)
+<p align="center">
+  <a href="https://github.com/Arka-ui/mycelium/actions/workflows/ci.yml"><img src="https://github.com/Arka-ui/mycelium/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/Arka-ui/mycelium/actions/workflows/security.yml"><img src="https://github.com/Arka-ui/mycelium/actions/workflows/security.yml/badge.svg" alt="security"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg" alt="license"></a>
+  <a href="https://github.com/Arka-ui/mycelium/releases"><img src="https://img.shields.io/github/v/release/Arka-ui/mycelium?include_prereleases&label=release" alt="release"></a>
+  <a href="https://github.com/Arka-ui/mycelium/releases/latest"><img src="https://img.shields.io/github/downloads/Arka-ui/mycelium/total?label=downloads" alt="downloads"></a>
+</p>
 
-> A local-first, end-to-end encrypted, peer-to-peer collaborative knowledge workspace with on-device semantic search.
-
-Mycelium is a single-binary application that gives you a personal knowledge workspace — notes, documents, tasks, links, attachments, and structured collections — that lives on your devices, syncs directly between them over the network without any central server, encrypts everything end-to-end, and lets you find anything by meaning rather than by keyword thanks to a language model running on your own machine.
-
-The cloud is optional. Two laptops sitting next to each other sync directly, peer to peer, over QUIC. An optional self-hosted relay can buffer ciphertext when no two devices are simultaneously online — but the system never trusts a third party with your content.
-
-The architecture, the rationale, and the protocols are documented in:
-
-- [`docs/MYCELIUM.md`](docs/MYCELIUM.md) — full technical architecture (stack, supervision tree, CRDT layer, P2P sync, crypto, search, plugins, performance budgets, threat model, roadmap).
-- [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) — formal Software Requirements Specification (functional + non-functional requirements, acceptance criteria, governance).
+> **Mycelium** is a local-first, end-to-end encrypted, peer-to-peer collaborative knowledge workspace. Notes, documents, tasks, links, attachments, and structured collections — running on your devices, syncing directly between them over QUIC, with semantic search powered by an on-device language model. The cloud is optional. The system never trusts a third party with your content.
 
 ---
 
-## Status
+## Download
 
-Mycelium is in early implementation. Milestone tracking:
-
-| Milestone | Scope | Status |
+| Platform | File | What you get |
 |---|---|---|
-| **M0 — Walking skeleton** | Single-node app: open, write, save notes locally. Embedded SurrealDB. Lustre block editor. Tauri wrapper. | In progress |
-| M1 — Local-first MVP | Loro CRDT integration. Two-node sync over Iroh on LAN. Device key in OS keychain. Ring + QR pairing. | Not started |
-| M2 — Search and plugins | fastembed-rs + on-device embeddings. Vector index. WasmEdge plugin sandbox. Three reference plugins. | Not started |
-| M3 — Production polish | macOS + Windows release builds. Self-hosted relay. DNS discovery. Op-log compaction. 24-hour soak test. | Not started |
-| M4 — 1.0 | External crypto audit. Documentation site. Plugin community index. Signed-delta auto-update. | Not started |
+| **Windows** | [`Mycelium_0.1.0_x64-setup.exe`](https://github.com/Arka-ui/mycelium/releases/latest/download/Mycelium_0.1.0_x64-setup.exe) (NSIS) or [`.msi`](https://github.com/Arka-ui/mycelium/releases/latest/download/Mycelium_0.1.0_x64_en-US.msi) (WiX) | 2.3 MB / 3.3 MB &middot; signed updater |
+| **macOS** | [`Mycelium_0.1.0_aarch64.dmg`](https://github.com/Arka-ui/mycelium/releases/latest/download/Mycelium_0.1.0_aarch64.dmg) | 3.1 MB &middot; Apple Silicon |
+| **Linux** | [`.deb`](https://github.com/Arka-ui/mycelium/releases/latest/download/Mycelium_0.1.0_amd64.deb) or [`.AppImage`](https://github.com/Arka-ui/mycelium/releases/latest/download/Mycelium_0.1.0_amd64.AppImage) | 3.2 MB / 74 MB |
+| **Self-hosted relay** (optional) | [`mycelium-relay.exe`](https://github.com/Arka-ui/mycelium/releases/latest/download/mycelium-relay.exe) | Headless ciphertext-buffering relay for VPS hosting |
 
-The full milestone breakdown lives in docs/MYCELIUM.md §23.
-
----
-
-## Stack
-
-The components and the rationale for each choice are in docs/MYCELIUM.md §5 and in `docs/architecture/adr-*.md`. Brief inventory:
-
-- **Gleam** on the **BEAM** — typed functional language compiled to Erlang bytecode; supervision trees + cheap processes.
-- **Lustre** — Gleam frontend framework (Elm-style MVU), running in server-component mode over WebSocket.
-- **Mist + Wisp** — HTTP/1.1 + WebSocket server and routing for Gleam.
-- **Loro** (Rust, M1+) — high-performance rich-text + tree CRDTs, hosted as a sidecar process.
-- **Iroh** (Rust, M1+) — QUIC P2P with NAT traversal and content-addressed blob transfer.
-- **SurrealDB** embedded — multi-model (document + graph + KV + vector) local store.
-- **fastembed-rs / Candle** (M2+) — on-device embedding model (`all-MiniLM-L6-v2`, INT8).
-- **WasmEdge** (M2+) — WebAssembly plugin sandbox with capability-based permissions.
-- **age + BLAKE3** — modern file encryption + content-addressable hashing.
-- **Tauri** — Rust desktop shell hosting the BEAM and the webview.
-- **Nix flakes** — reproducible builds (Linux/WSL).
+Verify with [`sha256sums.txt`](https://github.com/Arka-ui/mycelium/releases/latest/download/sha256sums.txt). Full install instructions: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
 ---
 
-## Repository layout
+## What it looks like
 
-```
-.
-├── docs/MYCELIUM.md, docs/SPECIFICATION.md   Canonical specs
-├── README.md, LICENSE, …           Project metadata
-├── flake.nix, justfile, Cargo.toml Build configuration
-├── apps/
-│   ├── core/         Gleam BEAM application
-│   ├── frontend/     Lustre UI compiled to JavaScript
-│   ├── cli/          Scripting CLI
-│   └── desktop/      Rust Tauri host
-├── sidecars/         Rust sidecars (one process per concern)
-├── plugins/          Plugin SDK + reference plugins
-├── proto/            Protocol contracts (CDDL, WIT, JSON-Schema)
-├── docs/             ADRs, protocol specs, threat model
-├── infra/            Nix builders, CI workflows, systemd units
-└── tests/            Property, integration, load
-```
-
-Section 18 of docs/MYCELIUM.md is authoritative.
+<table>
+  <tr>
+    <td><img src="docs/screenshots/01-empty-state.png" alt="Empty state"></td>
+    <td><img src="docs/screenshots/02-note-editor.png" alt="Note editor"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Welcome screen &middot; sidebar + shortcuts</sub></td>
+    <td align="center"><sub>Note editor &middot; auto-save 500&nbsp;ms debounce</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/03-settings-themes.png" alt="Settings — themes"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub>Settings → Themes &middot; built-ins + custom palette editor + JSON import/export</sub></td>
+  </tr>
+</table>
 
 ---
 
-## Development
+## Highlights
 
-See [`docs/SETUP.md`](docs/SETUP.md) for one-time toolchain installation (scoop + cargo).
+- **Local-first.** Notes live as JSON files in `%APPDATA%\Mycelium\notes\`. The app starts in under a second and works fully offline.
+- **End-to-end encrypted at rest** (beta.2): age + ChaCha20-Poly1305 keyed by an Ed25519 device key in the OS keychain.
+- **Peer-to-peer sync** (beta.2): two devices on the same LAN find each other via mDNS and sync directly over QUIC. Optional self-hosted relay buffers ciphertext when peers are offline.
+- **CRDT-backed real-time editing** (beta.2): Loro op log replicates between any pair of devices with strong eventual consistency.
+- **On-device semantic search** (beta.3): all-MiniLM-L6-v2 (INT8) runs via fastembed-rs; no query ever leaves your machine.
+- **Custom themes.** Ten-colour palette editor + radius/font controls + JSON import/export. Built-in dark / light / high-contrast.
+- **Plugin sandbox.** Drop-in JavaScript plugins run in Web Workers with no DOM, no network, no filesystem. Hooks: `note:created / opened / saved / deleted` plus user commands.
+- **Signed auto-updater.** Tauri-plugin-updater with minisign verification against the public key baked into your installed app.
 
-Once the toolchain is installed, from the repository root:
+---
+
+## Architecture
+
+<p align="center"><img src="docs/screenshots/architecture.svg" alt="Architecture diagram" width="100%"></p>
+
+Three layers, one process per concern:
+
+1. **Tauri shell** owns the desktop window and supervises the BEAM child.
+2. **BEAM core** (Gleam on Erlang/OTP 27) hosts the supervision tree, per-document actors, request routing, identity, and HTTP/WebSocket. Mist + Wisp serve the UI; Lustre runs server-component mode.
+3. **Rust sidecars** isolate every "scary" library (CRDT engine, P2P, embedded DB, crypto, embedding model, plugin sandbox) into its own OS process. They speak [a tiny port protocol](docs/protocols/port.md) over stdio so a crash never takes down the BEAM.
+
+The full rationale lives in [`docs/MYCELIUM.md`](docs/MYCELIUM.md). Each major decision has a numbered ADR in [`docs/architecture/`](docs/architecture/).
+
+---
+
+## Roadmap
+
+| Milestone | Status | Scope |
+|---|---|---|
+| **M0 — Walking skeleton** | beta.1 (current) | Single-device app: notes CRUD, themes, plugins, signed installer, in-app updater. |
+| M1 — Local-first MVP | next | Loro CRDTs wired up; two-node sync over Iroh on LAN; Ed25519 device key in OS keychain; SPAKE2 pairing. |
+| M2 — Search & plugins | | fastembed-rs + on-device embeddings; SurrealDB vector index; Wasmtime plugin sandbox; three reference plugins. |
+| M3 — Production polish | | Reproducible Nix builds; signed-delta updater; 24-hour soak test green; full cross-OS CI matrix. |
+| M4 — 1.0 | | External cryptography audit; documentation site; plugin community index. |
+
+Full milestone breakdown: [`docs/MYCELIUM.md` §23](docs/MYCELIUM.md).
+
+---
+
+## Build from source
+
+You only need to do this if you want to hack on the code. End users can skip straight to the [Download](#download) section above.
 
 ```powershell
-just install-deps   # verify toolchain versions
-just build          # build sidecars, frontend, core, desktop
-just dev            # start the app with hot-reload
-just test           # run all tests
-just fmt            # format Gleam + Rust
+# Windows (PowerShell, no admin required)
+scoop install erlang gleam just rebar3 llvm
+cargo install tauri-cli --locked
+
+git clone https://github.com/Arka-ui/mycelium
+cd mycelium
+just build
+just dev
 ```
 
-The `justfile` is PowerShell-aware on Windows; the same recipes work in bash on Linux/macOS.
+Linux/macOS use the same `just` recipes (and a Nix flake stub at the repo root). The full toolchain walkthrough — including `LIBCLANG_PATH`, MSVC build tools, and Windows Developer Mode — is in [`docs/SETUP.md`](docs/SETUP.md).
+
+---
+
+## Contributing
+
+```bash
+gh issue list                                    # see what is open
+gh issue create --template feature_request       # propose something small
+gh issue create --template rfc                   # propose an architectural change
+```
+
+Read [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) and [`.github/CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md) before your first PR. Architectural changes go through the RFC issue template and land as a numbered ADR in [`docs/architecture/`](docs/architecture/). Anything touching `sidecars/loro_port`, `sidecars/iroh_port`, `sidecars/crypto_port`, `sidecars/wasmedge_port`, or `apps/core/src/mycelium/{crypto,identity,network,sync,storage/at_rest}` requires two-maintainer review per the [`CODEOWNERS`](.github/CODEOWNERS) file.
+
+---
+
+## Releases
+
+Tagged versions on `main` trigger [`release.yml`](.github/workflows/release.yml) which builds + signs the bundles for all three OSes in parallel and uploads them to the GitHub Release. See [`CHANGELOG.md`](CHANGELOG.md) for the version-by-version log and [`docs/SECRETS.md`](docs/SECRETS.md) for the one-time signing-secret config (without it, the release workflow falls back to unsigned builds).
 
 ---
 
@@ -102,19 +134,20 @@ The `justfile` is PowerShell-aware on Windows; the same recipes work in bash on 
 | [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) | Formal SRS (requirements + acceptance criteria) |
 | [`docs/INSTALLATION.md`](docs/INSTALLATION.md) | End-user install (download a release) |
 | [`docs/SETUP.md`](docs/SETUP.md) | Toolchain install for contributors building from source |
-| [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) | Contribution workflow |
-| [`.github/SUPPORT.md`](.github/SUPPORT.md) | Where to ask questions, file bugs, propose RFCs |
-| [`.github/SECURITY.md`](.github/SECURITY.md) | Vulnerability disclosure policy |
-| [`.github/CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md) | Contributor Covenant 2.1 |
-| [`docs/architecture/`](docs/architecture/) | Architecture Decision Records |
-| [`docs/protocols/port.md`](docs/protocols/port.md) | Port-protocol spec (BEAM ↔ sidecars) |
-| [`docs/protocols/wire.md`](docs/protocols/wire.md) | Peer wire-protocol spec (M1 draft) |
+| [`docs/SECRETS.md`](docs/SECRETS.md) | Configuring the CI signing secrets |
+| [`docs/architecture/`](docs/architecture/) | Architecture Decision Records (13 ADRs) |
+| [`docs/protocols/port.md`](docs/protocols/port.md) | Port protocol (BEAM ↔ sidecars) |
+| [`docs/protocols/wire.md`](docs/protocols/wire.md) | Peer wire protocol (M1 draft) |
 | [`docs/plugins/contract.md`](docs/plugins/contract.md) | Plugin contract |
 | [`docs/plugins/sdk.md`](docs/plugins/sdk.md) | Plugin SDK reference |
 | [`docs/threat_model.md`](docs/threat_model.md) | Threat model |
+| [`docs/MAINTAINERS.md`](docs/MAINTAINERS.md) | Governance + maintainer roster |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
+| [`.github/SUPPORT.md`](.github/SUPPORT.md) | Where to ask questions, file bugs, propose RFCs |
+| [`.github/SECURITY.md`](.github/SECURITY.md) | Vulnerability disclosure policy |
 
 ---
 
 ## License
 
-The application source is licensed under [**AGPL-3.0-or-later**](LICENSE). The plugin SDK is **MIT** (so plugins may be closed-source). The protocol specifications and other documentation are **CC-BY-4.0**. See [`docs/LICENSES.md`](docs/LICENSES.md) for the full third-party inventory.
+The application source is licensed under [**AGPL-3.0-or-later**](LICENSE). The plugin SDK is **MIT** so plugins may be closed-source. Protocol specifications, ADRs, and threat model are **CC-BY-4.0**. Full third-party inventory: [`docs/LICENSES.md`](docs/LICENSES.md).

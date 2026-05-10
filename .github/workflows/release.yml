@@ -107,16 +107,25 @@ jobs:
             | xargs -0 -r sha256sum > sha256sums.txt || true
           ls -la
 
-      - name: Delete previous release assets (keep release notes)
+      - name: Delete previous release bundle assets (preserve docs + relay)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG='${{ github.event.inputs.tag || github.ref_name }}'
+          # Patterns to delete: only files this matrix re-builds.
+          # Anything else (mycelium-relay.exe, INSTALLATION.md, README, CHANGELOG, ...) is preserved.
           if gh release view "$TAG" --json assets --jq '.assets[].name' > /tmp/existing 2>/dev/null; then
             while IFS= read -r asset; do
               [ -z "$asset" ] && continue
-              echo "Deleting prior asset: $asset"
-              gh release delete-asset "$TAG" "$asset" --yes || true
+              case "$asset" in
+                Mycelium_*.exe|Mycelium_*.exe.sig|Mycelium_*.msi|Mycelium_*.msi.sig|Mycelium_*.dmg|Mycelium_*.dmg.sig|Mycelium_*.app.tar.gz|Mycelium_*.app.tar.gz.sig|Mycelium_*.deb|Mycelium_*.deb.sig|Mycelium_*.AppImage|Mycelium_*.AppImage.sig|sha256sums.txt)
+                  echo "Deleting prior asset: $asset"
+                  gh release delete-asset "$TAG" "$asset" --yes || true
+                  ;;
+                *)
+                  echo "Preserving: $asset"
+                  ;;
+              esac
             done < /tmp/existing
           fi
       - name: Create / update GitHub Release

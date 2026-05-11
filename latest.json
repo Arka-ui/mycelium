@@ -1,16 +1,16 @@
 {
-  "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated alongside each tagged release. The signature field carries a minisign signature of the corresponding installer; the matching public key is baked into apps/desktop/tauri.conf.json under plugins.updater.pubkey.",
-  "version": "0.3.0",
-  "notes": "Mycelium v0.3.0-beta.1 — daily-driver polish: task lists with click-to-toggle, tables, outline panel, daily notes (Ctrl+D), templates, duplicate, right-click context menu. See https://github.com/Arka-ui/mycelium/releases/tag/v0.3.0-beta.1 for full notes.",
-  "pub_date": "2026-05-11T21:00:00Z",
+  "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated alongside each tagged release.",
+  "version": "0.4.0",
+  "notes": "Mycelium v0.4.0-beta.1 — capture + safety: drag-drop attachments, automatic note history with restore, workspace backup & restore, saved searches. See https://github.com/Arka-ui/mycelium/releases/tag/v0.4.0-beta.1 for full notes.",
+  "pub_date": "2026-05-12T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WURLM3dBakxvV0Y4RWZjTUVqcGk1NGd6K2VPOVdHeTU4NzAvMk9IQUczS2srK2poNnBqMzA2MWdRNDlqSlVDQ09Gb1BRWnNwRlltcGozRTJIYjd5SEFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTI2MzcyCWZpbGU6TXljZWxpdW1fMC4zLjBfeDY0LXNldHVwLmV4ZQozYTRicU9hbCtWczB0cUF4bXBGb0xxZ1V2eWVhNmZZelkzTjhBQTVaYWZrakU5OElpdzFmd25LQktsSEhsakJoOWoyK0U1UERDU3QrY2pSWFNTYXlDUT09Cg==",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.3.0-beta.1/Mycelium_0.3.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WVBVenFPYzdMMlk2MXRiSE84OG5xVFFKdi8vTVNYM25rR3Q0MWZ4blkvZWx3Y3JVNmNWbkdSaGRxdVZZL29idzNsWjNNc2d6THVhcUd0b24vQ0ZuVHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTM5OTUyCWZpbGU6TXljZWxpdW1fMC40LjBfeDY0LXNldHVwLmV4ZQpwa2UvZkFkUzNkeExqSVlxUnJ6a1hKNGJJZG1pL3RIZHZGOHl1dk03elpHQlh3NnpJbHFDQlNwYm11REVtbS83YXFCVGdDbG9FemZCR29QRSsvZ01Cdz09Cg==",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.4.0-beta.1/Mycelium_0.4.0_x64-setup.exe"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUwzUXBveGt1bjdWODBIUUlQWVN4YXFiY2RrL3ZyRTk4eGNLakdDVThDNXFRNVhRTk1veUlwdi9LV3lZQ2UrelFtTDdreUhMK09PMXA2aVRWRENsRXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTI2MDM1CWZpbGU6TXljZWxpdW1fMC4zLjBfYW1kNjQuQXBwSW1hZ2UKQktpTHV5QlVjTzR4U2NWRWNUOHhMVXJVbmMvRy9TeURZMXQxR0huNkpUeUpUWDBVUXJHV0hFTk1Bd2VHSU5zMFpjbm0rRnZoT1FxRW5KUmp5NWtTQ2c9PQo=",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.3.0-beta.1/Mycelium_0.3.0_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUdSZDNKRGpYVnV3dGhkSThmTVg3YldGUnNsdmlQZVpQc3JpVGw4UmduSVNrYmRkdUdveWxoZGY5VXk1R1M4d3R2NnVmdzJPNkEzeC9nZVZGNzhUMGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTM5NjI1CWZpbGU6TXljZWxpdW1fMC40LjBfYW1kNjQuQXBwSW1hZ2UKZDZVUngzMWVOS0xja0RmZzlkRjkvWGl5bkVTcUF5MjBkM3ZpblBLR0VmMnptWGVFSlVzb0gybWtqd1A1N21qNmpmQlBIRjRoblJTdjNWWFJRRE42REE9PQo=",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.4.0-beta.1/Mycelium_0.4.0_amd64.AppImage"
     }
   }
 }

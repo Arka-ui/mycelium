@@ -36,6 +36,9 @@ const els = {};
   'note-list','search','new-note','theme-btn','settings-btn','cmd-btn','empty-state','editor','title','body','meta','save-state','delete-btn','pin-btn','preview-btn','export-btn','status','version',
   'preview','tag-bar','view-all','view-trash','trash-pane','trash-list','empty-trash-btn',
   'outline-panel','outline-list','outline-btn','new-from-template','template-list','save-template-btn','template-menu','ctx-menu',
+  'history-btn','history-modal','hm-close','history-list','hm-purge-btn',
+  'attach-btn','attach-input','export-workspace-btn','import-workspace-btn',
+  'saved-searches','save-search-btn',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -229,6 +232,7 @@ async function flushSave() {
     refreshOutline();
     if (state.preview) renderPreview();
     await loadNotes();
+    maybeSnapshot();
     emitToPlugins('note:saved', cloneNote(note));
   } catch (e) { els.saveState.textContent = 'save failed'; setStatus('save failed: ' + e); }
 }
@@ -477,10 +481,178 @@ async function loadSettings() {
     if (!state.settings.enabled_plugins) state.settings.enabled_plugins = [];
     if (state.settings.default_preview === undefined) state.settings.default_preview = false;
     if (state.settings.show_backlinks === undefined) state.settings.show_backlinks = true;
+    if (!state.settings.saved_searches) state.settings.saved_searches = [];
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
+    renderSavedSearches();
   } catch (e) { console.error(e); }
+}
+
+function renderSavedSearches() {
+  const list = state.settings.saved_searches || [];
+  if (!list.length) { els.savedSearches.classList.add('hidden'); els.savedSearches.innerHTML = ''; return; }
+  els.savedSearches.classList.remove('hidden');
+  els.savedSearches.innerHTML = '';
+  const lab = document.createElement('div'); lab.className = 'ss-label'; lab.textContent = 'Saved searches';
+  els.savedSearches.appendChild(lab);
+  for (const s of list) {
+    const row = document.createElement('div'); row.className = 'ss-row';
+    const btnUse = document.createElement('button'); btnUse.className = 'ss-use'; btnUse.textContent = s.name;
+    btnUse.title = s.query;
+    btnUse.addEventListener('click', () => { els.search.value = s.query; state.query = s.query; loadNotes(); });
+    const btnDel = document.createElement('button'); btnDel.className = 'ss-del'; btnDel.textContent = '×'; btnDel.title = 'Delete';
+    btnDel.addEventListener('click', async () => {
+      state.settings.saved_searches = state.settings.saved_searches.filter(x => x.name !== s.name);
+      await saveSettings(); renderSavedSearches();
+    });
+    row.appendChild(btnUse); row.appendChild(btnDel);
+    els.savedSearches.appendChild(row);
+  }
+}
+
+async function saveCurrentSearch() {
+  const q = state.query.trim();
+  if (!q) { alert('Type something in the search box first.'); return; }
+  const name = prompt('Name for this saved search:', q);
+  if (!name) return;
+  state.settings.saved_searches = (state.settings.saved_searches || []).filter(s => s.name !== name);
+  state.settings.saved_searches.push({ name, query: q });
+  await saveSettings(); renderSavedSearches();
+}
+
+async function openHistory() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  els.historyModal.classList.remove('hidden');
+  await refreshHistoryList();
+}
+function closeHistory() { els.historyModal.classList.add('hidden'); }
+
+async function refreshHistoryList() {
+  els.historyList.innerHTML = '';
+  try {
+    const items = await invoke('list_history', { id: state.activeId });
+    if (!items.length) {
+      const li = document.createElement('li');
+      li.style.color = 'var(--text-3)'; li.style.fontSize = '12.5px'; li.style.padding = '8px 0';
+      li.textContent = 'No history yet. Snapshots are written on every save (with a 10-second cooldown).';
+      els.historyList.appendChild(li);
+      return;
+    }
+    for (const it of items) {
+      const li = document.createElement('li');
+      const main = document.createElement('div'); main.className = 'row-main';
+      const name = document.createElement('div'); name.className = 'row-name';
+      name.textContent = it.title || 'Untitled';
+      const sub = document.createElement('div'); sub.className = 'row-sub';
+      const d = new Date(it.timestamp);
+      sub.textContent = `${d.toLocaleString()} · ${it.chars} chars · ${(it.body_preview || '').replace(/\n/g, ' ')}`;
+      main.appendChild(name); main.appendChild(sub);
+      const actions = document.createElement('div'); actions.className = 'row-actions';
+      actions.appendChild(btn('ghost-btn', 'Preview', () => { alert((it.body_preview || '').slice(0, 400) + (it.body_preview && it.body_preview.length > 400 ? '…' : '')); }));
+      actions.appendChild(btn('primary-btn small', 'Restore', async () => {
+        if (!confirm('Restore this snapshot? The current note state is automatically saved as a snapshot first.')) return;
+        await invoke('snapshot_note', { id: state.activeId });
+        const stamp = formatHistoryStamp(it.timestamp);
+        await invoke('restore_history', { id: state.activeId, timestamp: stamp });
+        closeHistory();
+        await loadNotes(); openNote(state.activeId);
+      }));
+      li.appendChild(main); li.appendChild(actions);
+      els.historyList.appendChild(li);
+    }
+  } catch (e) { console.error(e); }
+}
+
+function formatHistoryStamp(iso) {
+  const d = new Date(iso);
+  const pad = (n, w) => String(n).padStart(w || 2, '0');
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}${pad(d.getUTCMilliseconds(), 3)}`;
+}
+
+async function purgeHistoryActive() {
+  if (!state.activeId) return;
+  if (!confirm('Permanently delete all history for this note?')) return;
+  try { const n = await invoke('purge_history', { id: state.activeId }); alert(`Purged ${n} snapshot(s).`); refreshHistoryList(); }
+  catch (e) { alert('Purge failed: ' + e); }
+}
+
+let _lastSnapshot = 0;
+async function maybeSnapshot() {
+  if (!state.activeId) return;
+  const now = Date.now();
+  if (now - _lastSnapshot < 10000) return;
+  _lastSnapshot = now;
+  try { await invoke('snapshot_note', { id: state.activeId }); } catch (e) { /* silent */ }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function attachFile(file) {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (file.size > 5 * 1024 * 1024) { alert('Attachments are limited to 5 MB in beta.4. (Larger attachments need a separate-file storage scheme — coming in beta.5.)'); return; }
+  const mime = file.type || 'application/octet-stream';
+  const isImage = mime.startsWith('image/');
+  try {
+    const base64 = await readFileAsBase64(file);
+    const url = await invoke('attachment_data_url', { content: base64, mime });
+    const name = file.name || 'attachment';
+    const md = isImage ? `\n\n![${name}](${url})\n\n` : `\n\n[${name}](${url})\n\n`;
+    insertAtCursor(els.body, md);
+    scheduleSave();
+  } catch (e) { alert('Attach failed: ' + e); }
+}
+
+function insertAtCursor(textarea, text) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  textarea.value = before + text + after;
+  const pos = start + text.length;
+  textarea.selectionStart = textarea.selectionEnd = pos;
+  textarea.focus();
+}
+
+async function pickAttachment() {
+  els.attachInput.value = '';
+  els.attachInput.accept = '*/*';
+  els.attachInput.onchange = async () => {
+    const f = els.attachInput.files && els.attachInput.files[0];
+    if (f) await attachFile(f);
+  };
+  els.attachInput.click();
+}
+
+async function exportWorkspace() {
+  try {
+    const bundle = await invoke('export_workspace');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadJson(`mycelium-workspace-${stamp}.json`, bundle);
+    alert('Workspace exported. Keep this file safe.');
+  } catch (e) { alert('Export failed: ' + e); }
+}
+
+async function importWorkspace() {
+  const r = await pickFile('.json'); if (!r || !r.json) return;
+  if (r.json.format !== 'mycelium-workspace-v1') { alert('Not a Mycelium workspace bundle.'); return; }
+  const overwrite = confirm('Overwrite notes that already exist with the same ID?\n\nOK = overwrite, Cancel = keep existing copies.');
+  try {
+    const summary = await invoke('import_workspace', { bundle: r.json, overwrite });
+    alert(`Restored. Notes: ${summary.notes_imported} imported, ${summary.notes_skipped} skipped. Themes: ${summary.themes_imported}. Templates: ${summary.templates_imported}.`);
+    await loadThemes(); await loadTemplates(); await loadNotes(); await loadSettings();
+  } catch (e) { alert('Restore failed: ' + e); }
 }
 
 async function saveSettings() {
@@ -976,9 +1148,11 @@ els.title.addEventListener('input', scheduleSave);
 els.body.addEventListener('input', scheduleSave);
 els.search.addEventListener('input', () => {
   state.query = els.search.value;
+  els.saveSearchBtn.hidden = !state.query.trim();
   clearTimeout(els._searchTimer);
   els._searchTimer = setTimeout(loadNotes, 150);
 });
+els.saveSearchBtn.addEventListener('click', saveCurrentSearch);
 els.settingsBtn.addEventListener('click', () => openSettings('general'));
 els.modalClose.addEventListener('click', closeSettings);
 els.modalBackdrop.addEventListener('click', (e) => { if (e.target === els.modalBackdrop) closeSettings(); });
@@ -1032,6 +1206,33 @@ els.noteList.addEventListener('contextmenu', (e) => {
 document.addEventListener('click', (e) => {
   if (!els.ctxMenu.classList.contains('hidden') && !els.ctxMenu.contains(e.target)) hideMenus();
   if (!els.templateMenu.classList.contains('hidden') && !els.templateMenu.contains(e.target) && e.target !== els.newFromTemplate) hideMenus();
+});
+
+els.historyBtn.addEventListener('click', openHistory);
+els.hmClose.addEventListener('click', closeHistory);
+els.historyModal.addEventListener('click', (e) => { if (e.target === els.historyModal) closeHistory(); });
+els.hmPurgeBtn.addEventListener('click', purgeHistoryActive);
+els.attachBtn.addEventListener('click', pickAttachment);
+els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
+els.importWorkspaceBtn.addEventListener('click', importWorkspace);
+
+els.body.addEventListener('paste', async (e) => {
+  if (!e.clipboardData) return;
+  const items = Array.from(e.clipboardData.items || []);
+  for (const it of items) {
+    if (it.kind === 'file') {
+      const f = it.getAsFile();
+      if (f) { e.preventDefault(); await attachFile(f); return; }
+    }
+  }
+});
+els.body.addEventListener('dragover', (e) => { e.preventDefault(); els.body.classList.add('drop-target'); });
+els.body.addEventListener('dragleave', () => els.body.classList.remove('drop-target'));
+els.body.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  els.body.classList.remove('drop-target');
+  const files = Array.from(e.dataTransfer.files || []);
+  for (const f of files) await attachFile(f);
 });
 
 window.addEventListener('beforeunload', () => {

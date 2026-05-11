@@ -1,35 +1,76 @@
 # Audit ignores rationale
 
-`.cargo/audit.toml` ignores 37 RUSTSEC advisories at the M0 milestone. Every entry is in a transitive dependency of a **stub sidecar** that returns `Error(NotImplemented)` for every call in M0. The vulnerable code paths are not invoked by the application until the sidecar is wired up at the milestone listed below.
+`.cargo/audit.toml` ignores 23 RUSTSEC advisories (down from 37 after the wasmtime 26 → 36 upgrade in PR #7). Every entry is in a transitive dependency we do not call directly. The vulnerable code paths are not invoked by the desktop binary or the headless relay today.
 
-## Affected sidecars (all stubs in M0)
+## Categories
 
-| Sidecar | Real status | Wired at |
-|---|---|---|
-| `sidecars/wasmedge_port` | Wasmtime 26 host stub. Returns `NotImplemented` for every method. | M2 (plugin sandbox) |
-| `sidecars/iroh_port` | Iroh 0.92 stub. Returns `NotImplemented` for every method. | M1 (P2P sync) |
-| `sidecars/loro_port` | Loro stub. Returns `NotImplemented` for every method. | M1 (CRDT) |
+### Vulnerabilities (2)
 
-## Advisory map
-
-| Advisory | Crate | Source path | Resolution plan |
+| ID | Crate | Source path | Resolution plan |
 |---|---|---|---|
-| RUSTSEC-2026-0002 | `lru 0.13.0` | `iroh -> pkarr -> lru` | Resolved by upstream `iroh` bump (M1). |
-| RUSTSEC-2026-0118, RUSTSEC-2026-0119 | `hickory-proto 0.25.2` | `iroh-relay -> hickory` | Resolved by `iroh` 0.93+ (M1). |
-| RUSTSEC-2026-0020, 0021, 0085–0096, 0118 | `wasmtime 26.0.1` | `wasmedge_port` direct dep | Bump to `wasmtime 37+` when the sandbox is implemented (M2). |
-| RUSTSEC-2025-0046, 0075, 0080, 0081, 0098, 0100, 0118, 0119, 0141 | `wasmtime` and its component-model deps (`wasmtime-cranelift`, `wasmtime-environ`, `wasmtime-runtime`, `wasmtime-wasi`) | `wasmedge_port` direct + transitive | Same as above. |
-| RUSTSEC-2024-0370, 0384, 0411, 0412, 0413, 0415, 0416, 0418, 0419, 0420, 0429, 0436 | `wasmtime` family | `wasmedge_port` | Same as above. |
-| RUSTSEC-2023-0089 | `actix-web` (transitive) | likely via `iroh-relay` | Re-evaluate at M1 dep refresh. |
+| RUSTSEC-2026-0118 | `hickory-proto` | `iroh-relay → hickory-proto` (M0 stub) | Resolved when `iroh` 0.93+ pulls a patched `hickory`. Tracked in [#1](../../issues/1). |
+| RUSTSEC-2026-0119 | `hickory-proto` | same | same |
+
+`iroh_port` is an M0 stub that returns `NotImplemented` for every call; the DNS code path is not reached.
+
+### Unsound (2)
+
+| ID | Crate | Source path | Notes |
+|---|---|---|---|
+| RUSTSEC-2024-0429 | `glib 0.18` | Tauri Linux backend (`gtk` 0.18 chain) | Will clear when Tauri ships a `gtk4` backend (planned upstream). |
+| RUSTSEC-2026-0002 | `lru 0.13` | `iroh → pkarr → lru` | Resolved by `iroh` upgrade. Tracked in [#1](../../issues/1). |
+
+### Unmaintained — Tauri Linux GTK 3 chain (10)
+
+These are the GTK 3 stack that Tauri uses on Linux. They are flagged unmaintained because GTK 4 is the upstream successor; Tauri's GTK 4 backend is on its roadmap. Until then there is no actionable fix and no exploitable surface that Mycelium reaches directly.
+
+| ID | Crate |
+|---|---|
+| RUSTSEC-2024-0411 | `gdkwayland-sys` |
+| RUSTSEC-2024-0412 | `gdk` |
+| RUSTSEC-2024-0413 | `atk` |
+| RUSTSEC-2024-0415 | `gtk` |
+| RUSTSEC-2024-0416 | `atk-sys` |
+| RUSTSEC-2024-0418 | `gdk-sys` |
+| RUSTSEC-2024-0419 | `gtk3-macros` |
+| RUSTSEC-2024-0420 | `gtk-sys` |
+| RUSTSEC-2024-0436 | `paste` |
+| RUSTSEC-2024-0429 | `glib` (also unsound, listed above) |
+
+### Unmaintained — small ecosystem warnings (9)
+
+Transitive crates flagged unmaintained, no security impact, no actionable fix without ecosystem-wide migration:
+
+| ID | Crate | Used by |
+|---|---|---|
+| RUSTSEC-2023-0089 | `atomic-polyfill` | older mio chain |
+| RUSTSEC-2024-0370 | `proc-macro-error` | macro infrastructure (transitive) |
+| RUSTSEC-2024-0384 | `instant` | superseded by `web-time`; tauri/serde transitives |
+| RUSTSEC-2025-0075 | `unic-char-range` | unicode tables (transitive) |
+| RUSTSEC-2025-0080 | `unic-common` | same |
+| RUSTSEC-2025-0081 | `unic-char-property` | same |
+| RUSTSEC-2025-0098 | `unic-ucd-version` | same |
+| RUSTSEC-2025-0100 | `unic-ucd-ident` | same |
+| RUSTSEC-2025-0119 | `number_prefix` | logging crate transitive |
+| RUSTSEC-2025-0141 | `bincode` | serialisation transitive |
+
+## Cleared in this revision
+
+The wasmtime upgrade (PR #7) plus the wasmtime-wasi follow-up cleared **14 advisories** from the previous list:
+
+- Wasmtime cluster: RUSTSEC-2026-0020, 0021, 0085, 0086, 0087, 0088, 0089, 0091, 0092, 0093, 0094, 0095, 0096, RUSTSEC-2025-0046, 0118 (15 IDs).
+
+That makes [#2](../../issues/2) (M2 wasmtime advisory cleanup) **fully resolved**.
 
 ## Discharge plan
 
-- **M1 entry criteria** include: `iroh` and `loro` deps refreshed; transitive `lru` and `hickory` advisories cleared. The corresponding lines below are deleted from `audit.toml` at that point.
-- **M2 entry criteria** include: `wasmtime` bumped to a version with no open advisories; the entire wasmtime cluster cleared from `audit.toml`.
-- The CI security workflow runs `cargo audit` weekly on `main` and on every PR; once an advisory is no longer surfaced, its line in `audit.toml` should be deleted in the same PR.
+- **#1 (M1 deps)**: when `iroh` is bumped to a release that pulls patched `hickory-proto` and `lru`, delete the corresponding lines from `audit.toml`.
+- **GTK 3 chain**: track Tauri upstream for the GTK 4 backend; remove en masse when it lands.
+- **Small ecosystem warnings**: re-evaluate annually; many of these have community successor crates that the wider Rust ecosystem will adopt over time.
 
 ## Why ignore rather than continue-on-error
 
-Tracking individual advisory IDs forces an explicit decision per CVE. Setting `continue-on-error: true` on the whole job would silently swallow real future vulnerabilities in code paths we *do* exercise (the desktop binary, surreal_port, crypto_port). The ignore list keeps the signal sharp.
+Tracking individual advisory IDs forces an explicit decision per CVE. `continue-on-error: true` on the whole job would silently swallow real future vulnerabilities in code paths we *do* exercise (the desktop binary, surreal_port, crypto_port). The ignore list keeps the signal sharp.
 
 ## Reviewer checklist when adding to this list
 

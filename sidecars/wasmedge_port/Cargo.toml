@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 wasmtime = { version = "36", default-features = false, features = ["cranelift", "runtime", "wat"] }
-wasmtime-wasi = { version = "26", default-features = false }
+wasmtime-wasi = { version = "36", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }

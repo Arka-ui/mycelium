@@ -35,6 +35,7 @@ const els = {};
 [
   'note-list','search','new-note','theme-btn','settings-btn','cmd-btn','empty-state','editor','title','body','meta','save-state','delete-btn','pin-btn','preview-btn','export-btn','status','version',
   'preview','tag-bar','view-all','view-trash','trash-pane','trash-list','empty-trash-btn',
+  'outline-panel','outline-list','outline-btn','new-from-template','template-list','save-template-btn','template-menu','ctx-menu',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -49,6 +50,7 @@ function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); 
 const state = {
   notes: [], activeId: null, active: null, pendingTimer: null,
   query: '', activeTag: null, view: 'all', preview: false,
+  outlineOpen: false, templates: [],
   themes: [], activeThemeId: 'dark', editingTheme: null,
   plugins: [], pluginWorkers: new Map(), pluginCommands: new Map(),
   pendingUpdate: null,
@@ -184,6 +186,7 @@ async function openNote(id) {
   else { state.preview = false; updatePreviewUI(); }
   refreshStats();
   refreshBacklinks();
+  refreshOutline();
   renderList();
   emitToPlugins('note:opened', cloneNote(note));
 }
@@ -223,6 +226,7 @@ async function flushSave() {
     els.meta.textContent = (note.pinned ? 'Pinned · ' : '') + 'Updated ' + fmtDate(note.updated_at);
     els.saveState.textContent = 'saved';
     refreshStats();
+    refreshOutline();
     if (state.preview) renderPreview();
     await loadNotes();
     emitToPlugins('note:saved', cloneNote(note));
@@ -300,6 +304,12 @@ function renderPreview() {
       state.activeTag = a.dataset.tag;
       state.query = ''; els.search.value = '';
       renderList(); renderTagBar();
+    });
+  });
+  els.preview.querySelectorAll('.task-item input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const line = parseInt(cb.dataset.line, 10);
+      if (!Number.isNaN(line)) toggleTaskAtLine(line);
     });
   });
 }
@@ -648,9 +658,180 @@ function startPlugin(p) {
 function stopPlugin(id) { const w = state.pluginWorkers.get(id); if (w) { try { w.terminate(); } catch (e) {} state.pluginWorkers.delete(id); } }
 function emitToPlugins(event, payload) { for (const w of state.pluginWorkers.values()) { try { w.postMessage({ type: 'event', event, payload }); } catch (e) {} } }
 
+async function refreshOutline() {
+  if (!state.activeId) { els.outlinePanel.classList.add('hidden'); return; }
+  if (!state.outlineOpen) { els.outlinePanel.classList.add('hidden'); return; }
+  try {
+    const items = await invoke('outline', { id: state.activeId });
+    if (!items.length) { els.outlinePanel.classList.add('hidden'); els.outlineList.innerHTML = ''; return; }
+    els.outlinePanel.classList.remove('hidden');
+    els.outlineList.innerHTML = '';
+    for (const it of items) {
+      const li = document.createElement('li');
+      li.className = 'ol-l' + Math.min(it.level, 4);
+      li.textContent = it.title;
+      li.addEventListener('click', () => jumpToLine(it.line));
+      els.outlineList.appendChild(li);
+    }
+  } catch (e) { console.error(e); }
+}
+function jumpToLine(lineNo) {
+  const lines = els.body.value.split('\n');
+  let pos = 0;
+  for (let i = 0; i < Math.min(lineNo - 1, lines.length); i++) pos += lines[i].length + 1;
+  els.body.focus();
+  els.body.setSelectionRange(pos, pos);
+  const lineHeight = 24;
+  els.body.scrollTop = (lineNo - 1) * lineHeight;
+  if (state.preview) {
+    const headings = els.preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const idx = Math.min(lineNo, headings.length) - 1;
+    if (headings[idx]) headings[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+function toggleOutline() {
+  state.outlineOpen = !state.outlineOpen;
+  els.outlineBtn.classList.toggle('on', state.outlineOpen);
+  refreshOutline();
+}
+
+async function toggleTaskAtLine(lineNo) {
+  if (!state.activeId) return;
+  const lines = els.body.value.split('\n');
+  if (lineNo < 0 || lineNo >= lines.length) return;
+  const line = lines[lineNo];
+  const m = line.match(/^(\s*[-*+]\s+\[)([ xX])(\]\s.*)$/);
+  if (!m) return;
+  const next = (m[2] === ' ') ? 'x' : ' ';
+  lines[lineNo] = m[1] + next + m[3];
+  els.body.value = lines.join('\n');
+  scheduleSave();
+  if (state.preview) renderPreview();
+}
+
+async function newDailyNote() {
+  try {
+    if (state.pendingTimer) { clearTimeout(state.pendingTimer); await flushSave(); }
+    const note = await invoke('daily_note');
+    await loadNotes(); openNote(note.id); els.body.focus();
+  } catch (e) { setStatus('daily failed: ' + e); }
+}
+
+async function loadTemplates() {
+  try { state.templates = await invoke('list_templates'); }
+  catch (e) { state.templates = []; }
+  renderTemplateList();
+}
+function renderTemplateList() {
+  const ul = els.templateList; if (!ul) return;
+  ul.innerHTML = '';
+  if (!state.templates.length) {
+    const li = document.createElement('li');
+    li.style.background = 'transparent'; li.style.color = 'var(--text-3)'; li.style.fontSize = '12.5px'; li.style.padding = '8px 0';
+    li.textContent = 'No templates yet. Open a note, then click "Save current note as template" below.';
+    ul.appendChild(li); return;
+  }
+  for (const t of state.templates) {
+    const li = document.createElement('li');
+    const main = document.createElement('div'); main.className = 'row-main';
+    const name = document.createElement('div'); name.className = 'row-name'; name.textContent = t.name;
+    const sub = document.createElement('div'); sub.className = 'row-sub';
+    sub.textContent = (t.body.length > 80 ? t.body.slice(0, 80) + '…' : t.body).replace(/\n/g, ' ');
+    main.appendChild(name); main.appendChild(sub);
+    const actions = document.createElement('div'); actions.className = 'row-actions';
+    actions.appendChild(btn('ghost-btn', 'Use', async () => {
+      const title = prompt('New note title:', t.name);
+      if (title === null) return;
+      const note = await invoke('note_from_template', { templateId: t.id, title });
+      closeSettings(); await loadNotes(); openNote(note.id);
+    }));
+    actions.appendChild(btn('danger-btn', 'Delete', async () => {
+      if (!confirm('Delete template "' + t.name + '"?')) return;
+      await invoke('delete_template', { id: t.id }); await loadTemplates();
+    }));
+    li.appendChild(main); li.appendChild(actions);
+    ul.appendChild(li);
+  }
+}
+async function saveActiveAsTemplate() {
+  if (!state.activeId) { alert('Open a note first, then save it as a template.'); return; }
+  const name = prompt('Template name:', state.active.title || 'New template');
+  if (!name) return;
+  try { await invoke('save_template', { name, body: els.body.value }); await loadTemplates(); }
+  catch (e) { alert('Save failed: ' + e); }
+}
+
+async function openTemplateMenu(anchor) {
+  await loadTemplates();
+  const menu = els.templateMenu; menu.innerHTML = '';
+  if (!state.templates.length) {
+    const li = document.createElement('li');
+    li.className = 'ctx-empty';
+    li.textContent = 'No templates yet. Open Settings → Data to create one.';
+    menu.appendChild(li);
+  } else {
+    for (const t of state.templates) {
+      const li = document.createElement('li');
+      li.textContent = t.name;
+      li.addEventListener('click', async () => {
+        hideMenus();
+        const note = await invoke('note_from_template', { templateId: t.id, title: t.name });
+        await loadNotes(); openNote(note.id);
+      });
+      menu.appendChild(li);
+    }
+  }
+  const r = anchor.getBoundingClientRect();
+  menu.style.left = r.left + 'px';
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.classList.remove('hidden');
+}
+
+function showContextMenu(x, y, note) {
+  const menu = els.ctxMenu; menu.innerHTML = '';
+  const items = [
+    { label: note.pinned ? 'Unpin' : 'Pin to top', run: async () => { await invoke('set_pinned', { id: note.id, pinned: !note.pinned }); await loadNotes(); if (state.activeId === note.id) await openNote(note.id); } },
+    { label: 'Duplicate', run: async () => { const dup = await invoke('duplicate_note', { id: note.id }); await loadNotes(); openNote(dup.id); } },
+    { label: 'Export as Markdown', run: async () => {
+      try { const md = await invoke('export_note_md', { id: note.id }); const safe = (note.title || 'Untitled').replace(/[^a-zA-Z0-9_\- ]/g, '_').trim(); downloadText((safe || 'Untitled') + '.md', md, 'text/markdown'); }
+      catch (e) { alert('Export failed: ' + e); }
+    } },
+    { sep: true },
+    { label: 'Move to trash', danger: true, run: async () => {
+      if (!confirm('Move this note to trash?')) return;
+      await invoke('delete_note', { id: note.id });
+      if (state.activeId === note.id) showEmpty();
+      await loadNotes();
+    } },
+  ];
+  for (const it of items) {
+    const li = document.createElement('li');
+    if (it.sep) { li.className = 'ctx-sep'; }
+    else {
+      li.textContent = it.label;
+      if (it.danger) li.classList.add('danger');
+      li.addEventListener('click', () => { hideMenus(); it.run(); });
+    }
+    menu.appendChild(li);
+  }
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.classList.remove('hidden');
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 6) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+function hideMenus() {
+  els.ctxMenu.classList.add('hidden');
+  els.templateMenu.classList.add('hidden');
+}
+
 const PALETTE_COMMANDS = [
   { name: 'New note', shortcut: 'Ctrl+N', run: newNote },
+  { name: 'New daily note', shortcut: 'Ctrl+D', run: newDailyNote },
+  { name: 'New from template...', shortcut: '', run: () => openTemplateMenu(els.newFromTemplate || els.newNote) },
   { name: 'Toggle preview', shortcut: 'Ctrl+M', run: togglePreview },
+  { name: 'Toggle outline', shortcut: '', run: toggleOutline },
   { name: 'Focus search', shortcut: '/', run: () => els.search.focus() },
   { name: 'Cycle theme', shortcut: 'Ctrl+,', run: cycleTheme },
   { name: 'Open settings', shortcut: '', run: () => openSettings('general') },
@@ -659,6 +840,8 @@ const PALETTE_COMMANDS = [
   { name: 'Export current note', shortcut: '', run: exportActiveMd },
   { name: 'Export all notes', shortcut: '', run: exportAllMd },
   { name: 'Import Markdown', shortcut: '', run: importMdFile },
+  { name: 'Save current as template', shortcut: '', run: saveActiveAsTemplate },
+  { name: 'Duplicate current note', shortcut: '', run: async () => { if (state.activeId) { const dup = await invoke('duplicate_note', { id: state.activeId }); await loadNotes(); openNote(dup.id); } } },
   { name: 'Pin / unpin current', shortcut: '', run: togglePin },
 ];
 
@@ -770,6 +953,8 @@ document.addEventListener('keydown', (e) => {
 
   if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'd' && !inField) { e.preventDefault(); newDailyNote(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'd' && inField && target === els.title) { e.preventDefault(); newDailyNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
   if (e.ctrlKey && e.key === ',')               { e.preventDefault(); cycleTheme(); return; }
@@ -827,6 +1012,28 @@ els.emptyTrashBtn.addEventListener('click', emptyTrash);
 els.cmdInput.addEventListener('input', () => refreshPalette(els.cmdInput.value));
 els.cmdPalette.addEventListener('click', (e) => { if (e.target === els.cmdPalette) closePalette(); });
 
+els.outlineBtn.addEventListener('click', toggleOutline);
+els.newFromTemplate.addEventListener('click', (e) => { e.stopPropagation(); openTemplateMenu(els.newFromTemplate); });
+els.saveTemplateBtn.addEventListener('click', saveActiveAsTemplate);
+
+els.noteList.addEventListener('contextmenu', (e) => {
+  let li = e.target;
+  while (li && li.tagName !== 'LI') li = li.parentElement;
+  if (!li) return;
+  const idx = Array.from(els.noteList.children).indexOf(li);
+  let visible = state.notes;
+  if (state.activeTag) visible = visible.filter(n => (n.tags || []).includes(state.activeTag));
+  const note = visible[idx];
+  if (!note) return;
+  e.preventDefault();
+  showContextMenu(e.clientX, e.clientY, note);
+});
+
+document.addEventListener('click', (e) => {
+  if (!els.ctxMenu.classList.contains('hidden') && !els.ctxMenu.contains(e.target)) hideMenus();
+  if (!els.templateMenu.classList.contains('hidden') && !els.templateMenu.contains(e.target) && e.target !== els.newFromTemplate) hideMenus();
+});
+
 window.addEventListener('beforeunload', () => {
   if (state.pendingTimer) { clearTimeout(state.pendingTimer); flushSave(); }
   for (const w of state.pluginWorkers.values()) { try { w.terminate(); } catch (e) {} }
@@ -838,6 +1045,7 @@ window.addEventListener('beforeunload', () => {
   await loadThemes();
   applyTheme(state.settings.theme || 'dark');
   await loadPlugins();
+  await loadTemplates();
   try { const info = await invoke('app_info'); els.version.textContent = 'v' + info.version; els.aboutVersion.textContent = 'v' + info.version; } catch (e) {}
   await loadNotes();
   showView('empty');

@@ -607,6 +607,161 @@ fn parse_imported_md(content: &str, fallback_title: Option<&str>) -> (String, St
 }
 
 #[tauri::command]
+fn duplicate_note(state: State<'_, AppState>, id: String) -> Result<Note, String> {
+    let store = state.store.lock().unwrap();
+    let src = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let new_title = if src.title.trim().is_empty() {
+        "Untitled (copy)".to_string()
+    } else {
+        format!("{} (copy)", src.title)
+    };
+    store.create(new_title, src.body).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn daily_note(state: State<'_, AppState>) -> Result<Note, String> {
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    if let Some(existing) = notes
+        .into_iter()
+        .find(|n| n.title == today && n.trashed_at.is_none())
+    {
+        return Ok(existing);
+    }
+    let title = today.clone();
+    let body = format!("# {}\n\n- ", today);
+    store.create(title, body).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Template {
+    id: String,
+    name: String,
+    body: String,
+    #[serde(default)]
+    created_at: Option<DateTime<Utc>>,
+}
+
+fn templates_dir() -> PathBuf {
+    data_root().join("templates")
+}
+
+#[tauri::command]
+fn list_templates() -> Vec<Template> {
+    let dir = templates_dir();
+    let _ = fs::create_dir_all(&dir);
+    let mut out = vec![];
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(b) = fs::read(&p) {
+                if let Ok(t) = serde_json::from_slice::<Template>(&b) {
+                    out.push(t);
+                }
+            }
+        }
+    }
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out
+}
+
+#[tauri::command]
+fn save_template(name: String, body: String) -> Result<Template, String> {
+    if name.trim().is_empty() {
+        return Err("template name empty".into());
+    }
+    let id = Ulid::new().to_string();
+    let template = Template {
+        id: id.clone(),
+        name: name.trim().to_string(),
+        body,
+        created_at: Some(Utc::now()),
+    };
+    let dir = templates_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let p = dir.join(format!("{}.json", id));
+    let tmp = p.with_extension("json.tmp");
+    let bytes = serde_json::to_vec_pretty(&template).map_err(|e| e.to_string())?;
+    fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
+    Ok(template)
+}
+
+#[tauri::command]
+fn delete_template(id: String) -> Result<(), String> {
+    if id.is_empty() {
+        return Err("id empty".into());
+    }
+    let p = templates_dir().join(format!("{}.json", id));
+    if p.exists() {
+        fs::remove_file(p).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn note_from_template(
+    state: State<'_, AppState>,
+    template_id: String,
+    title: Option<String>,
+) -> Result<Note, String> {
+    let p = templates_dir().join(format!("{}.json", template_id));
+    let bytes = fs::read(&p).map_err(|e| e.to_string())?;
+    let template: Template = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    let final_title = title.unwrap_or_else(|| template.name.clone());
+    state
+        .store
+        .lock()
+        .unwrap()
+        .create(final_title, template.body)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn outline(state: State<'_, AppState>, id: String) -> Result<Vec<serde_json::Value>, String> {
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let mut out = vec![];
+    let mut line_no: u32 = 0;
+    for line in note.body.lines() {
+        line_no += 1;
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix('#') {
+            let mut level = 1u32;
+            let mut chars = rest.chars();
+            while let Some('#') = chars.clone().next() {
+                chars.next();
+                level += 1;
+                if level >= 6 {
+                    break;
+                }
+            }
+            let remaining: String = chars.collect();
+            if let Some(stripped) = remaining.strip_prefix(' ') {
+                out.push(serde_json::json!({
+                    "level": level,
+                    "title": stripped.trim().to_string(),
+                    "line": line_no,
+                }));
+            }
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
 fn note_stats(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
     let note = state
         .store
@@ -968,6 +1123,13 @@ fn main() -> Result<()> {
             export_all_md,
             import_md,
             note_stats,
+            duplicate_note,
+            daily_note,
+            list_templates,
+            save_template,
+            delete_template,
+            note_from_template,
+            outline,
             app_info,
             get_settings,
             set_settings,

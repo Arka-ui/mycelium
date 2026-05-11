@@ -1,3 +1,43 @@
+# Mycelium v0.3.0-beta.1 - daily-driver polish
+
+This release sands every edge testers reported on beta.2: the editor finally handles checklists, tables, and long-document navigation. New journalling and template workflows turn Mycelium into a daily driver rather than a "neat demo".
+
+## New in v0.3.0
+
+### Editor
+- **Task lists** with click-to-toggle checkboxes. Write `- [ ] thing` and `- [x] done` in your notes; in preview each box is interactive, and toggling one persists straight back to the source.
+- **Tables** via the standard Markdown pipe syntax, with `:---`, `---:`, `:---:` alignment markers honoured.
+- **Outline panel** in the editor: every `#` heading becomes a clickable entry that scrolls the textarea (and the preview) to that location. Toggle with the new outline icon in the editor toolbar.
+
+### Workflow
+- **Daily notes** (`Ctrl+D`): one shortcut opens (or creates) today's note titled `YYYY-MM-DD`. Perfect for journalling, standup logs, daily TODO captures.
+- **Templates**: save the current note as a template (Settings → Data → "Save current note as template"), then create new notes from any template via the `▾` button next to "+ New note" in the sidebar, or via the command palette.
+- **Duplicate note**: clone any note (title gets " (copy)" appended) via right-click or `Ctrl+K → Duplicate current note`.
+
+### Navigation
+- **Right-click context menu** on any sidebar note: pin/unpin, duplicate, export-to-Markdown, move-to-trash, all without leaving the list.
+
+### Backend
+- 7 new Tauri commands: `daily_note`, `duplicate_note`, `list_templates`, `save_template`, `delete_template`, `note_from_template`, `outline`.
+- Templates live in `%APPDATA%\Mycelium\templates\<ulid>.json`.
+
+### Auto-update
+- Tag-driven release workflow signed `v0.3.0-beta.1` cleanly. The `latest.json` manifest bumps to `0.3.0` so installed `v0.2.0-beta.1` clients detect the upgrade on next launch.
+
+## Upgrade
+
+Launch Mycelium. The updater offers v0.3.0 automatically. Your notes, themes, plugins, and trash all carry over.
+
+If you're installing fresh, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+
+## SHA-256 hashes
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\Mycelium_0.3.0_x64-setup.exe
+```
+
+---
+
 # Mycelium v0.2.0-beta.1 - workspace feature drop
 
 > **Closed beta release** - Windows 10/11 + Linux x86_64 + macOS arm64. The desktop app, an unsigned `.deb`, an `.AppImage`, and an `.dmg` ship; signed bundles + `.sig` updater artefacts for every Windows + Linux target.

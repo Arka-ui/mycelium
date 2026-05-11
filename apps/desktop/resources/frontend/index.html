@@ -20,7 +20,10 @@
     <div class="search-wrap">
       <input id="search" type="search" placeholder="Search title or body (/)" autocomplete="off" spellcheck="false">
     </div>
-    <button id="new-note" class="primary-btn" title="New note (Ctrl+N)">+ New note</button>
+    <div class="new-note-row">
+      <button id="new-note" class="primary-btn" title="New note (Ctrl+N)">+ New note</button>
+      <button id="new-from-template" class="ghost-btn small" title="New from template">&#9662;</button>
+    </div>
 
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
@@ -43,18 +46,23 @@
       <p>Create a note to get started.</p>
       <p class="hint">
         <kbd>Ctrl</kbd>+<kbd>N</kbd> new note &middot;
+        <kbd>Ctrl</kbd>+<kbd>D</kbd> daily note &middot;
         <kbd>Ctrl</kbd>+<kbd>K</kbd> command palette &middot;
         <kbd>Ctrl</kbd>+<kbd>M</kbd> toggle preview &middot;
         <kbd>/</kbd> focus search &middot;
         <kbd>Ctrl</kbd>+<kbd>,</kbd> cycle theme
       </p>
-      <p class="hint">Use <code>#tags</code> for organisation. Use <code>[[Note title]]</code> to link between notes.</p>
+      <p class="hint">
+        Use <code>#tags</code>, <code>[[wiki-links]]</code>, <code>- [ ] task</code>, and <code>| tables |</code> in your notes.
+        Right-click any note in the sidebar for pin / duplicate / export / trash.
+      </p>
     </div>
 
     <article id="editor" class="editor hidden">
       <header class="ed-head">
         <input id="title" class="title-input" placeholder="Untitled" autocomplete="off" spellcheck="false">
         <div class="ed-toolbar">
+          <button id="outline-btn" class="icon-btn" title="Toggle outline">&#9776;</button>
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
           <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
           <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
@@ -64,9 +72,13 @@
       <div id="meta" class="meta"></div>
 
       <div class="ed-body">
+        <aside id="outline-panel" class="outline-panel hidden">
+          <h4>Outline</h4>
+          <ul id="outline-list"></ul>
+        </aside>
         <textarea id="body" class="body-input" placeholder="Start writing...
 
-Use # heading, **bold**, *italic*, `code`, - bullet, > quote, [[wiki-link]], #tag." spellcheck="true"></textarea>
+Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > quote, [[wiki-link]], #tag." spellcheck="true"></textarea>
         <div id="preview" class="preview hidden"></div>
       </div>
 
@@ -192,6 +204,14 @@ Use # heading, **bold**, *italic*, `code`, - bullet, > quote, [[wiki-link]], #ta
 
       <section class="tab-pane" data-pane="data">
         <div class="setting-group">
+          <h3>Templates</h3>
+          <p class="setting-help">Templates let you spin up a new note pre-populated with structure (meeting agenda, daily log, project brief, ...). Save the currently-open note as a template, or create a new note from any template you've saved.</p>
+          <ul id="template-list" class="thing-list"></ul>
+          <div class="setting-row">
+            <button id="save-template-btn" class="primary-btn small">Save current note as template</button>
+          </div>
+        </div>
+        <div class="setting-group">
           <h3>Import &amp; export</h3>
           <div class="setting-row">
             <button id="import-md-btn" class="primary-btn small">Import Markdown file...</button>
@@ -204,7 +224,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, > quote, [[wiki-link]], #ta
           <div class="setting-row">
             <button id="open-data-btn" class="ghost-btn">Open data folder</button>
           </div>
-          <p class="setting-help">Notes, themes, plugins and settings live in <code>%APPDATA%\Mycelium\</code>.</p>
+          <p class="setting-help">Notes, themes, plugins and templates live in <code>%APPDATA%\Mycelium\</code>.</p>
         </div>
       </section>
 
@@ -244,16 +264,19 @@ Use # heading, **bold**, *italic*, `code`, - bullet, > quote, [[wiki-link]], #ta
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.2.0</strong></p>
+          <p>Version: <strong id="about-version">v0.3.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.2: Markdown preview, command palette, tags, wiki-links, backlinks, pin, trash, stats, import/export. The full BEAM/Lustre/Iroh/SurrealDB architecture lands in beta.3+.</p>
+          <p class="setting-help">Beta.3: task lists, tables, outline panel, daily notes, templates, right-click context menus, duplicate note. The full BEAM/Lustre/Iroh/SurrealDB sync architecture lands in beta.4+.</p>
         </div>
       </section>
 
     </div>
   </div>
 </div>
+
+<ul id="ctx-menu" class="ctx-menu hidden" role="menu"></ul>
+<ul id="template-menu" class="ctx-menu hidden" role="menu"></ul>
 
 <div id="cmd-palette" class="cmd-palette hidden">
   <div class="cmd-inner">

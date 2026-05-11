@@ -12,34 +12,88 @@
     <header class="side-head">
       <div class="brand">Mycelium</div>
       <div class="head-actions">
+        <button id="cmd-btn" class="icon-btn" title="Command palette (Ctrl+K)">&#9883;</button>
         <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
         <button id="theme-btn" class="icon-btn" title="Cycle theme (Ctrl+,)">&#9728;</button>
       </div>
     </header>
     <div class="search-wrap">
-      <input id="search" type="search" placeholder="Search notes (/)" autocomplete="off" spellcheck="false">
+      <input id="search" type="search" placeholder="Search title or body (/)" autocomplete="off" spellcheck="false">
     </div>
     <button id="new-note" class="primary-btn" title="New note (Ctrl+N)">+ New note</button>
+
+    <nav class="side-nav">
+      <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
+      <button id="view-trash" class="side-nav-btn" data-view="trash">Trash</button>
+    </nav>
+
+    <div id="tag-bar" class="tag-bar hidden"></div>
+
     <ul id="note-list" class="note-list"></ul>
+
     <footer class="side-foot">
       <span id="status">ready</span>
       <span id="version"></span>
     </footer>
   </aside>
+
   <main id="editor-pane">
     <div id="empty-state" class="empty">
       <h1>Welcome to Mycelium</h1>
       <p>Create a note to get started.</p>
-      <p class="hint">Shortcuts: <kbd>Ctrl</kbd>+<kbd>N</kbd> new note &middot; <kbd>/</kbd> focus search &middot; <kbd>Ctrl</kbd>+<kbd>,</kbd> cycle theme</p>
+      <p class="hint">
+        <kbd>Ctrl</kbd>+<kbd>N</kbd> new note &middot;
+        <kbd>Ctrl</kbd>+<kbd>K</kbd> command palette &middot;
+        <kbd>Ctrl</kbd>+<kbd>M</kbd> toggle preview &middot;
+        <kbd>/</kbd> focus search &middot;
+        <kbd>Ctrl</kbd>+<kbd>,</kbd> cycle theme
+      </p>
+      <p class="hint">Use <code>#tags</code> for organisation. Use <code>[[Note title]]</code> to link between notes.</p>
     </div>
+
     <article id="editor" class="editor hidden">
-      <input id="title" class="title-input" placeholder="Untitled" autocomplete="off" spellcheck="false">
+      <header class="ed-head">
+        <input id="title" class="title-input" placeholder="Untitled" autocomplete="off" spellcheck="false">
+        <div class="ed-toolbar">
+          <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
+          <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
+          <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
+          <button id="delete-btn" class="icon-btn danger" title="Move to trash">&#128465;</button>
+        </div>
+      </header>
       <div id="meta" class="meta"></div>
-      <textarea id="body" class="body-input" placeholder="Start writing..." spellcheck="true"></textarea>
+
+      <div class="ed-body">
+        <textarea id="body" class="body-input" placeholder="Start writing...
+
+Use # heading, **bold**, *italic*, `code`, - bullet, > quote, [[wiki-link]], #tag." spellcheck="true"></textarea>
+        <div id="preview" class="preview hidden"></div>
+      </div>
+
+      <aside id="backlinks-panel" class="backlinks-panel hidden">
+        <h4>Backlinks</h4>
+        <ul id="backlinks-list"></ul>
+      </aside>
+
       <footer class="ed-foot">
-        <button id="delete-btn" class="danger-btn">Delete note</button>
+        <div class="stats">
+          <span id="stat-words">0 words</span>
+          <span id="stat-chars">0 chars</span>
+          <span id="stat-read">~1 min read</span>
+        </div>
         <span id="save-state">saved</span>
       </footer>
+    </article>
+
+    <article id="trash-pane" class="trash-pane hidden">
+      <header class="trash-head">
+        <h2>Trash</h2>
+        <div class="trash-actions">
+          <button id="empty-trash-btn" class="danger-btn">Empty trash</button>
+        </div>
+      </header>
+      <p class="setting-help">Notes you delete are kept here so you can restore them. They are NOT auto-purged in beta.2 &mdash; that arrives in beta.3.</p>
+      <ul id="trash-list" class="note-list trash-list"></ul>
     </article>
   </main>
 </div>
@@ -54,6 +108,7 @@
       <button class="tab-btn active" data-tab="general">General</button>
       <button class="tab-btn" data-tab="themes">Themes</button>
       <button class="tab-btn" data-tab="plugins">Plugins</button>
+      <button class="tab-btn" data-tab="data">Data</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -66,14 +121,24 @@
             <select id="active-theme-select" class="select"></select>
             <button id="open-theme-editor-btn" class="ghost-btn">Edit themes</button>
           </div>
-          <p class="setting-help">Choose a built-in theme or one you have created. The theme cycles with <kbd>Ctrl</kbd>+<kbd>,</kbd> when you have multiple favourites.</p>
+          <p class="setting-help">Choose a built-in theme or one you have created. The theme cycles with <kbd>Ctrl</kbd>+<kbd>,</kbd>.</p>
         </div>
         <div class="setting-group">
-          <h3>Storage</h3>
-          <div class="setting-row">
-            <button id="open-data-btn" class="ghost-btn">Open data folder</button>
-          </div>
-          <p class="setting-help">Notes, themes, plugins and settings live in <code>%APPDATA%\Mycelium\</code>.</p>
+          <h3>Editor</h3>
+          <label class="setting-row">
+            <input id="opt-default-preview" type="checkbox">
+            <div>
+              <div class="setting-name">Open notes in preview mode by default</div>
+              <div class="setting-help">Useful for read-heavy workflows. Toggle on the fly with <kbd>Ctrl</kbd>+<kbd>M</kbd>.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-show-backlinks" type="checkbox">
+            <div>
+              <div class="setting-name">Show the backlinks panel</div>
+              <div class="setting-help">Lists every note that references the current one via <code>[[wiki-link]]</code>.</div>
+            </div>
+          </label>
         </div>
       </section>
 
@@ -101,7 +166,7 @@
           </div>
           <h4>Typography</h4>
           <div class="grid-2">
-            <label>Font family <input id="te-font" class="text-input" placeholder="-apple-system, Segoe UI, Roboto, sans-serif"></label>
+            <label>Font family <input id="te-font" class="text-input"></label>
             <label>Base font size <input id="te-font-size" class="text-input" placeholder="14px"></label>
           </div>
           <div class="te-actions">
@@ -116,32 +181,30 @@
       <section class="tab-pane" data-pane="plugins">
         <div class="setting-group">
           <h3>Installed plugins</h3>
-          <p class="setting-help">Plugins extend the app with custom commands and reactions to events. They run in a sandboxed Web Worker with no network or filesystem access.</p>
+          <p class="setting-help">Plugins run in sandboxed Web Workers with no network or filesystem access.</p>
           <ul id="plugin-list" class="thing-list"></ul>
           <div class="setting-row">
             <button id="install-plugin-btn" class="primary-btn small">+ Install plugin from JSON...</button>
             <button id="open-plugins-folder-btn" class="ghost-btn">Open plugins folder</button>
           </div>
         </div>
-        <div class="setting-group">
-          <h3>API for plugin authors</h3>
-          <pre class="code-block">// manifest.json
-{
-  "id": "my-plugin",
-  "name": "My Plugin",
-  "version": "1.0.0",
-  "entry": "index.js",
-  "permissions": ["note:read", "note:write"]
-}
+      </section>
 
-// index.js — runs in a Web Worker
-mycelium.on("note:saved", (note) => {
-  // mutate, notify, transform...
-});
-mycelium.command("uppercase", (ctx) => {
-  ctx.note.body = ctx.note.body.toUpperCase();
-  ctx.save();
-});</pre>
+      <section class="tab-pane" data-pane="data">
+        <div class="setting-group">
+          <h3>Import &amp; export</h3>
+          <div class="setting-row">
+            <button id="import-md-btn" class="primary-btn small">Import Markdown file...</button>
+            <button id="export-all-btn" class="ghost-btn">Export all notes (.md)</button>
+          </div>
+          <p class="setting-help">Imported files become new notes; their first <code># heading</code> becomes the title. Export gives you one <code>.md</code> per note as a zip-like JSON bundle you can download.</p>
+        </div>
+        <div class="setting-group">
+          <h3>Storage</h3>
+          <div class="setting-row">
+            <button id="open-data-btn" class="ghost-btn">Open data folder</button>
+          </div>
+          <p class="setting-help">Notes, themes, plugins and settings live in <code>%APPDATA%\Mycelium\</code>.</p>
         </div>
       </section>
 
@@ -152,7 +215,7 @@ mycelium.command("uppercase", (ctx) => {
             <input id="opt-auto-update" type="checkbox">
             <div>
               <div class="setting-name">Check for updates automatically</div>
-              <div class="setting-help">Mycelium looks for new versions on launch and once per session. Updates are signed; only matching signatures are installed.</div>
+              <div class="setting-help">Mycelium looks for new versions on launch. Updates are minisign-signed; only matching signatures are installed.</div>
             </div>
           </label>
           <div class="setting-row">
@@ -181,10 +244,10 @@ mycelium.command("uppercase", (ctx) => {
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.1.0</strong></p>
+          <p>Version: <strong id="about-version">v0.2.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Mycelium beta.1 ships a Tauri-native build. The full BEAM/Lustre/Iroh/SurrealDB architecture lands in beta.2+.</p>
+          <p class="setting-help">Beta.2: Markdown preview, command palette, tags, wiki-links, backlinks, pin, trash, stats, import/export. The full BEAM/Lustre/Iroh/SurrealDB architecture lands in beta.3+.</p>
         </div>
       </section>
 
@@ -192,7 +255,20 @@ mycelium.command("uppercase", (ctx) => {
   </div>
 </div>
 
-<input id="file-input" type="file" accept=".json" class="hidden">
+<div id="cmd-palette" class="cmd-palette hidden">
+  <div class="cmd-inner">
+    <input id="cmd-input" type="text" placeholder="Type to search notes or run a command..." autocomplete="off" spellcheck="false">
+    <ul id="cmd-results" class="cmd-results"></ul>
+    <div class="cmd-hint">
+      <kbd>&#8593;</kbd><kbd>&#8595;</kbd> navigate &middot;
+      <kbd>&#8629;</kbd> open &middot;
+      <kbd>Esc</kbd> close
+    </div>
+  </div>
+</div>
+
+<input id="file-input" type="file" accept=".json,.md,.markdown,.txt" class="hidden">
+<script src="markdown.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

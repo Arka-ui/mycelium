@@ -1848,7 +1848,7 @@ dependencies = [
 
 [[package]]
 name = "crypto_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "age",
  "anyhow",
@@ -2729,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "fastembed_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "fastembed",
@@ -4549,7 +4549,7 @@ dependencies = [
 
 [[package]]
 name = "iroh_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5147,7 +5147,7 @@ dependencies = [
 
 [[package]]
 name = "loro_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5489,7 +5489,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium_desktop"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5510,7 +5510,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium_plugin_sdk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5519,7 +5519,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium_relay"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6870,7 +6870,7 @@ dependencies = [
 
 [[package]]
 name = "port_codec"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "ciborium",
@@ -9083,7 +9083,7 @@ dependencies = [
 
 [[package]]
 name = "surreal_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -10868,7 +10868,7 @@ dependencies = [
 
 [[package]]
 name = "wasmedge_port"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

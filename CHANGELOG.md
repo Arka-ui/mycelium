@@ -1,3 +1,65 @@
+# Mycelium v0.2.0-beta.1 - workspace feature drop
+
+> **Closed beta release** - Windows 10/11 + Linux x86_64 + macOS arm64. The desktop app, an unsigned `.deb`, an `.AppImage`, and an `.dmg` ship; signed bundles + `.sig` updater artefacts for every Windows + Linux target.
+
+This release turns Mycelium from a textarea-with-autosave into a real workspace. Everything below is single-device M0; the BEAM/Lustre/Iroh/SurrealDB sync stack lands in beta.3+.
+
+## New in v0.2.0
+
+### Editor
+- **Markdown rendering** with a side-by-side preview pane. Toggle with `Ctrl+M` or the eye icon. Supports headings, bold/italic/strike, lists, blockquotes, code blocks, links, horizontal rules.
+- **`[[wiki-links]]`** between notes. Clicking a wiki-link opens the referenced note; clicking one that doesn't exist offers to create it.
+- **Backlinks panel** on every note: lists everything that references the current note via `[[...]]`. Toggle in Settings -> General.
+- **`#tag` syntax** in note bodies. Tags are extracted automatically and shown both inline (in the preview) and as filterable chips above the note list.
+- **Pin notes** to the top of the list via the star icon or palette command.
+- **Note stats** (words / chars / read-time) live in the editor footer.
+
+### Navigation
+- **Command palette** (`Ctrl+K`): fuzzy-search across all notes plus a curated set of commands (new note, toggle preview, export, import, cycle theme, ...). Arrow keys + enter to run.
+- **Full-text search**: the sidebar search box now matches title OR body, with a snippet preview under each hit.
+- **Tag chips** above the note list filter by `#tag`. Click "All" to clear the filter.
+
+### Data
+- **Trash** (soft delete): deleting a note moves it to a trash view (sidebar -> "Trash"). Restore or delete-forever from there. Empty-trash button.
+- **Export note to Markdown** (single note via the export icon, or all notes via Settings -> Data -> "Export all notes").
+- **Import Markdown** files (Settings -> Data -> "Import Markdown file..."). The first `# heading` becomes the title.
+
+### Plumbing
+- `Note` schema bumped to v2 (adds `pinned`, `trashed_at`). Older files migrate transparently on first read.
+- 15 new Tauri commands: `search_notes`, `set_pinned`, `list_trash`, `restore_note`, `purge_note`, `empty_trash`, `all_tags`, `backlinks`, `export_note_md`, `export_all_md`, `import_md`, `note_stats`, plus auxiliary helpers.
+- Vendored a small (~120 LOC) Markdown subset parser in `apps/desktop/resources/frontend/markdown.js` -- no external dependency added.
+
+### Settings
+- New **Data** tab: import / export / open data folder.
+- New **General** options: "Open notes in preview mode by default", "Show the backlinks panel".
+
+### Auto-updater
+- Tag-driven release workflow is now fully signed end-to-end. Pushing `v0.2.0-beta.1` produced four `.sig` files (NSIS + 2 MSI + AppImage) without manual intervention. Your installed v0.1.0-beta.1 will detect this build via `latest.json` on the next launch and offer the upgrade.
+
+## Not in this release (still beta.3+)
+
+- macOS / Linux installer signing with Apple Developer ID and `dpkg-sig`.
+- Two-device sync (Iroh).
+- At-rest encryption (age).
+- BEAM core / Lustre UI / Wasm plugins (sandboxed JS plugins still work).
+- On-device semantic search.
+
+## Upgrading
+
+If you installed v0.1.0-beta.1, just launch Mycelium. The updater offers v0.2.0 automatically. Your notes carry over (they're plain JSON files; the new fields are added on first save).
+
+If you're installing fresh, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+
+## SHA-256 hashes
+
+Published in `sha256sums.txt` alongside the artifacts. Verify with:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\Mycelium_0.2.0_x64-setup.exe
+```
+
+---
+
 # Mycelium v0.1.0-beta.1 - first beta
 
 > **Closed beta release** - Windows 10/11 only. macOS and Linux installers will follow.

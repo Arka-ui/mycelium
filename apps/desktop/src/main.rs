@@ -21,10 +21,14 @@ struct Note {
     updated_at: Option<DateTime<Utc>>,
     #[serde(default = "default_schema_ver")]
     schema_ver: u32,
+    #[serde(default)]
+    pinned: bool,
+    #[serde(default)]
+    trashed_at: Option<DateTime<Utc>>,
 }
 
 fn default_schema_ver() -> u32 {
-    1
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +36,77 @@ struct NoteSummary {
     id: String,
     title: String,
     updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pinned: bool,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    trashed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SearchHit {
+    id: String,
+    title: String,
+    updated_at: Option<DateTime<Utc>>,
+    pinned: bool,
+    tags: Vec<String>,
+    snippet: String,
+    match_in_body: bool,
+}
+
+fn extract_tags(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'#' && (i == 0 || !bytes[i - 1].is_ascii_alphanumeric()) {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b'-')
+            {
+                end += 1;
+            }
+            if end > start + 1 {
+                let tag = &text[start..end];
+                let lower = tag.to_lowercase();
+                if !out.contains(&lower) {
+                    out.push(lower);
+                }
+            }
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    out.sort();
+    out
+}
+
+fn snippet(body: &str, needle: &str, radius: usize) -> String {
+    if needle.is_empty() {
+        let preview: String = body.chars().take(120).collect();
+        return preview;
+    }
+    let hay = body.to_lowercase();
+    let q = needle.to_lowercase();
+    match hay.find(&q) {
+        Some(pos) => {
+            let start = pos.saturating_sub(radius);
+            let end = (pos + needle.len() + radius).min(body.len());
+            let mut s = String::new();
+            if start > 0 {
+                s.push('…');
+            }
+            s.push_str(&body[start..end].replace('\n', " "));
+            if end < body.len() {
+                s.push('…');
+            }
+            s
+        }
+        None => body.chars().take(120).collect(),
+    }
 }
 
 struct Store {
@@ -48,7 +123,7 @@ impl Store {
         self.root.join(format!("{}.json", id))
     }
 
-    fn list(&self) -> Result<Vec<NoteSummary>> {
+    fn all_notes(&self) -> Result<Vec<Note>> {
         let mut out = vec![];
         for entry in fs::read_dir(&self.root)? {
             let entry = entry?;
@@ -64,13 +139,45 @@ impl Store {
                 Ok(n) => n,
                 Err(_) => continue,
             };
-            out.push(NoteSummary {
-                id: note.id,
-                title: note.title,
-                updated_at: note.updated_at,
-            });
+            out.push(note);
         }
-        out.sort_by_key(|b| std::cmp::Reverse(b.updated_at));
+        Ok(out)
+    }
+
+    fn summarize(note: &Note) -> NoteSummary {
+        NoteSummary {
+            id: note.id.clone(),
+            title: note.title.clone(),
+            updated_at: note.updated_at,
+            pinned: note.pinned,
+            tags: extract_tags(&note.body),
+            trashed_at: note.trashed_at,
+        }
+    }
+
+    fn list(&self) -> Result<Vec<NoteSummary>> {
+        let mut out: Vec<NoteSummary> = self
+            .all_notes()?
+            .iter()
+            .filter(|n| n.trashed_at.is_none())
+            .map(Self::summarize)
+            .collect();
+        out.sort_by(|a, b| {
+            b.pinned
+                .cmp(&a.pinned)
+                .then_with(|| b.updated_at.cmp(&a.updated_at))
+        });
+        Ok(out)
+    }
+
+    fn list_trash(&self) -> Result<Vec<NoteSummary>> {
+        let mut out: Vec<NoteSummary> = self
+            .all_notes()?
+            .iter()
+            .filter(|n| n.trashed_at.is_some())
+            .map(Self::summarize)
+            .collect();
+        out.sort_by_key(|b| std::cmp::Reverse(b.trashed_at));
         Ok(out)
     }
 
@@ -92,7 +199,9 @@ impl Store {
             body,
             created_at: Some(now),
             updated_at: Some(now),
-            schema_ver: 1,
+            schema_ver: 2,
+            pinned: false,
+            trashed_at: None,
         };
         self.write(&note)?;
         Ok(note)
@@ -113,12 +222,97 @@ impl Store {
         Ok(note)
     }
 
-    fn delete(&self, id: &str) -> Result<()> {
+    fn set_pinned(&self, id: &str, pinned: bool) -> Result<Note> {
+        let mut note = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
+        note.pinned = pinned;
+        self.write(&note)?;
+        Ok(note)
+    }
+
+    fn trash(&self, id: &str) -> Result<()> {
+        let mut note = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
+        note.trashed_at = Some(Utc::now());
+        self.write(&note)?;
+        Ok(())
+    }
+
+    fn restore(&self, id: &str) -> Result<()> {
+        let mut note = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
+        note.trashed_at = None;
+        self.write(&note)?;
+        Ok(())
+    }
+
+    fn purge(&self, id: &str) -> Result<()> {
         let p = self.note_path(id);
         if p.exists() {
             fs::remove_file(p)?;
         }
         Ok(())
+    }
+
+    fn empty_trash(&self) -> Result<u32> {
+        let mut n = 0u32;
+        for note in self.all_notes()? {
+            if note.trashed_at.is_some() {
+                self.purge(&note.id)?;
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
+    #[allow(dead_code)]
+    fn auto_purge_old_trash(&self, days: i64) -> Result<u32> {
+        let cutoff = Utc::now() - chrono::Duration::days(days);
+        let mut n = 0u32;
+        for note in self.all_notes()? {
+            if let Some(t) = note.trashed_at {
+                if t < cutoff {
+                    self.purge(&note.id)?;
+                    n += 1;
+                }
+            }
+        }
+        Ok(n)
+    }
+
+    fn search(&self, query: &str) -> Result<Vec<SearchHit>> {
+        let q = query.trim();
+        let lower = q.to_lowercase();
+        let mut out: Vec<SearchHit> = vec![];
+        for note in self.all_notes()? {
+            if note.trashed_at.is_some() {
+                continue;
+            }
+            let title_lc = note.title.to_lowercase();
+            let body_lc = note.body.to_lowercase();
+            let in_title = !q.is_empty() && title_lc.contains(&lower);
+            let in_body = !q.is_empty() && body_lc.contains(&lower);
+            if q.is_empty() || in_title || in_body {
+                out.push(SearchHit {
+                    id: note.id.clone(),
+                    title: note.title.clone(),
+                    updated_at: note.updated_at,
+                    pinned: note.pinned,
+                    tags: extract_tags(&note.body),
+                    snippet: snippet(&note.body, q, 50),
+                    match_in_body: in_body,
+                });
+            }
+        }
+        out.sort_by(|a, b| {
+            b.pinned
+                .cmp(&a.pinned)
+                .then_with(|| b.updated_at.cmp(&a.updated_at))
+        });
+        Ok(out)
     }
 
     fn write(&self, note: &Note) -> Result<()> {
@@ -186,8 +380,254 @@ fn delete_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
         .store
         .lock()
         .unwrap()
-        .delete(&id)
+        .trash(&id)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_trash(state: State<'_, AppState>) -> Result<Vec<NoteSummary>, String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .list_trash()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn restore_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .restore(&id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn purge_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .purge(&id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn empty_trash(state: State<'_, AppState>) -> Result<u32, String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .empty_trash()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_pinned(state: State<'_, AppState>, id: String, pinned: bool) -> Result<Note, String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .set_pinned(&id, pinned)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn search_notes(state: State<'_, AppState>, query: String) -> Result<Vec<SearchHit>, String> {
+    state
+        .store
+        .lock()
+        .unwrap()
+        .search(&query)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn all_tags(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut counts: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for note in notes {
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        for t in extract_tags(&note.body) {
+            *counts.entry(t).or_insert(0) += 1;
+        }
+    }
+    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Ok(out)
+}
+
+#[tauri::command]
+fn backlinks(state: State<'_, AppState>, title: String) -> Result<Vec<NoteSummary>, String> {
+    let needle = format!("[[{}]]", title);
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut out: Vec<NoteSummary> = notes
+        .iter()
+        .filter(|n| n.trashed_at.is_none() && n.body.contains(&needle))
+        .map(Store::summarize)
+        .collect();
+    out.sort_by_key(|b| std::cmp::Reverse(b.updated_at));
+    Ok(out)
+}
+
+#[tauri::command]
+fn export_note_md(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let title = if note.title.is_empty() {
+        "Untitled".into()
+    } else {
+        note.title.clone()
+    };
+    let mut out = format!("# {}\n\n", title);
+    if let Some(t) = note.updated_at {
+        out.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
+    }
+    out.push_str(&note.body);
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+fn export_all_md(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for note in notes {
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        let title = if note.title.is_empty() {
+            "Untitled".into()
+        } else {
+            note.title.clone()
+        };
+        let safe = title
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        let filename = format!("{}.md", safe.trim());
+        let mut content = format!("# {}\n\n", title);
+        if let Some(t) = note.updated_at {
+            content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
+        }
+        content.push_str(&note.body);
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        out.push((filename, content));
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+fn import_md(
+    state: State<'_, AppState>,
+    content: String,
+    suggested_title: Option<String>,
+) -> Result<Note, String> {
+    let (title, body) = parse_imported_md(&content, suggested_title.as_deref());
+    state
+        .store
+        .lock()
+        .unwrap()
+        .create(title, body)
+        .map_err(|e| e.to_string())
+}
+
+fn parse_imported_md(content: &str, fallback_title: Option<&str>) -> (String, String) {
+    let trimmed = content.trim_start_matches('\u{FEFF}');
+    let mut lines = trimmed.lines();
+    let mut title = String::new();
+    let mut body_lines: Vec<&str> = vec![];
+    let mut consumed_title = false;
+
+    for line in lines.by_ref() {
+        if !consumed_title {
+            let t = line.trim();
+            if t.is_empty() {
+                continue;
+            }
+            if let Some(rest) = t.strip_prefix("# ") {
+                title = rest.trim().to_string();
+                consumed_title = true;
+                continue;
+            }
+            title = t.to_string();
+            consumed_title = true;
+            continue;
+        }
+        body_lines.push(line);
+    }
+
+    if title.is_empty() {
+        title = fallback_title.unwrap_or("Imported").to_string();
+    }
+
+    while body_lines
+        .first()
+        .map(|l| l.trim().is_empty())
+        .unwrap_or(false)
+    {
+        body_lines.remove(0);
+    }
+
+    (title, body_lines.join("\n"))
+}
+
+#[tauri::command]
+fn note_stats(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let chars = note.body.chars().count();
+    let words = note
+        .body
+        .split_whitespace()
+        .filter(|w| !w.is_empty())
+        .count();
+    let read_minutes = ((words as f64) / 220.0).ceil().max(1.0) as u32;
+    Ok(serde_json::json!({
+        "chars": chars,
+        "words": words,
+        "read_minutes": read_minutes,
+        "tags": extract_tags(&note.body),
+    }))
 }
 
 #[tauri::command]
@@ -516,6 +956,18 @@ fn main() -> Result<()> {
             create_note,
             update_note,
             delete_note,
+            list_trash,
+            restore_note,
+            purge_note,
+            empty_trash,
+            set_pinned,
+            search_notes,
+            all_tags,
+            backlinks,
+            export_note_md,
+            export_all_md,
+            import_md,
+            note_stats,
             app_info,
             get_settings,
             set_settings,

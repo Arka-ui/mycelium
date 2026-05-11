@@ -785,6 +785,209 @@ fn note_stats(state: State<'_, AppState>, id: String) -> Result<serde_json::Valu
     }))
 }
 
+fn history_dir(note_id: &str) -> PathBuf {
+    data_root().join("history").join(note_id)
+}
+
+fn snapshot_filename(ts: DateTime<Utc>) -> String {
+    format!("{}.json", ts.format("%Y%m%dT%H%M%S%3f"))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct HistoryEntry {
+    timestamp: DateTime<Utc>,
+    title: String,
+    body_preview: String,
+    chars: usize,
+}
+
+#[tauri::command]
+fn snapshot_note(state: State<'_, AppState>, id: String) -> Result<HistoryEntry, String> {
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let now = Utc::now();
+    let dir = history_dir(&id);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let p = dir.join(snapshot_filename(now));
+    let bytes = serde_json::to_vec_pretty(&note).map_err(|e| e.to_string())?;
+    fs::write(&p, bytes).map_err(|e| e.to_string())?;
+    let preview: String = note.body.chars().take(80).collect();
+    Ok(HistoryEntry {
+        timestamp: now,
+        title: note.title,
+        body_preview: preview,
+        chars: note.body.chars().count(),
+    })
+}
+
+#[tauri::command]
+fn list_history(id: String) -> Result<Vec<HistoryEntry>, String> {
+    let dir = history_dir(&id);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut out = vec![];
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let p = entry.path();
+        if p.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let bytes = match fs::read(&p) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let note: Note = match serde_json::from_slice(&bytes) {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+        let stem = p
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let ts = DateTime::parse_from_str(&format!("{} +0000", stem), "%Y%m%dT%H%M%S%3f %z")
+            .map(|d| d.with_timezone(&Utc))
+            .ok();
+        let preview: String = note.body.chars().take(80).collect();
+        out.push(HistoryEntry {
+            timestamp: ts.unwrap_or_else(Utc::now),
+            title: note.title,
+            body_preview: preview,
+            chars: note.body.chars().count(),
+        });
+    }
+    out.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
+    Ok(out)
+}
+
+#[tauri::command]
+fn restore_history(
+    state: State<'_, AppState>,
+    id: String,
+    timestamp: String,
+) -> Result<Note, String> {
+    let dir = history_dir(&id);
+    let p = dir.join(format!("{}.json", timestamp));
+    if !p.exists() {
+        return Err("snapshot not found".into());
+    }
+    let bytes = fs::read(&p).map_err(|e| e.to_string())?;
+    let mut note: Note = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    note.updated_at = Some(Utc::now());
+    state
+        .store
+        .lock()
+        .unwrap()
+        .write(&note)
+        .map_err(|e| e.to_string())?;
+    Ok(note)
+}
+
+#[tauri::command]
+fn purge_history(id: String) -> Result<u32, String> {
+    let dir = history_dir(&id);
+    if !dir.exists() {
+        return Ok(0);
+    }
+    let mut n = 0u32;
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
+            let _ = fs::remove_file(entry.path());
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+#[tauri::command]
+fn export_workspace(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let themes = list_themes();
+    let templates = list_templates();
+    let plugins = list_plugins();
+    let settings = get_settings();
+    Ok(serde_json::json!({
+        "format": "mycelium-workspace-v1",
+        "exported_at": Utc::now(),
+        "version": env!("CARGO_PKG_VERSION"),
+        "notes": notes,
+        "themes": themes,
+        "templates": templates,
+        "plugins": plugins,
+        "settings": settings,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceBundle {
+    #[serde(default)]
+    notes: Vec<Note>,
+    #[serde(default)]
+    themes: Vec<Theme>,
+    #[serde(default)]
+    templates: Vec<Template>,
+}
+
+#[tauri::command]
+fn import_workspace(
+    state: State<'_, AppState>,
+    bundle: serde_json::Value,
+    overwrite: bool,
+) -> Result<serde_json::Value, String> {
+    let parsed: WorkspaceBundle =
+        serde_json::from_value(bundle).map_err(|e| format!("invalid bundle: {}", e))?;
+    let store = state.store.lock().unwrap();
+    let mut notes_imported = 0u32;
+    let mut notes_skipped = 0u32;
+    for note in parsed.notes {
+        let existing = store.get(&note.id).ok().flatten();
+        if existing.is_some() && !overwrite {
+            notes_skipped += 1;
+            continue;
+        }
+        store.write(&note).map_err(|e| e.to_string())?;
+        notes_imported += 1;
+    }
+    let mut themes_imported = 0u32;
+    for theme in parsed.themes {
+        if theme.builtin {
+            continue;
+        }
+        let _ = save_theme(theme);
+        themes_imported += 1;
+    }
+    let mut templates_imported = 0u32;
+    for template in parsed.templates {
+        let _ = save_template(template.name, template.body);
+        templates_imported += 1;
+    }
+    Ok(serde_json::json!({
+        "notes_imported": notes_imported,
+        "notes_skipped": notes_skipped,
+        "themes_imported": themes_imported,
+        "templates_imported": templates_imported,
+    }))
+}
+
+#[tauri::command]
+fn attachment_data_url(content: String, mime: String) -> Result<String, String> {
+    if content.is_empty() {
+        return Err("empty content".into());
+    }
+    if mime.is_empty() {
+        return Err("empty mime".into());
+    }
+    Ok(format!("data:{};base64,{}", mime, content))
+}
+
 #[tauri::command]
 fn app_info() -> serde_json::Value {
     serde_json::json!({
@@ -792,6 +995,12 @@ fn app_info() -> serde_json::Value {
         "version": env!("CARGO_PKG_VERSION"),
         "channel": "beta",
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SavedSearch {
+    name: String,
+    query: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -804,6 +1013,12 @@ struct Settings {
     theme: String,
     #[serde(default)]
     enabled_plugins: Vec<String>,
+    #[serde(default)]
+    default_preview: bool,
+    #[serde(default = "default_true")]
+    show_backlinks: bool,
+    #[serde(default)]
+    saved_searches: Vec<SavedSearch>,
 }
 
 fn default_true() -> bool {
@@ -820,6 +1035,9 @@ impl Default for Settings {
             last_update_check: None,
             theme: "dark".to_string(),
             enabled_plugins: vec![],
+            default_preview: false,
+            show_backlinks: true,
+            saved_searches: vec![],
         }
     }
 }
@@ -1130,6 +1348,13 @@ fn main() -> Result<()> {
             delete_template,
             note_from_template,
             outline,
+            snapshot_note,
+            list_history,
+            restore_history,
+            purge_history,
+            export_workspace,
+            import_workspace,
+            attachment_data_url,
             app_info,
             get_settings,
             set_settings,

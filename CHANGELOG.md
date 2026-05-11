@@ -1,3 +1,45 @@
+# Mycelium v0.4.0-beta.1 - capture + safety
+
+beta.4 closes the two biggest gaps that stop Mycelium from being a real daily driver: you can now drop screenshots and PDFs straight into a note, and the app keeps a snapshot of every save so a bad rewrite is never destructive.
+
+## New in v0.4.0
+
+### Attachments
+- **Drag-drop, paste, or click-to-attach** any file into a note. Images render inline in preview; other files become clickable download links.
+- Stored as `data:` URLs inside the note body (no external file references for now). 5 MB per attachment limit; larger files land in beta.5 alongside a separate-storage scheme.
+- New paperclip icon in the editor toolbar; the body textarea is also a drop zone (with a visible dashed border on hover).
+
+### Note history
+- **Automatic snapshots** on every save (with a 10 s cooldown to avoid disk thrashing on rapid edits).
+- New history icon in the editor toolbar (`↻`) opens a modal listing every snapshot for the current note, newest first.
+- **Restore any snapshot** with a single click — the current state is automatically snapshotted before the restore, so a wrong restore is itself undoable.
+- **Purge all history** for a note when you want to clean up.
+- Snapshots live in `%APPDATA%\Mycelium\history\<note-id>\<timestamp>.json`.
+
+### Workspace backup &amp; restore
+- **One-click backup**: Settings → Data → "Backup workspace..." downloads a single JSON file containing every note, theme, template, and your settings.
+- **One-click restore**: pick a backup file, choose whether to overwrite same-ID notes or keep both, done.
+- The backup format is a stable JSON envelope (`mycelium-workspace-v1`) so future versions stay readable.
+
+### Saved searches
+- After typing in the sidebar search, click the new `☆` icon to save the query under a name.
+- Saved searches appear above the tag bar; click to re-run, click `×` to delete.
+
+### Backend
+- 6 new Tauri commands: `snapshot_note`, `list_history`, `restore_history`, `purge_history`, `export_workspace`, `import_workspace`, `attachment_data_url`.
+- `Settings` schema gains `default_preview`, `show_backlinks`, `saved_searches` fields (back-compat defaults).
+
+### Auto-update
+- Tag-driven release pipeline produced signed `v0.4.0-beta.1` cleanly. Installed `v0.3.0-beta.1` clients will detect the upgrade on next launch.
+
+## Upgrade
+
+Launch Mycelium → updater offers v0.4.0 → click install. Your notes, templates, themes, plugins, trash, and settings carry over. Existing notes won't have history snapshots until you next edit them.
+
+If installing fresh, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+
+---
+
 # Mycelium v0.3.0-beta.1 - daily-driver polish
 
 This release sands every edge testers reported on beta.2: the editor finally handles checklists, tables, and long-document navigation. New journalling and template workflows turn Mycelium into a daily driver rather than a "neat demo".

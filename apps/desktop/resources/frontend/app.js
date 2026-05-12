@@ -848,6 +848,14 @@ function renderList() {
       const star = document.createElement('span'); star.className = 'nl-pin'; star.textContent = '★';
       titleRow.appendChild(star);
     }
+    // v0.74 — lock glyph for encrypted notes
+    if (n.encrypted) {
+      const lock = document.createElement('span');
+      lock.className = 'nl-enc';
+      lock.textContent = '🔒';
+      lock.title = 'This note is encrypted (per-note passphrase)';
+      titleRow.appendChild(lock);
+    }
     titleRow.appendChild(ti);
     li.appendChild(titleRow);
 

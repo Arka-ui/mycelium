@@ -54,6 +54,13 @@ struct NoteSummary {
     /// v0.28 — frontmatter `icon:` value (typically an emoji), populated by `summarize`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
+    /// v0.74 — true when the note's body is a per-note-encryption envelope.
+    #[serde(default, skip_serializing_if = "is_false")]
+    encrypted: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,6 +217,12 @@ impl Store {
                 }
             }
         }
+        // v0.74 — flag per-note-encryption envelope; mirrors the JS isNoteEncrypted shape check.
+        let body = &note.body;
+        let encrypted = body.len() >= 30
+            && body.starts_with('{')
+            && body.contains("\"_note_enc1\"")
+            && body.contains("\"salt\"");
         NoteSummary {
             id: note.id.clone(),
             title: note.title.clone(),
@@ -220,6 +233,7 @@ impl Store {
             display_order: note.display_order,
             color,
             icon,
+            encrypted,
         }
     }
 

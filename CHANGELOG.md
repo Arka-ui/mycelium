@@ -1,3 +1,20 @@
+# Mycelium v0.74.0-beta.1 - Encrypted-note lock glyph
+
+beta.74 makes per-note-encrypted notes (v0.66) visually obvious in the sidebar.
+
+## New in v0.74.0
+
+### Lock icon
+- Every sidebar entry whose body is a `_note_enc1` envelope now renders a 🔒 next to the title (with a tooltip explaining what it means).
+
+### Backend
+- `NoteSummary` gains an `encrypted: bool` field (skipped in serialization when false). Computed by `summarize` via a cheap shape check on the body string — no JSON parse on the hot path.
+
+### Auto-update
+- Pushing v0.74.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.73.0-beta.1 - Workspace overview
 
 beta.73 adds a one-shot dialog that summarises every dashboard stat at the press of a palette command — no need to open Settings → Dashboard.

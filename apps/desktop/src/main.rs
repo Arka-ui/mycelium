@@ -48,6 +48,19 @@ struct NoteSummary {
     trashed_at: Option<DateTime<Utc>>,
     #[serde(default)]
     display_order: i32,
+    /// v0.28 — frontmatter `color:` value (CSS color string), populated by `summarize`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    /// v0.28 — frontmatter `icon:` value (typically an emoji), populated by `summarize`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
+    /// v0.74 — true when the note's body is a per-note-encryption envelope.
+    #[serde(default, skip_serializing_if = "is_false")]
+    encrypted: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,6 +198,31 @@ impl Store {
     }
 
     fn summarize(note: &Note) -> NoteSummary {
+        // v0.28 — pull `color:` and `icon:` from frontmatter (silent if absent).
+        let mut color: Option<String> = None;
+        let mut icon: Option<String> = None;
+        let (props, _) = parse_frontmatter(&note.body);
+        for (k, v) in props {
+            let lc = k.to_lowercase();
+            if lc == "color" && color.is_none() {
+                let trimmed = v.trim();
+                if !trimmed.is_empty() {
+                    color = Some(trimmed.to_string());
+                }
+            }
+            if lc == "icon" && icon.is_none() {
+                let trimmed = v.trim();
+                if !trimmed.is_empty() {
+                    icon = Some(trimmed.to_string());
+                }
+            }
+        }
+        // v0.74 — flag per-note-encryption envelope; mirrors the JS isNoteEncrypted shape check.
+        let body = &note.body;
+        let encrypted = body.len() >= 30
+            && body.starts_with('{')
+            && body.contains("\"_note_enc1\"")
+            && body.contains("\"salt\"");
         NoteSummary {
             id: note.id.clone(),
             title: note.title.clone(),
@@ -193,6 +231,9 @@ impl Store {
             tags: extract_tags(&note.body),
             trashed_at: note.trashed_at,
             display_order: note.display_order,
+            color,
+            icon,
+            encrypted,
         }
     }
 
@@ -267,7 +308,8 @@ impl Store {
         let mut note = self
             .get(id)?
             .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
-        note.display_order = order;
+        // v0.43 — clamp to >= 0 (the field is documented as "1-based; 0 = no manual order").
+        note.display_order = order.max(0);
         self.write(&note)?;
         Ok(())
     }
@@ -333,7 +375,6 @@ impl Store {
         Ok(n)
     }
 
-    #[allow(dead_code)]
     fn auto_purge_old_trash(&self, days: i64) -> Result<u32> {
         let cutoff = Utc::now() - chrono::Duration::days(days);
         let mut n = 0u32;
@@ -695,6 +736,28 @@ fn empty_trash(state: State<'_, AppState>) -> Result<u32, String> {
         .map_err(|e| e.to_string())
 }
 
+/// v0.34 — number of trashed notes (for sidebar badge).
+#[tauri::command]
+fn trash_count(state: State<'_, AppState>) -> Result<u32, String> {
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    Ok(notes.iter().filter(|n| n.trashed_at.is_some()).count() as u32)
+}
+
+/// v0.34 — purge all trashed notes older than `days` (called on startup or manually).
+#[tauri::command]
+fn auto_purge_trash(state: State<'_, AppState>, days: u32) -> Result<u32, String> {
+    if days == 0 {
+        return Ok(0);
+    }
+    state
+        .store
+        .lock()
+        .unwrap()
+        .auto_purge_old_trash(days as i64)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn set_pinned(state: State<'_, AppState>, id: String, pinned: bool) -> Result<Note, String> {
     state
@@ -760,6 +823,290 @@ fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, Strin
     Ok(n)
 }
 
+/// v0.52 — Rename a note's title AND rewrite every `[[OldTitle]]` reference in other
+/// non-trashed notes to `[[NewTitle]]`. Variants supported in the rewrite:
+///   `[[OldTitle]]`, `[[OldTitle|display]]`, `[[OldTitle#anchor]]`, `[[OldTitle^bookmark]]`,
+///   and combinations like `[[OldTitle#h|d]]`.
+/// Title match is case-insensitive on the part before any `|` / `#` / `^`.
+/// Returns `{ touched_notes, updated_links }`.
+#[tauri::command]
+fn rename_note_with_links(
+    state: State<'_, AppState>,
+    id: String,
+    new_title: String,
+) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let new_title = new_title.trim().to_string();
+    if new_title.is_empty() {
+        return Err("new title cannot be empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let target = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let old_title = target.title.trim().to_string();
+    if old_title == new_title {
+        // Title unchanged — nothing to rewrite.
+        return Ok(serde_json::json!({ "touched_notes": 0, "updated_links": 0 }));
+    }
+    if old_title.is_empty() {
+        // Old title was empty so there are no [[OldTitle]] refs to rewrite — just rename.
+        store
+            .update(&id, Some(new_title), None)
+            .map_err(|e| e.to_string())?;
+        return Ok(serde_json::json!({ "touched_notes": 0, "updated_links": 0 }));
+    }
+    let old_lc = old_title.to_lowercase();
+    let mut touched_notes = 0u32;
+    let mut updated_links = 0u32;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    for note in all {
+        if note.id == id {
+            continue;
+        }
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        let (new_body, count) = rewrite_wikilink_targets(&note.body, &old_lc, &new_title);
+        if count > 0 {
+            updated_links += count;
+            touched_notes += 1;
+            store
+                .update(&note.id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    // Finally rename the target itself.
+    store
+        .update(&id, Some(new_title), None)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "touched_notes": touched_notes,
+        "updated_links": updated_links,
+    }))
+}
+
+/// Replace `[[Title<sep><rest>]]` occurrences (sep ∈ {none, `|`, `#`, `^`}) where the link
+/// target case-insensitively equals `old_lc`, swapping just the title part with `new_title`.
+/// Returns the new body and the count of replacements.
+fn rewrite_wikilink_targets(body: &str, old_lc: &str, new_title: &str) -> (String, u32) {
+    let mut out = String::with_capacity(body.len());
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    let mut count = 0u32;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'[' && bytes[i + 1] == b'[' {
+            // Find matching ]]
+            if let Some(rel_end) = body[i + 2..].find("]]") {
+                let inner_start = i + 2;
+                let inner_end = inner_start + rel_end;
+                let inner = &body[inner_start..inner_end];
+                // Split out the title prefix: everything before the first |, #, or ^.
+                let mut sep_idx = inner.len();
+                for (j, ch) in inner.char_indices() {
+                    if ch == '|' || ch == '#' || ch == '^' {
+                        sep_idx = j;
+                        break;
+                    }
+                }
+                let title_part = &inner[..sep_idx];
+                let trail = &inner[sep_idx..];
+                if title_part.trim().to_lowercase() == old_lc {
+                    out.push_str("[[");
+                    out.push_str(new_title);
+                    out.push_str(trail);
+                    out.push_str("]]");
+                    i = inner_end + 2;
+                    count += 1;
+                    continue;
+                }
+            }
+        }
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    (out, count)
+}
+
+/// v0.50 — Walk every non-trashed note's body for `- [ ]` / `- [x]` task list items.
+/// Returns a flat list of `{note_id, note_title, line, text, done}` so the frontend can
+/// build a global TODO view. Default `done_filter`: false-only (open tasks).
+#[tauri::command]
+fn all_tasks(
+    state: State<'_, AppState>,
+    include_done: Option<bool>,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let include_done = include_done.unwrap_or(false);
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let mut line_no: u32 = 0;
+        for line in n.body.lines() {
+            line_no += 1;
+            // Match `- [ ] text`, `- [x] text`, `- [X] text` (and * / +).
+            let trimmed = line.trim_start();
+            if let Some(rest) = trimmed
+                .strip_prefix("- [")
+                .or_else(|| trimmed.strip_prefix("* ["))
+                .or_else(|| trimmed.strip_prefix("+ ["))
+            {
+                if rest.len() < 3 {
+                    continue;
+                }
+                let mark = &rest[..1];
+                let after = &rest[1..];
+                if !after.starts_with("] ") && after != "]" {
+                    continue;
+                }
+                let done = mark == "x" || mark == "X";
+                if !include_done && done {
+                    continue;
+                }
+                let text = after.strip_prefix("] ").unwrap_or("");
+                out.push(serde_json::json!({
+                    "note_id": n.id,
+                    "note_title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+                    "line": line_no,
+                    "text": text.trim(),
+                    "done": done,
+                }));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// v0.37 — Top-N words across every non-trashed note's body. Stop-words excluded.
+/// Used by the "Show top words" palette command.
+#[tauri::command]
+fn top_words(state: State<'_, AppState>, limit: Option<u32>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let limit = limit.unwrap_or(30).clamp(1, 200) as usize;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let stop: std::collections::HashSet<&'static str> = [
+        "the", "a", "an", "of", "to", "and", "or", "but", "is", "are", "was", "were", "in", "on",
+        "at", "by", "for", "with", "as", "be", "been", "being", "have", "has", "had", "do", "does",
+        "did", "will", "would", "shall", "should", "can", "could", "may", "might", "must", "this",
+        "that", "these", "those", "i", "you", "he", "she", "we", "they", "it", "me", "him", "her",
+        "us", "them", "my", "your", "his", "their", "its", "our", "if", "then", "than", "so", "up",
+        "down", "out", "from", "into", "about", "over", "under", "more", "most", "some", "any",
+        "no", "not", "only", "just", "also", "very", "too", "such", "what", "which", "who", "whom",
+        "whose", "where", "when", "why", "how", "all", "each", "every", "many", "much", "few",
+        "other", "another", "same", "own", "new", "old", "see",
+    ]
+    .iter()
+    .copied()
+    .collect();
+    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (_, body) = parse_frontmatter(&n.body);
+        for raw in body.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-') {
+            let lc = raw.to_lowercase();
+            let lc = lc.trim_matches(|c: char| c == '-' || c == '\'');
+            if lc.len() < 4 {
+                continue;
+            }
+            if stop.contains(lc) {
+                continue;
+            }
+            // Skip pure numbers.
+            if lc.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            *counts.entry(lc.to_string()).or_insert(0) += 1;
+        }
+    }
+    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    out.truncate(limit);
+    Ok(out)
+}
+
+/// v0.61 — Apply one frontmatter `key: value` to many notes at once. If `value` is `None`,
+/// removes the property from each. Returns count of notes touched.
+#[tauri::command]
+fn bulk_set_property(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    key: String,
+    value: Option<String>,
+) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let mut touched = 0u32;
+    for id in &ids {
+        let note = match store.get(id).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        let new_body = rewrite_property(&note.body, &key, value.as_deref());
+        if new_body != note.body {
+            store
+                .update(id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+            touched += 1;
+        }
+    }
+    Ok(touched)
+}
+
+/// v0.36 — Append the bodies of `source_ids` to `target_id`'s body (each preceded by a
+/// `\n\n## <Title>\n\n` header), trash the sources, return the merged note.
+#[tauri::command]
+fn merge_notes(
+    state: State<'_, AppState>,
+    target_id: String,
+    source_ids: Vec<String>,
+) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    if source_ids.iter().any(|s| s == &target_id) {
+        return Err("source list must not contain the target id".into());
+    }
+    if source_ids.is_empty() {
+        return Err("nothing to merge".into());
+    }
+    let store = state.store.lock().unwrap();
+    let mut target = store
+        .get(&target_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "target note not found".to_string())?;
+    for sid in &source_ids {
+        let src = match store.get(sid).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        if !target.body.is_empty() && !target.body.ends_with('\n') {
+            target.body.push('\n');
+        }
+        let title = if src.title.trim().is_empty() {
+            "Untitled"
+        } else {
+            &src.title
+        };
+        target.body.push_str(&format!("\n\n## {}\n\n", title));
+        target.body.push_str(&src.body);
+        store.trash(sid).map_err(|e| e.to_string())?;
+    }
+    target.updated_at = Some(Utc::now());
+    store.write(&target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
 #[tauri::command]
 fn bulk_export_md(
     state: State<'_, AppState>,
@@ -773,12 +1120,13 @@ fn bulk_export_md(
             Some(n) => n,
             None => continue,
         };
-        let title = if note.title.is_empty() {
-            "Untitled".into()
+        // v0.43 — treat whitespace-only titles as untitled, never produce ".md" alone.
+        let title = if note.title.trim().is_empty() {
+            "Untitled".to_string()
         } else {
             note.title.clone()
         };
-        let safe = title
+        let safe: String = title
             .chars()
             .map(|c| {
                 if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
@@ -787,8 +1135,12 @@ fn bulk_export_md(
                     '_'
                 }
             })
-            .collect::<String>();
-        let filename = format!("{}.md", safe.trim());
+            .collect();
+        let mut base = safe.trim().to_string();
+        if base.is_empty() {
+            base = format!("Untitled-{}", note.id);
+        }
+        let filename = format!("{}.md", base);
         let mut content = format!("# {}\n\n", title);
         if let Some(t) = note.updated_at {
             content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
@@ -832,6 +1184,1124 @@ fn all_tags(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
     let mut out: Vec<(String, u32)> = counts.into_iter().collect();
     out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     Ok(out)
+}
+
+// --- v0.16 — frontmatter (very small YAML-ish subset) ----------------
+//
+// Supports a `---`-fenced block at the top of a note containing
+// `key: value` lines. Anything more complex (nested maps, multi-line
+// scalars, real YAML) is treated as opaque value text. This is
+// intentionally tiny and dependency-free.
+fn parse_frontmatter(body: &str) -> (Vec<(String, String)>, &str) {
+    let trimmed = body.trim_start_matches('\u{FEFF}');
+    if !trimmed.starts_with("---\n") && !trimmed.starts_with("---\r\n") {
+        return (vec![], body);
+    }
+    let after_open = if trimmed.starts_with("---\r\n") { 5 } else { 4 };
+    let rest = &trimmed[after_open..];
+    let close_pos = rest
+        .find("\n---\n")
+        .or_else(|| rest.find("\n---\r\n"))
+        .or_else(|| {
+            if rest.starts_with("---\n") || rest.starts_with("---\r\n") {
+                Some(0)
+            } else {
+                None
+            }
+        });
+    let Some(pos) = close_pos else {
+        return (vec![], body);
+    };
+    let block = &rest[..pos];
+    let after_close_offset = if rest[pos..].starts_with("\n---\r\n") {
+        pos + 6
+    } else {
+        pos + 5
+    };
+    let body_after = if after_close_offset >= rest.len() {
+        ""
+    } else {
+        &rest[after_close_offset..]
+    };
+    let body_after = body_after.trim_start_matches(['\n', '\r']);
+    let mut out = vec![];
+    for line in block.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Some(idx) = line.find(':') {
+            let key = line[..idx].trim();
+            let value = line[idx + 1..].trim();
+            if !key.is_empty() {
+                out.push((key.to_string(), value.to_string()));
+            }
+        }
+    }
+    (out, body_after)
+}
+
+#[tauri::command]
+fn note_properties(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let (props, _rest) = parse_frontmatter(&note.body);
+    let map: serde_json::Map<String, serde_json::Value> = props
+        .into_iter()
+        .map(|(k, v)| (k, serde_json::Value::String(v)))
+        .collect();
+    Ok(serde_json::Value::Object(map))
+}
+
+#[tauri::command]
+fn notes_by_property(
+    state: State<'_, AppState>,
+    key: String,
+    value: Option<String>,
+) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let key_lc = key.trim().to_lowercase();
+    if key_lc.is_empty() {
+        return Err("property key empty".into());
+    }
+    let value_match = value.map(|v| v.trim().to_lowercase());
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out: Vec<NoteSummary> = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut hit = false;
+        for (k, v) in &props {
+            if k.to_lowercase() != key_lc {
+                continue;
+            }
+            match &value_match {
+                None => {
+                    hit = true;
+                    break;
+                }
+                Some(want) => {
+                    if &v.to_lowercase() == want {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if hit {
+            out.push(Store::summarize(n));
+        }
+    }
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
+/// Set / replace / delete one frontmatter property. If `value` is None, the property is removed.
+/// If the note has no frontmatter block yet, one is created.
+#[tauri::command]
+fn set_property(
+    state: State<'_, AppState>,
+    id: String,
+    key: String,
+    value: Option<String>,
+) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let note = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let new_body = rewrite_property(&note.body, &key, value.as_deref());
+    drop(store);
+    state
+        .store
+        .lock()
+        .unwrap()
+        .update(&id, None, Some(new_body))
+        .map_err(|e| e.to_string())
+}
+
+fn rewrite_property(body: &str, key: &str, value: Option<&str>) -> String {
+    let (mut props, rest) = parse_frontmatter(body);
+    let key_lc = key.to_lowercase();
+    let mut found = false;
+    props.retain_mut(|(k, v)| {
+        if k.to_lowercase() == key_lc {
+            if let Some(new_value) = value {
+                *v = new_value.to_string();
+                found = true;
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        }
+    });
+    if !found {
+        if let Some(new_value) = value {
+            props.push((key.to_string(), new_value.to_string()));
+        }
+    }
+    if props.is_empty() {
+        return rest.to_string();
+    }
+    let mut out = String::with_capacity(rest.len() + 64);
+    out.push_str("---\n");
+    for (k, v) in props {
+        out.push_str(&k);
+        out.push_str(": ");
+        out.push_str(&v);
+        out.push('\n');
+    }
+    out.push_str("---\n");
+    if !rest.is_empty() {
+        out.push('\n');
+        out.push_str(rest);
+    }
+    out
+}
+
+/// Month-grid calendar grouping notes by a frontmatter date property (default `due`).
+/// Returns the matrix of weeks (each week is 7 days; each day has a list of notes due that day).
+/// `year` / `month` are 1-based ISO. Notes whose property doesn't parse as `YYYY-MM-DD` are ignored.
+#[tauri::command]
+fn month_calendar(
+    state: State<'_, AppState>,
+    year: i32,
+    month: u32,
+    key: Option<String>,
+) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    if !(1..=12).contains(&month) {
+        return Err("month must be 1..=12".into());
+    }
+    let key_lc = key
+        .unwrap_or_else(|| "due".to_string())
+        .trim()
+        .to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    let mut by_day: std::collections::BTreeMap<String, Vec<serde_json::Value>> =
+        std::collections::BTreeMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in &props {
+            if k.to_lowercase() != key_lc {
+                continue;
+            }
+            // Accept `YYYY-MM-DD` and longer ISO timestamps. Anything else is skipped.
+            let day = v.get(..10).unwrap_or("");
+            if day.len() != 10
+                || !day.is_char_boundary(4)
+                || !day.is_char_boundary(7)
+                || day.as_bytes().get(4) != Some(&b'-')
+                || day.as_bytes().get(7) != Some(&b'-')
+            {
+                continue;
+            }
+            // Confirm year and month numerically.
+            let parsed_year: i32 = match day[..4].parse() {
+                Ok(y) => y,
+                Err(_) => continue,
+            };
+            let parsed_month: u32 = match day[5..7].parse() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if parsed_year != year || parsed_month != month {
+                continue;
+            }
+            by_day
+                .entry(day.to_string())
+                .or_default()
+                .push(serde_json::json!({
+                    "id": n.id,
+                    "title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+                    "pinned": n.pinned,
+                }));
+            break;
+        }
+    }
+    Ok(serde_json::json!({
+        "year": year,
+        "month": month,
+        "property": key_lc,
+        "by_day": by_day,
+    }))
+}
+
+/// v0.66 — Encrypt a single note's body with a passphrase. Returns the JSON envelope text
+/// (`{"_note_enc1": "<base64>", "salt": "<hex>"}`) that the frontend stores in `body`.
+/// Cipher is the same ChaCha20-Poly1305 + 50,000 BLAKE3 KDF used everywhere else.
+#[tauri::command]
+fn encrypt_note_body(plaintext: String, passphrase: String) -> Result<String, String> {
+    if passphrase.len() < 6 {
+        return Err("passphrase must be at least 6 characters".into());
+    }
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    let salt_hex = hex_encode(&salt);
+    let key = derive_master_key(&salt_hex, &passphrase);
+    let blob = encrypt_for_disk(plaintext.as_bytes(), &key)?;
+    Ok(serde_json::json!({
+        "_note_enc1": blob,
+        "salt": salt_hex,
+    })
+    .to_string())
+}
+
+/// v0.66 — Decrypt the envelope produced by `encrypt_note_body`. Returns the plaintext.
+#[tauri::command]
+fn decrypt_note_body(envelope: String, passphrase: String) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(&envelope)
+        .map_err(|_| "not a valid encrypted envelope".to_string())?;
+    let salt = v
+        .get("salt")
+        .and_then(|x| x.as_str())
+        .ok_or_else(|| "missing salt".to_string())?;
+    let blob = v
+        .get("_note_enc1")
+        .and_then(|x| x.as_str())
+        .ok_or_else(|| "missing ciphertext".to_string())?;
+    let key = derive_master_key(salt, &passphrase);
+    let plaintext = decrypt_from_disk(blob, &key)
+        .map_err(|_| "wrong passphrase or corrupt envelope".to_string())?;
+    String::from_utf8(plaintext)
+        .map_err(|e| format!("decryption succeeded but UTF-8 invalid: {}", e))
+}
+
+/// v0.27 — Encrypt the workspace bundle with a passphrase before download.
+/// Returns a JSON envelope `{ "_enc1": "<base64-nonce-and-ciphertext>", "salt": "<hex>" }`.
+/// The salt is per-export (16 fresh bytes); the master key derivation is identical to
+/// the at-rest workspace lock (50,000 BLAKE3 iterations over a domain-separated input).
+#[tauri::command]
+fn export_workspace_encrypted(
+    state: State<'_, AppState>,
+    passphrase: String,
+) -> Result<serde_json::Value, String> {
+    if passphrase.len() < 6 {
+        return Err("passphrase must be at least 6 characters".into());
+    }
+    let bundle = export_workspace(state)?;
+    let plaintext = serde_json::to_vec(&bundle).map_err(|e| e.to_string())?;
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    let salt_hex = hex_encode(&salt);
+    let key = derive_master_key(&salt_hex, &passphrase);
+    let blob = encrypt_for_disk(&plaintext, &key)?;
+    Ok(serde_json::json!({
+        "format": "mycelium-workspace-enc-v1",
+        "salt": salt_hex,
+        "_enc1": blob,
+    }))
+}
+
+/// v0.27 — Decrypt an `export_workspace_encrypted` bundle and return the inner workspace JSON.
+/// The frontend can then hand the result to the existing `import_workspace`.
+#[tauri::command]
+fn decrypt_workspace_bundle(
+    bundle: serde_json::Value,
+    passphrase: String,
+) -> Result<serde_json::Value, String> {
+    let format = bundle.get("format").and_then(|v| v.as_str()).unwrap_or("");
+    if format != "mycelium-workspace-enc-v1" {
+        return Err("not an encrypted Mycelium workspace bundle".into());
+    }
+    let salt = bundle
+        .get("salt")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "missing salt".to_string())?;
+    let blob = bundle
+        .get("_enc1")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "missing ciphertext".to_string())?;
+    let key = derive_master_key(salt, &passphrase);
+    let plaintext = decrypt_from_disk(blob, &key)
+        .map_err(|_| "wrong passphrase or corrupt bundle".to_string())?;
+    serde_json::from_slice::<serde_json::Value>(&plaintext)
+        .map_err(|e| format!("decryption succeeded but inner JSON was invalid: {}", e))
+}
+
+// --- v0.25 — text snippets (typed shortcuts that expand in the editor) ---
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Snippet {
+    key: String,
+    body: String,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+fn snippets_path() -> PathBuf {
+    data_root().join("snippets.json")
+}
+
+#[tauri::command]
+fn list_snippets() -> Vec<Snippet> {
+    let p = snippets_path();
+    let raw = match fs::read(&p) {
+        Ok(b) => b,
+        Err(_) => return default_snippets(),
+    };
+    serde_json::from_slice::<Vec<Snippet>>(&raw).unwrap_or_else(|_| default_snippets())
+}
+
+fn default_snippets() -> Vec<Snippet> {
+    vec![
+        Snippet {
+            key: "todo".to_string(),
+            body: "- [ ] ".to_string(),
+            description: Some("New task checkbox".to_string()),
+        },
+        Snippet {
+            key: "today".to_string(),
+            body: Utc::now().format("%Y-%m-%d").to_string(),
+            description: Some("Today's date (YYYY-MM-DD)".to_string()),
+        },
+        Snippet {
+            key: "now".to_string(),
+            body: Utc::now().format("%H:%M").to_string(),
+            description: Some("Current time (HH:MM)".to_string()),
+        },
+        Snippet {
+            key: "hr".to_string(),
+            body: "\n---\n".to_string(),
+            description: Some("Horizontal rule on its own line".to_string()),
+        },
+        Snippet {
+            key: "code".to_string(),
+            body: "```\n\n```".to_string(),
+            description: Some("Empty fenced code block".to_string()),
+        },
+        Snippet {
+            key: "fm".to_string(),
+            body: "---\nstatus: \ntype: \n---\n\n".to_string(),
+            description: Some("Frontmatter scaffold".to_string()),
+        },
+    ]
+}
+
+#[tauri::command]
+fn save_snippets(snippets: Vec<Snippet>) -> Result<(), String> {
+    let mut seen = std::collections::HashSet::new();
+    for s in &snippets {
+        if s.key.trim().is_empty() {
+            return Err("snippet key empty".into());
+        }
+        if !s
+            .key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(format!(
+                "snippet key '{}' must be alphanumeric / - / _",
+                s.key
+            ));
+        }
+        let lc = s.key.to_lowercase();
+        if !seen.insert(lc) {
+            return Err(format!("duplicate snippet key '{}'", s.key));
+        }
+    }
+    let p = snippets_path();
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let tmp = p.with_extension("json.tmp");
+    let bytes = serde_json::to_vec_pretty(&snippets).map_err(|e| e.to_string())?;
+    fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())
+}
+
+/// Same as `backlinks` but each result carries the line containing `[[Title]]` as `snippet`.
+#[tauri::command]
+fn backlinks_with_context(
+    state: State<'_, AppState>,
+    title: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let needle = format!("[[{}]]", title);
+    let needle_lc = needle.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let body_lc = n.body.to_lowercase();
+        if !body_lc.contains(&needle_lc) {
+            continue;
+        }
+        let mut snippet = String::new();
+        for line in n.body.lines() {
+            if line.to_lowercase().contains(&needle_lc) {
+                let trimmed = line.trim();
+                snippet = if trimmed.chars().count() > 120 {
+                    let mut s: String = trimmed.chars().take(120).collect();
+                    s.push('…');
+                    s
+                } else {
+                    trimmed.to_string()
+                };
+                break;
+            }
+        }
+        out.push(serde_json::json!({
+            "id": n.id,
+            "title": n.title,
+            "updated_at": n.updated_at,
+            "pinned": n.pinned,
+            "snippet": snippet,
+        }));
+    }
+    out.sort_by(|a, b| {
+        b["updated_at"]
+            .as_str()
+            .unwrap_or("")
+            .cmp(a["updated_at"].as_str().unwrap_or(""))
+    });
+    Ok(out)
+}
+
+/// Plain-text mentions: notes containing `Title` as text but NOT only as `[[Title]]`.
+#[tauri::command]
+fn mentions(state: State<'_, AppState>, title: String) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let raw = title.trim();
+    if raw.is_empty() {
+        return Ok(vec![]);
+    }
+    let want = raw.to_lowercase();
+    let wiki = format!("[[{}]]", raw).to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let body_lc = n.body.to_lowercase();
+        if !body_lc.contains(&want) {
+            continue;
+        }
+        let mut hit_offset: Option<usize> = None;
+        let mut search_from = 0usize;
+        while let Some(pos) = body_lc[search_from..].find(&want) {
+            let abs = search_from + pos;
+            let before = &body_lc[..abs];
+            let after = &body_lc[abs + want.len()..];
+            let in_wiki = before.ends_with("[[") && after.starts_with("]]");
+            if !in_wiki {
+                hit_offset = Some(abs);
+                break;
+            }
+            search_from = abs + want.len();
+        }
+        if let Some(abs) = hit_offset {
+            let line_start = n.body[..abs].rfind('\n').map(|p| p + 1).unwrap_or(0);
+            let line_end = n.body[abs..]
+                .find('\n')
+                .map(|p| abs + p)
+                .unwrap_or(n.body.len());
+            let line = &n.body[line_start..line_end];
+            let trimmed = line.trim();
+            let snippet = if trimmed.chars().count() > 120 {
+                let mut s: String = trimmed.chars().take(120).collect();
+                s.push('…');
+                s
+            } else {
+                trimmed.to_string()
+            };
+            if snippet.to_lowercase() == wiki {
+                continue;
+            }
+            out.push(serde_json::json!({
+                "id": n.id,
+                "title": n.title,
+                "updated_at": n.updated_at,
+                "snippet": snippet,
+            }));
+        }
+    }
+    out.sort_by(|a, b| {
+        b["updated_at"]
+            .as_str()
+            .unwrap_or("")
+            .cmp(a["updated_at"].as_str().unwrap_or(""))
+    });
+    Ok(out)
+}
+
+/// Append a captured line to today's daily note (creating it if absent).
+/// The note is created with the same shape as `daily_note` and the line is timestamped.
+#[tauri::command]
+fn quick_capture_append(state: State<'_, AppState>, text: String) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err("nothing to capture".into());
+    }
+    let now = Utc::now();
+    let today = now.format("%Y-%m-%d").to_string();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let existing = notes
+        .into_iter()
+        .find(|n| n.title == today && n.trashed_at.is_none());
+    let stamp = now.format("%H:%M").to_string();
+    let line = format!("- [{}] {}\n", stamp, trimmed);
+    if let Some(mut note) = existing {
+        if note.body.is_empty() || !note.body.ends_with('\n') {
+            note.body.push('\n');
+        }
+        note.body.push_str(&line);
+        note.updated_at = Some(now);
+        store.write(&note).map_err(|e| e.to_string())?;
+        Ok(note)
+    } else {
+        let body = format!("# {}\n\n{}", today, line);
+        let note = store.create(today, body).map_err(|e| e.to_string())?;
+        Ok(note)
+    }
+}
+
+/// Suggest related notes for `id`, ranked by shared tags, shared frontmatter values, and
+/// shared outgoing wiki-link targets. Returns at most `limit` (default 6) summaries, never
+/// including the source note itself.
+#[tauri::command]
+fn suggested_notes(
+    state: State<'_, AppState>,
+    id: String,
+    limit: Option<u32>,
+) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let limit = limit.unwrap_or(6).clamp(1, 50) as usize;
+    let store = state.store.lock().unwrap();
+    let me = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+
+    let my_tags: std::collections::HashSet<String> = extract_tags(&me.body).into_iter().collect();
+    let (my_props, _) = parse_frontmatter(&me.body);
+    let my_prop_kv: std::collections::HashSet<(String, String)> = my_props
+        .iter()
+        .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
+        .collect();
+    let mut my_outgoing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let finder = WikiLinkFinder;
+    for (a, b) in finder.find_iter(&me.body) {
+        let mut t = me.body[a + 2..b - 2].to_string();
+        if let Some((p, _)) = t.split_once('|') {
+            t = p.to_string();
+        }
+        if let Some((p, _)) = t.split_once('#') {
+            t = p.to_string();
+        }
+        let lc = t.trim().to_lowercase();
+        if !lc.is_empty() {
+            my_outgoing.insert(lc);
+        }
+    }
+
+    let mut scored: Vec<(u32, &Note)> = vec![];
+    for n in &all {
+        if n.id == me.id || n.trashed_at.is_some() {
+            continue;
+        }
+        let other_tags: std::collections::HashSet<String> =
+            extract_tags(&n.body).into_iter().collect();
+        let shared_tags = my_tags.intersection(&other_tags).count() as u32;
+        let (other_props, _) = parse_frontmatter(&n.body);
+        let other_prop_kv: std::collections::HashSet<(String, String)> = other_props
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
+            .collect();
+        let shared_props = my_prop_kv.intersection(&other_prop_kv).count() as u32;
+        let mut other_outgoing: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for (a, b) in finder.find_iter(&n.body) {
+            let mut t = n.body[a + 2..b - 2].to_string();
+            if let Some((p, _)) = t.split_once('|') {
+                t = p.to_string();
+            }
+            if let Some((p, _)) = t.split_once('#') {
+                t = p.to_string();
+            }
+            let lc = t.trim().to_lowercase();
+            if !lc.is_empty() {
+                other_outgoing.insert(lc);
+            }
+        }
+        let shared_links = my_outgoing.intersection(&other_outgoing).count() as u32;
+        let score = shared_tags * 2 + shared_props + shared_links;
+        if score > 0 {
+            scored.push((score, n));
+        }
+    }
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0).then_with(|| {
+            b.1.updated_at
+                .unwrap_or_default()
+                .cmp(&a.1.updated_at.unwrap_or_default())
+        })
+    });
+    Ok(scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, n)| Store::summarize(n))
+        .collect())
+}
+
+/// Resolve a wiki-link target to a note id, handling aliases and `Title#Heading` block refs.
+/// `target` is everything between `[[` and `]]` minus any `|display`. Returns
+/// `{ id?: String, title?: String, anchor?: String }` (anchor present iff `#` was used).
+#[tauri::command]
+fn resolve_link(state: State<'_, AppState>, target: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let raw = target.trim().to_string();
+    if raw.is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    // v0.45 — accept either `#heading-text` or `^bookmark-name` as the anchor separator.
+    // Whichever appears first wins; the other is treated as part of the value.
+    let split_at = match (raw.find('#'), raw.find('^')) {
+        (Some(h), Some(b)) => Some(h.min(b)),
+        (Some(h), None) => Some(h),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    let (link_part, anchor) = match split_at {
+        Some(i) => {
+            let l = raw[..i].trim().to_string();
+            let a = raw[i + 1..].trim().to_string();
+            let kind = &raw[i..i + 1];
+            // Tag the anchor type so the frontend can pick the right scroll behavior.
+            let tagged = if kind == "^" { format!("^{}", a) } else { a };
+            (l, Some(tagged))
+        }
+        None => (raw.clone(), None),
+    };
+    if link_part.is_empty() {
+        return Ok(serde_json::json!({"anchor": anchor}));
+    }
+    let want = link_part.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    // Exact title match first.
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if n.title.to_lowercase() == want {
+            return Ok(serde_json::json!({
+                "id": n.id, "title": n.title, "anchor": anchor
+            }));
+        }
+    }
+    // Then alias match in frontmatter (`alias: foo, bar` or `aliases:`).
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in &props {
+            let lc = k.to_lowercase();
+            if lc != "alias" && lc != "aliases" {
+                continue;
+            }
+            for piece in v.split(',') {
+                if piece.trim().to_lowercase() == want {
+                    return Ok(serde_json::json!({
+                        "id": n.id, "title": n.title, "anchor": anchor
+                    }));
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({"anchor": anchor}))
+}
+
+/// Every note that publishes one or more aliases via frontmatter.
+#[tauri::command]
+fn all_aliases(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in props {
+            let lc = k.to_lowercase();
+            if lc == "alias" || lc == "aliases" {
+                let aliases: Vec<String> = v
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if !aliases.is_empty() {
+                    out.push(serde_json::json!({
+                        "id": n.id,
+                        "title": n.title,
+                        "aliases": aliases,
+                    }));
+                }
+                break;
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Run a tiny query DSL across the workspace. Supported forms:
+/// - `tag=NAME`  → notes carrying #NAME
+/// - `KEY=VALUE` → notes with frontmatter `KEY: VALUE`
+/// - `KEY`       → notes that have any value for frontmatter KEY
+/// - `orphan`    → notes with zero in/out wiki-links
+/// - `pinned`    → pinned notes
+/// - `untitled`  → notes with empty title
+/// All matches are case-insensitive on keys/values; values are exact matches.
+#[tauri::command]
+fn query_notes(state: State<'_, AppState>, query: String) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let q = query.trim().to_string();
+    if q.is_empty() {
+        return Ok(vec![]);
+    }
+    let lc = q.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    if lc == "orphan" || lc == "orphans" {
+        return orphan_notes(state);
+    }
+    if lc == "pinned" {
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && n.pinned)
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+    if lc == "untitled" {
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && n.title.trim().is_empty())
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+    // Parse `[key]=[value]` or `key`.
+    let (key_raw, value_opt) = match q.split_once('=') {
+        Some((k, v)) => (k.trim().to_string(), Some(v.trim().to_string())),
+        None => (q.clone(), None),
+    };
+    let key = key_raw.to_lowercase();
+
+    if key == "tag" {
+        let want = value_opt.unwrap_or_default().to_lowercase();
+        if want.is_empty() {
+            return Err("tag query requires a value (tag=name)".into());
+        }
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && extract_tags(&n.body).iter().any(|t| t == &want))
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+
+    let want_value = value_opt.map(|v| v.to_lowercase());
+    let mut out: Vec<NoteSummary> = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut hit = false;
+        for (k, v) in &props {
+            if k.to_lowercase() != key {
+                continue;
+            }
+            match &want_value {
+                None => {
+                    hit = true;
+                    break;
+                }
+                Some(want) => {
+                    if &v.to_lowercase() == want {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if hit {
+            out.push(Store::summarize(n));
+        }
+    }
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
+/// Group notes into columns by frontmatter property `key`. Notes lacking that property go into
+/// the synthetic "(none)" column. Columns are returned in the order their values were first seen.
+#[tauri::command]
+fn board_data(state: State<'_, AppState>, key: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let key_lc = key.trim().to_lowercase();
+    if key_lc.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut order: Vec<String> = vec![];
+    let mut groups: std::collections::HashMap<String, Vec<serde_json::Value>> =
+        std::collections::HashMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let val = props
+            .into_iter()
+            .find(|(k, _)| k.to_lowercase() == key_lc)
+            .map(|(_, v)| v)
+            .unwrap_or_else(|| "(none)".to_string());
+        if !order.contains(&val) {
+            order.push(val.clone());
+        }
+        let preview: String = n.body.chars().take(120).collect();
+        groups.entry(val).or_default().push(serde_json::json!({
+            "id": n.id,
+            "title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+            "preview": preview,
+            "pinned": n.pinned,
+            "updated_at": n.updated_at,
+        }));
+    }
+    let mut columns = vec![];
+    for val in order {
+        let cards = groups.remove(&val).unwrap_or_default();
+        columns.push(serde_json::json!({
+            "value": val,
+            "count": cards.len(),
+            "cards": cards,
+        }));
+    }
+    Ok(serde_json::json!({
+        "property": key,
+        "columns": columns,
+    }))
+}
+
+#[tauri::command]
+fn all_property_keys(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut counts: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (k, _) in &props {
+            let lc = k.to_lowercase();
+            if seen.insert(lc.clone()) {
+                *counts.entry(lc).or_insert(0) += 1;
+            }
+        }
+    }
+    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Ok(out)
+}
+
+#[tauri::command]
+fn outgoing_links(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let note = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for n in &all {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if !n.title.trim().is_empty() {
+            title_to_id.insert(n.title.to_lowercase(), n.id.clone());
+        }
+    }
+    let finder = WikiLinkFinder;
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut out = vec![];
+    for (a, b) in finder.find_iter(&note.body) {
+        let target = note.body[a + 2..b - 2].trim();
+        if target.is_empty() {
+            continue;
+        }
+        let key = target.to_lowercase();
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let exists = title_to_id.get(&key).cloned();
+        out.push(serde_json::json!({
+            "title": target,
+            "exists": exists.is_some(),
+            "id": exists,
+        }));
+    }
+    Ok(out)
+}
+
+/// Notes with zero incoming AND zero outgoing wiki-links (excluding trashed).
+#[tauri::command]
+fn orphan_notes(state: State<'_, AppState>) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut active: Vec<&Note> = vec![];
+    for n in &all {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if !n.title.trim().is_empty() {
+            title_to_id.insert(n.title.to_lowercase(), n.id.clone());
+        }
+        active.push(n);
+    }
+    let finder = WikiLinkFinder;
+    let mut incoming: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut outgoing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for n in &active {
+        for (a, b) in finder.find_iter(&n.body) {
+            let target = n.body[a + 2..b - 2].trim().to_lowercase();
+            if let Some(target_id) = title_to_id.get(&target) {
+                if target_id != &n.id {
+                    incoming.insert(target_id.clone());
+                    outgoing.insert(n.id.clone());
+                }
+            }
+        }
+    }
+    let mut out: Vec<NoteSummary> = active
+        .iter()
+        .filter(|n| !incoming.contains(&n.id) && !outgoing.contains(&n.id))
+        .map(|n| Store::summarize(n))
+        .collect();
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
+/// Rename `#oldtag` to `#newtag` across every non-trashed note's body.
+/// Returns the number of notes touched.
+#[tauri::command]
+fn rename_tag(state: State<'_, AppState>, old_tag: String, new_tag: String) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let old_lc = old_tag.trim().to_lowercase();
+    let new_lc = new_tag.trim().to_lowercase();
+    if old_lc.is_empty() || new_lc.is_empty() {
+        return Err("tag names must be non-empty".into());
+    }
+    if !old_lc
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || !new_lc
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("tag names must be alphanumeric / - / _".into());
+    }
+    if old_lc == new_lc {
+        return Ok(0);
+    }
+    let store = state.store.lock().unwrap();
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut touched = 0u32;
+    for note in all {
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        let new_body = rewrite_tag_in_body(&note.body, &old_lc, &new_lc);
+        if new_body != note.body {
+            store
+                .update(&note.id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+            touched += 1;
+        }
+    }
+    Ok(touched)
+}
+
+fn rewrite_tag_in_body(body: &str, old_lc: &str, new_lc: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'#' && (i == 0 || !bytes[i - 1].is_ascii_alphanumeric()) {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b'-')
+            {
+                end += 1;
+            }
+            if end > start {
+                let tag = &body[start..end];
+                if tag.to_lowercase() == old_lc {
+                    out.push('#');
+                    out.push_str(new_lc);
+                    i = end;
+                    continue;
+                }
+            }
+        }
+        // Copy one UTF-8 char preserving multi-byte sequences.
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
 }
 
 #[tauri::command]
@@ -890,12 +2360,13 @@ fn export_all_md(state: State<'_, AppState>) -> Result<Vec<(String, String)>, St
         if note.trashed_at.is_some() {
             continue;
         }
-        let title = if note.title.is_empty() {
-            "Untitled".into()
+        // v0.43 — treat whitespace-only titles as untitled, never produce ".md" alone.
+        let title = if note.title.trim().is_empty() {
+            "Untitled".to_string()
         } else {
             note.title.clone()
         };
-        let safe = title
+        let safe: String = title
             .chars()
             .map(|c| {
                 if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
@@ -904,8 +2375,12 @@ fn export_all_md(state: State<'_, AppState>) -> Result<Vec<(String, String)>, St
                     '_'
                 }
             })
-            .collect::<String>();
-        let filename = format!("{}.md", safe.trim());
+            .collect();
+        let mut base = safe.trim().to_string();
+        if base.is_empty() {
+            base = format!("Untitled-{}", note.id);
+        }
+        let filename = format!("{}.md", base);
         let mut content = format!("# {}\n\n", title);
         if let Some(t) = note.updated_at {
             content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
@@ -1084,12 +2559,59 @@ fn note_from_template(
     let bytes = fs::read(&p).map_err(|e| e.to_string())?;
     let template: Template = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     let final_title = title.unwrap_or_else(|| template.name.clone());
+    // v0.31 — substitute template variables before creating the note.
+    let body = expand_template_vars(&template.body, &final_title);
     state
         .store
         .lock()
         .unwrap()
-        .create(final_title, template.body)
+        .create(final_title, body)
         .map_err(|e| e.to_string())
+}
+
+/// v0.31 — Replace `{{var}}` tokens in template bodies. Recognised:
+/// `{{date}}` (YYYY-MM-DD), `{{time}}` (HH:MM), `{{datetime}}` (RFC3339),
+/// `{{title}}` (the new note's title), `{{year}}`, `{{month}}`, `{{day}}`,
+/// `{{cursor}}` (left as-is so the frontend can place the caret on it).
+/// Unknown `{{name}}` tokens are left unchanged.
+fn expand_template_vars(body: &str, title: &str) -> String {
+    let now = Utc::now();
+    let date = now.format("%Y-%m-%d").to_string();
+    let time = now.format("%H:%M").to_string();
+    let datetime = now.to_rfc3339();
+    let year = now.format("%Y").to_string();
+    let month = now.format("%m").to_string();
+    let day = now.format("%d").to_string();
+    let mut out = String::with_capacity(body.len() + 32);
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'{' && bytes[i + 1] == b'{' {
+            if let Some(close) = body[i + 2..].find("}}") {
+                let name = &body[i + 2..i + 2 + close];
+                let resolved = match name.trim().to_lowercase().as_str() {
+                    "date" => Some(date.clone()),
+                    "time" => Some(time.clone()),
+                    "datetime" => Some(datetime.clone()),
+                    "title" => Some(title.to_string()),
+                    "year" => Some(year.clone()),
+                    "month" => Some(month.clone()),
+                    "day" => Some(day.clone()),
+                    "cursor" => Some("{{cursor}}".to_string()), // pass-through marker
+                    _ => None,
+                };
+                if let Some(v) = resolved {
+                    out.push_str(&v);
+                    i += 2 + close + 2;
+                    continue;
+                }
+            }
+        }
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
 }
 
 #[tauri::command]
@@ -1138,27 +2660,46 @@ fn graph_data(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
         .unwrap()
         .all_notes()
         .map_err(|e| e.to_string())?;
+    // v0.43 — track ambiguous titles so wiki-link edges don't silently resolve to a random note.
+    // For empty titles we don't index them at all (they can't be wiki-linked by name).
     let mut title_to_id: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
+    let mut ambiguous: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut nodes = vec![];
     for n in &notes {
         if n.trashed_at.is_some() {
             continue;
         }
-        let title = if n.title.trim().is_empty() {
-            "Untitled".into()
+        let raw_title = n.title.trim();
+        let display_title = if raw_title.is_empty() {
+            "Untitled".to_string()
         } else {
-            n.title.clone()
+            raw_title.to_string()
         };
-        title_to_id.insert(title.to_lowercase(), n.id.clone());
+        if !raw_title.is_empty() {
+            let key = raw_title.to_lowercase();
+            use std::collections::hash_map::Entry;
+            match title_to_id.entry(key.clone()) {
+                Entry::Vacant(v) => {
+                    v.insert(n.id.clone());
+                }
+                Entry::Occupied(_) => {
+                    ambiguous.insert(key);
+                }
+            }
+        }
         let body_len = n.body.len();
         nodes.push(serde_json::json!({
             "id": n.id,
-            "title": title,
+            "title": display_title,
             "size": (body_len.min(20000) as f64 / 200.0).clamp(4.0, 20.0),
             "pinned": n.pinned,
             "tags": extract_tags(&n.body),
         }));
+    }
+    // Drop ambiguous keys so we never resolve a [[link]] to a random one of several matches.
+    for k in &ambiguous {
+        title_to_id.remove(k);
     }
     let mut edges = vec![];
     let re = regex_lite();
@@ -1284,9 +2825,50 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
             latest = Some(latest.map(|e| e.max(t)).unwrap_or(t));
         }
     }
+    let distinct_tags = tag_counts.len() as u32; // v0.43 — full distinct count, not the truncated top-10.
     let mut top_tags: Vec<(String, u32)> = tag_counts.into_iter().collect();
     top_tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     top_tags.truncate(10);
+
+    // v0.49 — compute consecutive-day "save streak" ending today (UTC), based on updated_at.
+    let mut active_days: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if let Some(t) = n.updated_at {
+            active_days.insert(t.format("%Y-%m-%d").to_string());
+        }
+    }
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let mut streak: u32 = 0;
+    if active_days.contains(&today) {
+        streak = 1;
+        for back in 1..3650 {
+            let d = (Utc::now() - chrono::Duration::days(back as i64))
+                .format("%Y-%m-%d")
+                .to_string();
+            if active_days.contains(&d) {
+                streak += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // v0.49 — rough writing-time estimate at 220 wpm; floor 1 min if any words exist.
+    let writing_minutes: u64 = if total_words > 0 {
+        ((total_words as f64) / 220.0).ceil() as u64
+    } else {
+        0
+    };
+    // Average words per active day (avoids /0).
+    let avg_words_per_active_day: u64 = if active_days.is_empty() {
+        0
+    } else {
+        total_words / (active_days.len() as u64)
+    };
+
     Ok(serde_json::json!({
         "total_notes": total_notes,
         "total_words": total_words,
@@ -1294,8 +2876,13 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
         "pinned": pinned_count,
         "links": links,
         "top_tags": top_tags,
+        "distinct_tags": distinct_tags,
         "earliest": earliest,
         "latest": latest,
+        "streak_days": streak,
+        "active_days": active_days.len() as u32,
+        "writing_minutes": writing_minutes,
+        "avg_words_per_active_day": avg_words_per_active_day,
     }))
 }
 
@@ -1402,6 +2989,19 @@ fn list_history(id: String) -> Result<Vec<HistoryEntry>, String> {
     }
     out.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
     Ok(out)
+}
+
+/// v0.39 — Read a snapshot's full body without restoring it. Used by the diff viewer.
+#[tauri::command]
+fn snapshot_body(id: String, timestamp: String) -> Result<String, String> {
+    let dir = history_dir(&id);
+    let p = dir.join(format!("{}.json", timestamp));
+    if !p.exists() {
+        return Err("snapshot not found".into());
+    }
+    let bytes = fs::read(&p).map_err(|e| e.to_string())?;
+    let note: Note = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    Ok(note.body)
 }
 
 #[tauri::command]
@@ -1565,6 +3165,82 @@ struct Settings {
     lock: Option<LockConfig>,
     #[serde(default = "default_locale")]
     locale: String,
+    #[serde(default = "default_true")]
+    auto_pair: bool,
+    #[serde(default = "default_true")]
+    smart_lists: bool,
+    #[serde(default)]
+    strip_trailing_ws: bool,
+    #[serde(default = "default_editor_font_size")]
+    editor_font_size: u32,
+    #[serde(default = "default_true")]
+    word_wrap: bool,
+    #[serde(default)]
+    smart_typography: bool,
+    #[serde(default = "default_board_property")]
+    board_property: String,
+    #[serde(default = "default_calendar_property")]
+    calendar_property: String,
+    #[serde(default = "default_true")]
+    quick_capture: bool,
+    #[serde(default = "default_sidebar_width")]
+    sidebar_width: u32,
+    #[serde(default = "default_true")]
+    sidebar_visible: bool,
+    /// v0.34 — auto-purge trashed notes older than this many days. 0 = never.
+    #[serde(default = "default_trash_days")]
+    trash_purge_days: u32,
+    /// v0.37 — in preview, auto-link plain occurrences of known note titles.
+    #[serde(default)]
+    auto_wiki_link: bool,
+    /// v0.38 — Pomodoro / focus timer duration in minutes.
+    #[serde(default = "default_pomodoro")]
+    pomodoro_minutes: u32,
+    /// v0.40 — auto-lock workspace after N minutes of idle (0 = disabled).
+    #[serde(default)]
+    auto_lock_idle_minutes: u32,
+    /// v0.42 — sync scroll between editor and preview when split view is active.
+    #[serde(default = "default_true")]
+    sync_scroll: bool,
+    /// v0.56 — show a backup reminder if it's been this many days since the last backup. 0 = never.
+    #[serde(default = "default_backup_reminder_days")]
+    backup_reminder_days: u32,
+    /// v0.56 — timestamp of the last successful workspace backup (set by frontend after export).
+    #[serde(default)]
+    last_backup_at: Option<DateTime<Utc>>,
+    /// v0.59 — user-defined keyboard shortcuts. Maps a palette-command name → key string
+    /// (e.g. `{"Open random note": "Ctrl+Shift+R"}`). Frontend interprets at keydown.
+    #[serde(default)]
+    custom_shortcuts: std::collections::BTreeMap<String, String>,
+    /// v0.64 — per-tag color overrides. Maps lowercase tag → CSS color string.
+    #[serde(default)]
+    tag_colors: std::collections::BTreeMap<String, String>,
+}
+
+fn default_backup_reminder_days() -> u32 {
+    14
+}
+
+fn default_pomodoro() -> u32 {
+    25
+}
+
+fn default_trash_days() -> u32 {
+    30
+}
+
+fn default_sidebar_width() -> u32 {
+    280
+}
+fn default_board_property() -> String {
+    "status".to_string()
+}
+fn default_calendar_property() -> String {
+    "due".to_string()
+}
+
+fn default_editor_font_size() -> u32 {
+    15
 }
 
 fn default_locale() -> String {
@@ -1602,6 +3278,26 @@ impl Default for Settings {
             sort_by: "updated".to_string(),
             lock: None,
             locale: "en".to_string(),
+            auto_pair: true,
+            smart_lists: true,
+            strip_trailing_ws: false,
+            editor_font_size: 15,
+            word_wrap: true,
+            smart_typography: false,
+            board_property: "status".to_string(),
+            calendar_property: "due".to_string(),
+            quick_capture: true,
+            sidebar_width: 280,
+            sidebar_visible: true,
+            trash_purge_days: 30,
+            auto_wiki_link: false,
+            pomodoro_minutes: 25,
+            auto_lock_idle_minutes: 0,
+            sync_scroll: true,
+            backup_reminder_days: 14,
+            last_backup_at: None,
+            custom_shortcuts: std::collections::BTreeMap::new(),
+            tag_colors: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -1617,6 +3313,14 @@ fn get_settings() -> Settings {
         .ok()
         .and_then(|b| serde_json::from_slice::<Settings>(&b).ok())
         .unwrap_or_default()
+}
+
+/// v0.70 — Replace persisted settings with defaults. Notes / themes / templates are unaffected.
+#[tauri::command]
+fn reset_settings() -> Result<Settings, String> {
+    let defaults = Settings::default();
+    set_settings(defaults.clone())?;
+    Ok(defaults)
 }
 
 #[tauri::command]
@@ -1825,6 +3529,48 @@ fn uninstall_plugin(id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// v0.55 — Reveal the note's underlying .json file in the OS file manager
+/// (Explorer / Finder / xdg-open). Best-effort; falls back to opening the
+/// notes directory if revealing the specific file isn't supported.
+#[tauri::command]
+fn reveal_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let path = state.store.lock().unwrap().note_path(&id);
+    if !path.exists() {
+        return Err("note file not found on disk".into());
+    }
+    #[cfg(windows)]
+    {
+        // /select reveals the file inside the parent folder.
+        std::process::Command::new("explorer.exe")
+            .args(["/select,", path.to_str().unwrap_or("")])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", path.to_str().unwrap_or("")])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // No common Linux equivalent of "select"; open the parent dir instead.
+        let parent = path.parent().ok_or("no parent directory")?;
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// v0.41 — Toggle the main window's always-on-top flag.
+#[tauri::command]
+fn set_always_on_top(window: tauri::Window, value: bool) -> Result<(), String> {
+    window.set_always_on_top(value).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_data_dir() -> Result<(), String> {
     let dir = data_root();
@@ -1899,15 +3645,44 @@ fn main() -> Result<()> {
             restore_note,
             purge_note,
             empty_trash,
+            trash_count,
+            auto_purge_trash,
             set_pinned,
             set_note_order,
             reorder_pinned,
             bulk_set_pinned,
             bulk_trash,
             bulk_export_md,
+            merge_notes,
+            bulk_set_property,
+            top_words,
+            all_tasks,
+            rename_note_with_links,
             search_notes,
             all_tags,
             backlinks,
+            outgoing_links,
+            orphan_notes,
+            rename_tag,
+            note_properties,
+            notes_by_property,
+            all_property_keys,
+            set_property,
+            board_data,
+            query_notes,
+            month_calendar,
+            resolve_link,
+            all_aliases,
+            suggested_notes,
+            quick_capture_append,
+            backlinks_with_context,
+            mentions,
+            list_snippets,
+            save_snippets,
+            export_workspace_encrypted,
+            decrypt_workspace_bundle,
+            encrypt_note_body,
+            decrypt_note_body,
             export_note_md,
             export_all_md,
             import_md,
@@ -1921,6 +3696,7 @@ fn main() -> Result<()> {
             outline,
             snapshot_note,
             list_history,
+            snapshot_body,
             restore_history,
             purge_history,
             export_workspace,
@@ -1937,6 +3713,7 @@ fn main() -> Result<()> {
             app_info,
             get_settings,
             set_settings,
+            reset_settings,
             list_themes,
             save_theme,
             delete_theme,
@@ -1944,6 +3721,8 @@ fn main() -> Result<()> {
             install_plugin,
             uninstall_plugin,
             open_data_dir,
+            set_always_on_top,
+            reveal_note,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

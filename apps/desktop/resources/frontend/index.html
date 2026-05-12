@@ -8,6 +8,7 @@
 </head>
 <body class="theme-dark">
 <div id="app">
+  <button id="sidebar-toggle" class="sidebar-toggle hidden" title="Show sidebar (Ctrl+\)">&#9776;</button>
   <aside id="sidebar" aria-label="Notes">
     <header class="side-head">
       <div class="brand">Mycelium</div>
@@ -15,6 +16,7 @@
         <button id="cmd-btn" class="icon-btn" title="Command palette (Ctrl+K)">&#9883;</button>
         <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
         <button id="theme-btn" class="icon-btn" title="Cycle theme (Ctrl+,)">&#9728;</button>
+        <button id="sidebar-hide-btn" class="icon-btn" title="Hide sidebar (Ctrl+\)">&#171;</button>
       </div>
     </header>
     <div class="search-wrap">
@@ -26,14 +28,35 @@
       <button id="new-from-template" class="ghost-btn small" title="New from template">&#9662;</button>
     </div>
 
+    <div id="quick-capture-row" class="quick-capture-row hidden">
+      <input id="quick-capture-input" type="text" placeholder="Quick capture (Enter to append to today)" autocomplete="off" spellcheck="false">
+    </div>
+
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
-      <button id="view-trash" class="side-nav-btn" data-view="trash">Trash</button>
+      <button id="view-orphans" class="side-nav-btn" data-view="orphans">Orphans</button>
+      <button id="view-tasks" class="side-nav-btn" data-view="tasks">Tasks<span id="tasks-badge" class="side-nav-badge hidden"></span></button>
+      <button id="view-trash" class="side-nav-btn" data-view="trash">Trash<span id="trash-badge" class="side-nav-badge hidden"></span></button>
     </nav>
 
     <div id="saved-searches" class="saved-searches hidden"></div>
 
     <div id="tag-bar" class="tag-bar hidden"></div>
+
+    <div id="filter-pill" class="filter-pill hidden">
+      <span id="filter-pill-text"></span>
+      <span id="filter-pill-count" class="filter-pill-count"></span>
+      <button id="filter-pill-clear" title="Clear filter (Esc)" aria-label="Clear filter">×</button>
+    </div>
+
+    <div id="today-section" class="today-section hidden">
+      <button id="today-toggle" class="today-toggle" title="Collapse / expand">
+        <span id="today-caret" class="today-caret">▾</span>
+        <span>Today</span>
+        <span id="today-count" class="today-count"></span>
+      </button>
+      <ul id="today-list" class="today-list"></ul>
+    </div>
 
     <div id="bulk-bar" class="bulk-bar hidden">
       <span id="bulk-count" class="bulk-count">0 selected</span>
@@ -41,6 +64,8 @@
         <button id="bulk-pin" class="bulk-btn" title="Pin all selected">★ Pin</button>
         <button id="bulk-unpin" class="bulk-btn" title="Unpin all selected">☆ Unpin</button>
         <button id="bulk-export" class="bulk-btn" title="Export selected as Markdown">⬇ Export</button>
+        <button id="bulk-merge" class="bulk-btn" title="Merge into the first selected note">⇉ Merge</button>
+        <button id="bulk-prop" class="bulk-btn" title="Set a frontmatter property on every selected note">⚐ Property</button>
         <button id="bulk-trash" class="bulk-btn danger" title="Move all selected to trash">🗑 Trash</button>
         <button id="bulk-clear" class="bulk-btn ghost" title="Clear selection (Esc)">×</button>
       </div>
@@ -50,11 +75,14 @@
 
     <footer class="side-foot">
       <span id="status">ready</span>
+      <span id="pomodoro" class="pomodoro hidden"></span>
       <span id="version"></span>
     </footer>
   </aside>
+  <div id="sidebar-divider" class="sidebar-divider" title="Drag to resize sidebar"></div>
 
   <main id="editor-pane">
+    <div id="tab-bar" class="tab-bar-row hidden"></div>
     <div id="empty-state" class="empty">
       <h1>Welcome to Mycelium</h1>
       <p>Create a note to get started.</p>
@@ -76,16 +104,23 @@
       <header class="ed-head">
         <input id="title" class="title-input" placeholder="Untitled" autocomplete="off">
         <div class="ed-toolbar">
+          <button id="nav-back-btn" class="icon-btn" title="Back (Alt+←)" disabled>&larr;</button>
+          <button id="nav-fwd-btn" class="icon-btn" title="Forward (Alt+→)" disabled>&rarr;</button>
           <button id="outline-btn" class="icon-btn" title="Toggle outline">&#9776;</button>
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
           <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
+          <button id="reading-btn" class="icon-btn" title="Toggle reading mode (Ctrl+Shift+M)">&#128214;</button>
+          <button id="props-btn" class="icon-btn" title="Edit note properties (frontmatter)">&#9881;</button>
+          <button id="print-btn" class="icon-btn" title="Print / save as PDF (Ctrl+P)">&#128424;</button>
           <button id="history-btn" class="icon-btn" title="Note history">&#8634;</button>
           <button id="attach-btn" class="icon-btn" title="Attach file (or drag-drop / paste)">&#128206;</button>
           <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
+          <button id="copy-md-btn" class="icon-btn" title="Copy Markdown to clipboard">&#128203;</button>
           <button id="delete-btn" class="icon-btn danger" title="Move to trash">&#128465;</button>
         </div>
       </header>
       <div id="meta" class="meta"></div>
+      <div id="props-strip" class="props-strip hidden"></div>
 
       <div id="find-bar" class="find-bar hidden">
         <input id="find-input" type="text" placeholder="Find" autocomplete="off" spellcheck="false">
@@ -111,6 +146,12 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <aside id="backlinks-panel" class="backlinks-panel hidden">
         <h4>Backlinks</h4>
         <ul id="backlinks-list"></ul>
+        <h4 class="bl-h-mentions">Mentions</h4>
+        <ul id="mentions-list"></ul>
+        <h4 class="bl-h-out">Outgoing links</h4>
+        <ul id="outgoing-list"></ul>
+        <h4 class="bl-h-suggest">Suggested</h4>
+        <ul id="suggested-list"></ul>
       </aside>
 
       <footer class="ed-foot">
@@ -118,9 +159,22 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <span id="stat-words">0 words</span>
           <span id="stat-chars">0 chars</span>
           <span id="stat-read">~1 min read</span>
+          <span id="stat-goal" class="hidden"></span>
         </div>
         <span id="save-state">saved</span>
       </footer>
+    </article>
+
+    <article id="tasks-pane" class="trash-pane hidden">
+      <header class="trash-head">
+        <h2>Tasks across the workspace</h2>
+        <div class="trash-actions">
+          <label style="font-size:12.5px;color:var(--text-2);"><input id="tasks-include-done" type="checkbox"> show completed</label>
+          <button id="tasks-refresh-btn" class="ghost-btn">Refresh</button>
+        </div>
+      </header>
+      <p class="setting-help">Every <code>- [ ]</code> task across all your notes. Click an item to open the source note at that line. Toggle "show completed" to see <code>- [x]</code> items too.</p>
+      <ul id="tasks-list" class="note-list"></ul>
     </article>
 
     <article id="trash-pane" class="trash-pane hidden">
@@ -130,7 +184,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <button id="empty-trash-btn" class="danger-btn">Empty trash</button>
         </div>
       </header>
-      <p class="setting-help">Notes you delete are kept here so you can restore them. They are NOT auto-purged in beta.2 &mdash; that arrives in beta.3.</p>
+      <p class="setting-help">Notes you delete are kept here so you can restore them. They are auto-purged after the configurable interval (Settings → Data → Trash retention).</p>
       <ul id="trash-list" class="note-list trash-list"></ul>
     </article>
   </main>
@@ -148,6 +202,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="plugins">Plugins</button>
       <button class="tab-btn" data-tab="data">Data</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="board">Board</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" data-tab="snippets">Snippets</button>
+      <button class="tab-btn" data-tab="shortcuts">Shortcuts</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -179,12 +237,99 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             </div>
           </label>
           <label class="setting-row">
+            <input id="opt-sync-scroll" type="checkbox">
+            <div>
+              <div class="setting-name">Synced scroll in split view</div>
+              <div class="setting-help">Keep editor and preview at the same proportional scroll position when both are visible (Ctrl+M).</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-quick-capture" type="checkbox">
+            <div>
+              <div class="setting-name">Show the sidebar quick-capture box</div>
+              <div class="setting-help">A persistent input above the note list — type a thought, press Enter, and it gets appended (timestamped) to today's daily note. The daily note is created if it doesn't exist.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-auto-wiki-link" type="checkbox">
+            <div>
+              <div class="setting-name">Auto-link known note titles in preview</div>
+              <div class="setting-help">When on, plain-text occurrences of any existing note title (3+ chars) become clickable wiki-links in preview. Source text is unchanged.</div>
+            </div>
+          </label>
+          <div class="setting-row">
+            <label>Focus timer (Pomodoro)
+              <select id="opt-pomodoro" class="select">
+                <option value="5">5 min</option>
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+                <option value="20">20 min</option>
+                <option value="25">25 min (default)</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+              </select>
+            </label>
+            <span class="setting-help">Start the timer from the palette ("Start focus timer"). Footer shows the live countdown.</span>
+          </div>
+          <label class="setting-row">
             <input id="opt-spell-check" type="checkbox">
             <div>
               <div class="setting-name">Browser spell-check in title and body</div>
               <div class="setting-help">Underlines misspelled words. Right-click for suggestions. Off by default to keep code-text clean.</div>
             </div>
           </label>
+          <label class="setting-row">
+            <input id="opt-auto-pair" type="checkbox">
+            <div>
+              <div class="setting-name">Auto-pair brackets and quotes</div>
+              <div class="setting-help">Typing <code>(</code>, <code>[</code>, <code>{</code>, <code>"</code>, <code>'</code> or <code>`</code> auto-inserts the closing pair. With a selection, surrounds it.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-smart-lists" type="checkbox">
+            <div>
+              <div class="setting-name">Smart list continuation &amp; indent</div>
+              <div class="setting-help">Enter on <code>- foo</code> starts a new <code>-</code> bullet (ditto for <code>1.</code> numbered lists). Enter on an empty bullet exits the list. <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> indent / outdent within lists. Auto-indent matches leading whitespace of the previous line.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-strip-trailing-ws" type="checkbox">
+            <div>
+              <div class="setting-name">Strip trailing whitespace on save</div>
+              <div class="setting-help">Removes trailing spaces and tabs from every line before persisting. Off by default; turn on for cleaner Markdown diffs in version control.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-word-wrap" type="checkbox">
+            <div>
+              <div class="setting-name">Word wrap in editor</div>
+              <div class="setting-help">When off, long lines scroll horizontally instead of wrapping. Useful for tables and ASCII art.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-smart-typography" type="checkbox">
+            <div>
+              <div class="setting-name">Smart typography in preview</div>
+              <div class="setting-help">In preview only: <code>--</code> becomes &mdash;, <code>...</code> becomes &hellip;, straight quotes become typographic quotes. Source text is unchanged.</div>
+            </div>
+          </label>
+          <div class="setting-row">
+            <label>Editor font size
+              <select id="opt-editor-font-size" class="select">
+                <option value="12">12 px</option>
+                <option value="13">13 px</option>
+                <option value="14">14 px</option>
+                <option value="15">15 px (default)</option>
+                <option value="16">16 px</option>
+                <option value="17">17 px</option>
+                <option value="18">18 px</option>
+                <option value="20">20 px</option>
+              </select>
+            </label>
+            <span class="setting-help">Or use <kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd> / <kbd>Ctrl</kbd>+<kbd>0</kbd> in the editor.</span>
+          </div>
         </div>
         <div class="setting-group">
           <h3>Note list</h3>
@@ -213,13 +358,27 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               </select>
             </label>
           </div>
-          <p class="setting-help">Mycelium ships English baseline strings. Other locales are community-contributed; drop a <code>translations.json</code> in the data folder (override entries by key). Full string coverage rolls out in upcoming releases.</p>
+          <p class="setting-help">Mycelium ships English baseline strings inline. Other locales are stubbed for upcoming community contributions — disk loading of a <code>translations.json</code> is on the roadmap. Selecting a locale today only changes the setting value; full string coverage rolls out in upcoming releases.</p>
         </div>
         <div class="setting-group">
           <h3>Privacy &amp; lock</h3>
           <p class="setting-help" id="lock-state-text">Loading...</p>
           <div class="setting-row" id="lock-controls"></div>
           <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and every note is encrypted at rest with ChaCha20-Poly1305 (key derived from your passphrase via 50,000 iterations of BLAKE3). With a strong passphrase, even disk-level access cannot read your notes without it. Lose the passphrase = lose the data.</p>
+          <div class="setting-row">
+            <label>Auto-lock after idle
+              <select id="opt-auto-lock-idle" class="select">
+                <option value="0">Disabled</option>
+                <option value="1">1 minute</option>
+                <option value="5">5 minutes</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+              </select>
+            </label>
+            <span class="setting-help">Only effective if the workspace lock is enabled.</span>
+          </div>
         </div>
       </section>
 
@@ -274,7 +433,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="data">
         <div class="setting-group">
           <h3>Templates</h3>
-          <p class="setting-help">Templates let you spin up a new note pre-populated with structure (meeting agenda, daily log, project brief, ...). Save the currently-open note as a template, or create a new note from any template you've saved.</p>
+          <p class="setting-help">Templates let you spin up a new note pre-populated with structure (meeting agenda, daily log, project brief, ...). Save the currently-open note as a template, or create a new note from any template you've saved. Use <code>{{date}}</code>, <code>{{time}}</code>, <code>{{datetime}}</code>, <code>{{title}}</code>, <code>{{year}}</code>, <code>{{month}}</code>, <code>{{day}}</code> as substitution tokens; <code>{{cursor}}</code> places the caret at that spot after expansion.</p>
           <ul id="template-list" class="thing-list"></ul>
           <div class="setting-row">
             <button id="save-template-btn" class="primary-btn small">Save current note as template</button>
@@ -284,17 +443,50 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <h3>Import &amp; export</h3>
           <div class="setting-row">
             <button id="import-md-btn" class="primary-btn small">Import Markdown file...</button>
+            <button id="import-md-multi-btn" class="ghost-btn">Import multiple .md files...</button>
             <button id="export-all-btn" class="ghost-btn">Export all notes (.md)</button>
           </div>
-          <p class="setting-help">Imported files become new notes; their first <code># heading</code> becomes the title. Export gives you one <code>.md</code> per note as a zip-like JSON bundle you can download.</p>
+          <p class="setting-help">Imported files become new notes; their first <code># heading</code> becomes the title. The multi-file picker batches them. Export gives you one <code>.md</code> per note as a zip-like JSON bundle you can download.</p>
         </div>
         <div class="setting-group">
           <h3>Backup &amp; restore</h3>
           <p class="setting-help">A workspace backup is one JSON file containing every note, theme, template and your settings. Use it to migrate to another machine, archive a snapshot in time, or recover after a disk failure.</p>
           <div class="setting-row">
+            <label>Backup reminder
+              <select id="opt-backup-reminder" class="select">
+                <option value="0">Off</option>
+                <option value="3">Every 3 days</option>
+                <option value="7">Weekly</option>
+                <option value="14">Every 14 days (default)</option>
+                <option value="30">Monthly</option>
+              </select>
+            </label>
+            <span id="last-backup-text" class="setting-help"></span>
+          </div>
+          <div class="setting-row">
             <button id="export-workspace-btn" class="primary-btn small">Backup workspace...</button>
+            <button id="export-workspace-enc-btn" class="primary-btn small">Encrypted backup...</button>
             <button id="import-workspace-btn" class="ghost-btn">Restore from backup...</button>
           </div>
+        </div>
+        <div class="setting-group">
+          <h3>Trash retention</h3>
+          <div class="setting-row">
+            <label>Auto-purge trashed notes after
+              <select id="opt-trash-days" class="select">
+                <option value="0">Never</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days (default)</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">1 year</option>
+              </select>
+            </label>
+            <button id="purge-now-btn" class="ghost-btn">Purge eligible now</button>
+          </div>
+          <p class="setting-help">On launch and on demand, trashed notes older than the threshold are deleted permanently. Set to "Never" to keep trashed notes forever.</p>
         </div>
         <div class="setting-group">
           <h3>Storage</h3>
@@ -321,11 +513,70 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <div class="setting-group">
           <h3>Note graph</h3>
-          <p class="setting-help">Notes connected by <code>[[wiki-link]]</code>. Drag the canvas; click a node to open the note.</p>
+          <p class="setting-help">Notes connected by <code>[[wiki-link]]</code>. Click a node to open the note. (Workspaces above 100 notes show only the top-ranked subset.)</p>
           <canvas id="dash-graph" class="dash-graph" width="640" height="360"></canvas>
           <div class="setting-row">
             <button id="dash-refresh-btn" class="ghost-btn">Refresh</button>
           </div>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="board">
+        <div class="setting-group">
+          <h3>Kanban board</h3>
+          <p class="setting-help">Group every note by a frontmatter property (e.g. <code>status: doing</code>). Drag a card between columns to rewrite that note's frontmatter. Notes without the chosen property go to <code>(none)</code>.</p>
+          <div class="setting-row">
+            <label>Property to group by
+              <input id="board-property-input" class="text-input" placeholder="status">
+            </label>
+            <button id="board-refresh-btn" class="primary-btn small">Refresh</button>
+          </div>
+        </div>
+        <div id="board-grid" class="board-grid"></div>
+      </section>
+
+      <section class="tab-pane" data-pane="calendar">
+        <div class="setting-group">
+          <h3>Month calendar</h3>
+          <p class="setting-help">Notes carrying a frontmatter date property (default <code>due</code>) appear pinned to their day. Click a note in a cell to open it. Click an empty cell to filter the sidebar to all notes due that day.</p>
+          <div class="setting-row">
+            <button id="cal-prev-btn" class="ghost-btn">&larr; Prev</button>
+            <button id="cal-today-btn" class="ghost-btn">Today</button>
+            <button id="cal-next-btn" class="ghost-btn">Next &rarr;</button>
+            <span id="cal-label" class="cal-label"></span>
+            <label style="margin-left:auto">Property
+              <input id="cal-property-input" class="text-input" placeholder="due" style="width:90px">
+            </label>
+          </div>
+        </div>
+        <div id="cal-grid" class="cal-month-grid"></div>
+      </section>
+
+      <section class="tab-pane" data-pane="snippets">
+        <div class="setting-group">
+          <h3>Text snippets</h3>
+          <p class="setting-help">In the editor body, type <code>;name</code> followed by <kbd>Tab</kbd> to expand the snippet at the caret. Keys must be alphanumeric / <code>-</code> / <code>_</code>.</p>
+          <table class="snip-table">
+            <thead><tr><th>Trigger</th><th>Body</th><th>Description</th><th></th></tr></thead>
+            <tbody id="snip-rows"></tbody>
+          </table>
+          <div class="setting-row">
+            <button id="snip-add-btn" class="primary-btn small">+ Add snippet</button>
+            <button id="snip-save-btn" class="ghost-btn">Save snippets</button>
+            <button id="snip-reset-btn" class="ghost-btn">Reset to defaults</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="shortcuts">
+        <div class="setting-group">
+          <h3>Custom keyboard shortcuts</h3>
+          <p class="setting-help">Click a "Set..." button next to an action and press the key combo. Shortcuts run after default Mycelium keys, so you can rebind anything that isn't a default. Click <strong>Clear</strong> to remove a binding.</p>
+          <table class="snip-table">
+            <thead><tr><th>Action</th><th>Binding</th><th></th></tr></thead>
+            <tbody id="shortcuts-rows"></tbody>
+          </table>
+          <p class="setting-help"><strong>Tip:</strong> Modifiers are normalised as <code>Ctrl+</code>, <code>Shift+</code>, <code>Alt+</code>, <code>Meta+</code>. The key follows. Example: <code>Ctrl+Shift+R</code>.</p>
         </div>
       </section>
 
@@ -365,10 +616,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.10.0</strong></p>
+          <p>Version: <strong id="about-version">v0.74.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.10: quality of life — drag-reorder pinned notes, multi-select sidebar (Ctrl/Shift + click) with bulk pin / trash / export, in-editor find &amp; replace (Ctrl+H), and a locale + i18n stub ready for community translations.</p>
+          <p class="setting-help">Beta.74: encrypted-note lock glyph — every per-note-encrypted note now shows a 🔒 next to its title in the sidebar so you can spot which ones still need a passphrase to read.</p>
+          <div class="setting-row">
+            <button id="reset-settings-btn" class="danger-btn">Reset settings to defaults</button>
+          </div>
         </div>
       </section>
 
@@ -414,8 +668,11 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New note</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Daily note (today)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Command palette</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></td><td>Search every note (with snippets)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Force save</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>Toggle preview</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd></td><td>Toggle reading mode</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Open a random note</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Cycle theme</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td>Show this cheatsheet</td></tr>
           <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
@@ -426,12 +683,86 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Wrap selection in <code>`code`</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Wrap selection in <code>[label](url)</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Open find &amp; replace bar</td></tr>
+          <tr><td><kbd>[</kbd><kbd>[</kbd></td><td>Open wiki-link autocomplete (in editor)</td></tr>
+          <tr><td><kbd>Enter</kbd> on a list item</td><td>Continue the list (smart bullet / number)</td></tr>
+          <tr><td><kbd>Enter</kbd> on a <code>&gt; quote</code> line</td><td>Continue the blockquote (empty line exits)</td></tr>
+          <tr><td><kbd>Tab</kbd> in a list</td><td>Indent the current line</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> in a list</td><td>Outdent the current line</td></tr>
+          <tr><td>Paste URL on a selection</td><td>Wraps selection as <code>[selection](url)</code></td></tr>
+          <tr><td><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></td><td>Move current line up / down</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Increase / decrease / reset editor font size</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print (or save as PDF)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>\</kbd></td><td>Toggle sidebar visibility</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>9</kbd></td><td>Open the 1st…9th pinned note</td></tr>
+          <tr><td><kbd>;name</kbd>+<kbd>Tab</kbd></td><td>Expand a snippet (Settings → Snippets)</td></tr>
+          <tr><td><kbd>Alt</kbd>+click sidebar note</td><td>Open in a new tab</td></tr>
+          <tr><td>Middle-click sidebar note</td><td>Open in background tab</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+click <code>[[wiki-link]]</code> in preview</td><td>Open in a new tab and focus it</td></tr>
+          <tr><td>Middle-click <code>[[wiki-link]]</code> in preview</td><td>Open in background tab</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle through open tabs</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close current tab</td></tr>
+          <tr><td><kbd>Tab</kbd> on multi-line selection</td><td>Indent every selected line by 2 spaces</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> on selection</td><td>Outdent every selected line</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd> in editor</td><td>Toggle <code>&lt;!-- comment --&gt;</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td><td>Delete current line</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>Duplicate current line</td></tr>
+          <tr><th colspan="2" class="cs-section">Sidebar navigation</th></tr>
+          <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Move highlight up / down through notes</td></tr>
+          <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>First / last note</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Focus the editor body</td></tr>
+          <tr><td><kbd>Delete</kbd></td><td>Move current note to trash</td></tr>
+          <tr><td><kbd>F2</kbd></td><td>Rename current note</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>
           <tr><td>drag pinned notes</td><td>Reorder pinned notes</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div id="props-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="props-title">
+    <header class="modal-head">
+      <h2 id="props-title">Note properties</h2>
+      <button id="props-close" class="icon-btn" title="Close (Esc)">&times;</button>
+    </header>
+    <div class="modal-body">
+      <p class="setting-help">Frontmatter key → value pairs for this note. Adding rows or editing values rewrites the <code>---</code> block at the top of the note body.</p>
+      <table class="snip-table">
+        <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+        <tbody id="props-rows"></tbody>
+      </table>
+      <div class="setting-row">
+        <button id="props-add-btn" class="primary-btn small">+ Add property</button>
+        <button id="props-save-btn" class="ghost-btn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="diff-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="diff-title">
+    <header class="modal-head">
+      <h2 id="diff-title">Snapshot diff</h2>
+      <button id="diff-close" class="icon-btn" title="Close (Esc)">&times;</button>
+    </header>
+    <div class="modal-body">
+      <p class="setting-help" id="diff-meta"></p>
+      <pre id="diff-body" class="diff-body"></pre>
+    </div>
+  </div>
+</div>
+
+<div id="search-modal" class="search-modal hidden">
+  <div class="search-inner">
+    <input id="search-modal-input" type="text" placeholder="Search across every note..." autocomplete="off" spellcheck="false">
+    <ul id="search-modal-results" class="search-modal-results"></ul>
+    <div class="cmd-hint">
+      <kbd>&#8593;</kbd><kbd>&#8595;</kbd> navigate &middot;
+      <kbd>&#8629;</kbd> open &middot;
+      <kbd>Esc</kbd> close
     </div>
   </div>
 </div>

@@ -808,6 +808,56 @@ fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, Strin
     Ok(n)
 }
 
+/// v0.37 — Top-N words across every non-trashed note's body. Stop-words excluded.
+/// Used by the "Show top words" palette command.
+#[tauri::command]
+fn top_words(state: State<'_, AppState>, limit: Option<u32>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let limit = limit.unwrap_or(30).clamp(1, 200) as usize;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let stop: std::collections::HashSet<&'static str> = [
+        "the", "a", "an", "of", "to", "and", "or", "but", "is", "are", "was", "were", "in", "on",
+        "at", "by", "for", "with", "as", "be", "been", "being", "have", "has", "had", "do", "does",
+        "did", "will", "would", "shall", "should", "can", "could", "may", "might", "must", "this",
+        "that", "these", "those", "i", "you", "he", "she", "we", "they", "it", "me", "him", "her",
+        "us", "them", "my", "your", "his", "their", "its", "our", "if", "then", "than", "so", "up",
+        "down", "out", "from", "into", "about", "over", "under", "more", "most", "some", "any",
+        "no", "not", "only", "just", "also", "very", "too", "such", "what", "which", "who", "whom",
+        "whose", "where", "when", "why", "how", "all", "each", "every", "many", "much", "few",
+        "other", "another", "same", "own", "new", "old", "see",
+    ]
+    .iter()
+    .copied()
+    .collect();
+    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (_, body) = parse_frontmatter(&n.body);
+        for raw in body.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-') {
+            let lc = raw.to_lowercase();
+            let lc = lc.trim_matches(|c: char| c == '-' || c == '\'');
+            if lc.len() < 4 {
+                continue;
+            }
+            if stop.contains(lc) {
+                continue;
+            }
+            // Skip pure numbers.
+            if lc.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            *counts.entry(lc.to_string()).or_insert(0) += 1;
+        }
+    }
+    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    out.truncate(limit);
+    Ok(out)
+}
+
 /// v0.36 — Append the bodies of `source_ids` to `target_id`'s body (each preceded by a
 /// `\n\n## <Title>\n\n` header), trash the sources, return the merged note.
 #[tauri::command]
@@ -2789,6 +2839,9 @@ struct Settings {
     /// v0.34 — auto-purge trashed notes older than this many days. 0 = never.
     #[serde(default = "default_trash_days")]
     trash_purge_days: u32,
+    /// v0.37 — in preview, auto-link plain occurrences of known note titles.
+    #[serde(default)]
+    auto_wiki_link: bool,
 }
 
 fn default_trash_days() -> u32 {
@@ -2856,6 +2909,7 @@ impl Default for Settings {
             sidebar_width: 280,
             sidebar_visible: true,
             trash_purge_days: 30,
+            auto_wiki_link: false,
         }
     }
 }
@@ -3162,6 +3216,7 @@ fn main() -> Result<()> {
             bulk_trash,
             bulk_export_md,
             merge_notes,
+            top_words,
             search_notes,
             all_tags,
             backlinks,

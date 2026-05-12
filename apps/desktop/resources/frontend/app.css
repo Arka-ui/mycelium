@@ -1060,6 +1060,12 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
   vertical-align: middle;
 }
 
+/* --- v0.37 — auto-wiki-link visual cue ----------------------------- */
+.preview a.wiki-link.auto {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

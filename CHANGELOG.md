@@ -1,3 +1,23 @@
+# Mycelium v0.37.0-beta.1 - Auto-link & word frequency
+
+beta.37 brings two small but powerful insights into your prose.
+
+## New in v0.37.0
+
+### Auto-link known titles in preview
+- Opt-in **Settings → General → "Auto-link known note titles in preview"** (off by default).
+- When on, plain-text occurrences of any existing note title (≥3 chars) become clickable wiki-links in preview only — source is unchanged.
+- Implementation walks text nodes, skipping `pre`, `code`, existing `<a>` and buttons. Distinct dotted underline visually marks auto-links.
+
+### Top words command
+- Palette → "Show top 30 words across all notes" prints a count of the 30 most frequent words across every non-trashed note, with stop-words excluded and pure numeric tokens skipped.
+- Backend: `top_words(limit?)` (default 30, max 200).
+
+### Auto-update
+- Pushing v0.37.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.36.0-beta.1 - Bulk merge
 
 beta.36 lets you fold many notes into one in a single click.

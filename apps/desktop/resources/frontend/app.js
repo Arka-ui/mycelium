@@ -54,6 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
+  'opt-auto-wiki-link',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
@@ -709,6 +710,9 @@ function renderPreview() {
   if (state.settings.smart_typography) {
     try { html = smartTypography(html); } catch (_) { /* fall back to raw html */ }
   }
+  if (state.settings.auto_wiki_link) {
+    try { html = autoLinkTitles(html); } catch (_) { /* keep raw html */ }
+  }
   els.preview.innerHTML = html;
   els.preview.querySelectorAll('a.wiki-link').forEach(a => {
     const title = a.dataset.wiki;
@@ -1250,6 +1254,8 @@ async function loadSettings() {
     applySidebarLayout();
     if (state.settings.trash_purge_days === undefined) state.settings.trash_purge_days = 30;
     if (els.optTrashDays) els.optTrashDays.value = String(state.settings.trash_purge_days);
+    if (state.settings.auto_wiki_link === undefined) state.settings.auto_wiki_link = false;
+    if (els.optAutoWikiLink) els.optAutoWikiLink.checked = !!state.settings.auto_wiki_link;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1284,6 +1290,39 @@ function resetFontSize() {
   applyEditorFontSize();
   if (els.optEditorFontSize) els.optEditorFontSize.value = '15';
   invoke('set_settings', { settings: state.settings }).catch(()=>{});
+}
+
+// --- v0.37 — auto-wiki-link known titles (preview-only post-pass) ----
+function autoLinkTitles(html) {
+  const titles = (state.notes || [])
+    .map(n => (n.title || '').trim())
+    .filter(t => t && t.length >= 3);
+  if (!titles.length) return html;
+  // Sort longest first to match longer titles before shorter substrings.
+  titles.sort((a, b) => b.length - a.length);
+  // Build a global regex of word-boundary-bounded title matches.
+  const escaped = titles.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp('\\b(' + escaped.join('|') + ')\\b', 'g');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const SKIP = new Set(['A','PRE','CODE','SCRIPT','STYLE','BUTTON']);
+  function walk(node) {
+    for (const n of Array.from(node.childNodes)) {
+      if (n.nodeType === 1) {
+        if (SKIP.has(n.tagName)) continue;
+        walk(n);
+      } else if (n.nodeType === 3) {
+        const text = n.nodeValue || '';
+        if (!re.test(text)) { re.lastIndex = 0; continue; }
+        re.lastIndex = 0;
+        const span = document.createElement('span');
+        span.innerHTML = text.replace(re, (m) => `<a class="wiki-link auto" href="#" data-wiki="${escapeHtml(m)}">${escapeHtml(m)}</a>`);
+        n.replaceWith(...Array.from(span.childNodes));
+      }
+    }
+  }
+  walk(tmp);
+  return tmp.innerHTML;
 }
 
 // --- v0.14 — smart typography (preview-only post-pass) ----------------
@@ -1580,6 +1619,7 @@ async function saveSettings() {
   if (els.optEditorFontSize) state.settings.editor_font_size = parseInt(els.optEditorFontSize.value, 10) || 15;
   if (els.optQuickCapture) state.settings.quick_capture = !!els.optQuickCapture.checked;
   if (els.optTrashDays) state.settings.trash_purge_days = parseInt(els.optTrashDays.value, 10) || 0;
+  if (els.optAutoWikiLink) state.settings.auto_wiki_link = !!els.optAutoWikiLink.checked;
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -2865,6 +2905,14 @@ const PALETTE_COMMANDS = [
   { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
   { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
+  { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
+    try {
+      const top = await invoke('top_words', { limit: 30 });
+      if (!top.length) { alert('No words yet — write some notes first.'); return; }
+      const lines = top.map(([w, c], i) => `${(i + 1).toString().padStart(2,' ')}. ${w}  (${c})`);
+      alert('Top words across the workspace:\n\n' + lines.join('\n'));
+    } catch (e) { alert('Failed: ' + e); }
+  } },
   { name: 'Duplicate current note as...', shortcut: '', run: async () => {
     if (!state.activeId) return;
     const newTitle = prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
@@ -3166,6 +3214,7 @@ els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
+if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
 if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {
   const n = await purgeEligibleTrash();
   refreshTrashBadge();

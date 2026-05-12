@@ -1,3 +1,27 @@
+# Mycelium v0.57.0-beta.1 - Back / forward navigation
+
+beta.57 brings browser-style navigation history to the editor. Hop through your reading trail without losing context.
+
+## New in v0.57.0
+
+### Toolbar buttons
+- New ← / → buttons in the editor toolbar (between the title and the outline button). Disabled state when there's nothing to go to.
+
+### Shortcuts
+- **Alt + ←** — back one note in your navigation history.
+- **Alt + →** — forward one note.
+- Both also exposed as palette commands ("Navigate back" / "Navigate forward").
+
+### Implementation notes
+- Stack capped at 80 entries to avoid unbounded growth.
+- Internal `navSilent` flag prevents back/forward navigations from being pushed back onto the stack.
+- Opening a note from any source (sidebar click, palette, wiki-link, suggested, recents, ...) advances the history.
+
+### Auto-update
+- Pushing v0.57.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.56.0-beta.1 - Backup reminders
 
 beta.56 nudges you to take a workspace backup before the inevitable disk failure.

@@ -103,6 +103,8 @@
       <header class="ed-head">
         <input id="title" class="title-input" placeholder="Untitled" autocomplete="off">
         <div class="ed-toolbar">
+          <button id="nav-back-btn" class="icon-btn" title="Back (Alt+←)" disabled>&larr;</button>
+          <button id="nav-fwd-btn" class="icon-btn" title="Forward (Alt+→)" disabled>&rarr;</button>
           <button id="outline-btn" class="icon-btn" title="Toggle outline">&#9776;</button>
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
           <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
@@ -600,10 +602,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.56.0</strong></p>
+          <p>Version: <strong id="about-version">v0.57.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.56: backup reminders — Settings → Data → Backup reminder. After the chosen interval since your last successful backup, a status-bar nudge appears. Default is every 14 days.</p>
+          <p class="setting-help">Beta.57: back / forward navigation — browser-style ← / → toolbar buttons (and <kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>Alt</kbd>+<kbd>→</kbd>) walk through your note history.</p>
         </div>
       </section>
 

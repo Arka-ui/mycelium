@@ -63,6 +63,7 @@ const els = {};
   'search-modal','search-modal-input','search-modal-results',
   'diff-modal','diff-close','diff-meta','diff-body',
   'props-modal','props-close','props-rows','props-add-btn','props-save-btn','props-btn',
+  'nav-back-btn','nav-fwd-btn',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn','opt-backup-reminder','last-backup-text',
@@ -88,6 +89,9 @@ const state = {
   reading: false,
   recents: [],
   tabs: [], // v0.29 — array of open note ids; activeId is always the focused one if present
+  navStack: [],   // v0.57 — back/forward history (note ids)
+  navIndex: -1,   // current position in navStack
+  navSilent: false,
 };
 
 // v0.39 — Snapshot diff viewer (LCS-based unified line diff)
@@ -431,6 +435,38 @@ function setSaveState(s) {
   if (s === 'saved') els.saveState.classList.add('save-saved');
   else if (s === 'saving...' || s === 'editing...') els.saveState.classList.add('save-saving');
   else if (s === 'save failed') els.saveState.classList.add('save-error');
+}
+
+// v0.57 — Browser-style back / forward navigation across opened notes.
+function pushNav(id) {
+  if (state.navSilent) return;
+  // Drop any forward history past current index
+  state.navStack = state.navStack.slice(0, state.navIndex + 1);
+  // Avoid duplicate consecutive entries
+  if (state.navStack[state.navStack.length - 1] !== id) {
+    state.navStack.push(id);
+    if (state.navStack.length > 80) state.navStack.shift();
+    state.navIndex = state.navStack.length - 1;
+  }
+  refreshNavButtons();
+}
+function refreshNavButtons() {
+  if (els.navBackBtn) els.navBackBtn.disabled = state.navIndex <= 0;
+  if (els.navFwdBtn)  els.navFwdBtn.disabled  = state.navIndex >= state.navStack.length - 1;
+}
+async function navBack() {
+  if (state.navIndex <= 0) return;
+  state.navIndex -= 1;
+  state.navSilent = true;
+  try { await openNote(state.navStack[state.navIndex]); }
+  finally { state.navSilent = false; refreshNavButtons(); }
+}
+async function navForward() {
+  if (state.navIndex >= state.navStack.length - 1) return;
+  state.navIndex += 1;
+  state.navSilent = true;
+  try { await openNote(state.navStack[state.navIndex]); }
+  finally { state.navSilent = false; refreshNavButtons(); }
 }
 
 // v0.51 — Per-note local draft (persists every keystroke; restored if newer than file).
@@ -913,6 +949,7 @@ async function openNote(id) {
   closeTagAutocomplete(); // v0.54
   pushRecent(id); // v0.12 — recents
   addTab(id);     // v0.29 — register / focus tab
+  pushNav(id);    // v0.57 — back/forward history
   showView('editor');
   els.title.value = note.title || '';
   els.body.value = note.body || '';
@@ -1707,6 +1744,7 @@ async function loadSettings() {
     if (state.settings.backup_reminder_days === undefined) state.settings.backup_reminder_days = 14;
     if (els.optBackupReminder) els.optBackupReminder.value = String(state.settings.backup_reminder_days);
     refreshLastBackupText();
+    refreshNavButtons();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -3605,6 +3643,8 @@ const PALETTE_COMMANDS = [
   { name: 'Tabs: previous', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1) },
   { name: 'Tabs: close current', shortcut: 'Ctrl+W', run: () => state.activeId && closeTab(state.activeId) },
   { name: 'Tabs: close all', shortcut: '', run: () => { state.tabs = []; saveTabs(); showEmpty(); renderTabs(); } },
+  { name: 'Navigate back', shortcut: 'Alt+←', run: navBack },
+  { name: 'Navigate forward', shortcut: 'Alt+→', run: navForward },
   { name: 'Search every note...', shortcut: 'Ctrl+Shift+F', run: openSearchModal },
   { name: 'Editor: delete current line', shortcut: 'Ctrl+Shift+K', run: () => { if (els.body) { els.body.focus(); deleteCurrentLine(); } } },
   { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
@@ -3824,6 +3864,9 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key.toLowerCase() === 'w') { e.preventDefault(); if (state.activeId) closeTab(state.activeId); return; }
   if (e.altKey && e.key === 'ArrowUp' && target === els.body) { e.preventDefault(); moveLine(-1); return; }
   if (e.altKey && e.key === 'ArrowDown' && target === els.body) { e.preventDefault(); moveLine(1); return; }
+  // v0.57 — back/forward navigation across opened notes (browser-style).
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); navBack(); return; }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); navForward(); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
   // v0.33 — Ctrl+/ toggles comment in editor; falls back to cheatsheet elsewhere.
   if (e.ctrlKey && e.key === '/' && target === els.body) { e.preventDefault(); toggleComment(); return; }
@@ -4001,6 +4044,8 @@ els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
 if (els.optBackupReminder) els.optBackupReminder.addEventListener('change', saveSettings);
+if (els.navBackBtn) els.navBackBtn.addEventListener('click', navBack);
+if (els.navFwdBtn) els.navFwdBtn.addEventListener('click', navForward);
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
 if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);

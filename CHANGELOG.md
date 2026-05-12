@@ -1,3 +1,23 @@
+# Mycelium v0.59.0-beta.1 - Custom keyboard shortcuts
+
+beta.59 lets you bind any palette command to a keyboard shortcut of your choice.
+
+## New in v0.59.0
+
+### Settings → Shortcuts
+- A new **Shortcuts** tab lists every palette command with its current binding (or default, in dim text) and a **Set...** / **Change** button.
+- Click **Set...**, the button highlights, then press the key combo. Esc cancels. The key string is normalised as `Ctrl+Shift+R` form (modifiers in fixed order).
+- A **Clear** button removes a custom binding (default Mycelium key — if any — keeps working).
+- Custom binds run after the built-in defaults so you can rebind anything that isn't already a default; if the keys conflict, the default wins.
+
+### Backend
+- New setting field: `custom_shortcuts` (a `BTreeMap<String, String>` of action name → key string). No new commands.
+
+### Auto-update
+- Pushing v0.59.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.58.0-beta.1 - Smart paste TSV → Markdown table
 
 beta.58 turns clipboard contents from spreadsheets and database rows into proper Markdown tables.

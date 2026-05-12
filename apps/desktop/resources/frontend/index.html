@@ -204,6 +204,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="board">Board</button>
       <button class="tab-btn" data-tab="calendar">Calendar</button>
       <button class="tab-btn" data-tab="snippets">Snippets</button>
+      <button class="tab-btn" data-tab="shortcuts">Shortcuts</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -566,6 +567,18 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
       </section>
 
+      <section class="tab-pane" data-pane="shortcuts">
+        <div class="setting-group">
+          <h3>Custom keyboard shortcuts</h3>
+          <p class="setting-help">Click a "Set..." button next to an action and press the key combo. Shortcuts run after default Mycelium keys, so you can rebind anything that isn't a default. Click <strong>Clear</strong> to remove a binding.</p>
+          <table class="snip-table">
+            <thead><tr><th>Action</th><th>Binding</th><th></th></tr></thead>
+            <tbody id="shortcuts-rows"></tbody>
+          </table>
+          <p class="setting-help"><strong>Tip:</strong> Modifiers are normalised as <code>Ctrl+</code>, <code>Shift+</code>, <code>Alt+</code>, <code>Meta+</code>. The key follows. Example: <code>Ctrl+Shift+R</code>.</p>
+        </div>
+      </section>
+
       <section class="tab-pane" data-pane="updates">
         <div class="setting-group">
           <h3>Auto-update</h3>
@@ -602,10 +615,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.58.0</strong></p>
+          <p>Version: <strong id="about-version">v0.59.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.58: smart paste TSV → Markdown table — paste tab-separated data (e.g. from a spreadsheet) and the editor inserts a properly-formatted <code>| col |</code> table with a separator row. Same Auto-pair toggle gates the behavior.</p>
+          <p class="setting-help">Beta.59: custom keyboard shortcuts — Settings → Shortcuts lists every palette command with a "Set..." button to record a key combo. Custom binds run after default keys so you can rebind anything that isn't a default.</p>
         </div>
       </section>
 

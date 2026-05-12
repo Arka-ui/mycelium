@@ -64,6 +64,7 @@ const els = {};
   'diff-modal','diff-close','diff-meta','diff-body',
   'props-modal','props-close','props-rows','props-add-btn','props-save-btn','props-btn',
   'nav-back-btn','nav-fwd-btn',
+  'shortcuts-rows',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn','opt-backup-reminder','last-backup-text',
@@ -435,6 +436,102 @@ function setSaveState(s) {
   if (s === 'saved') els.saveState.classList.add('save-saved');
   else if (s === 'saving...' || s === 'editing...') els.saveState.classList.add('save-saving');
   else if (s === 'save failed') els.saveState.classList.add('save-error');
+}
+
+// v0.59 — Custom keyboard shortcuts editor + matcher.
+function normalizeShortcut(e) {
+  const parts = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.altKey) parts.push('Alt');
+  if (e.metaKey) parts.push('Meta');
+  let key = e.key;
+  if (!key) return null;
+  // Don't bind bare modifiers
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return null;
+  if (key.length === 1) key = key.toUpperCase();
+  parts.push(key);
+  return parts.join('+');
+}
+function renderShortcutsTable() {
+  if (!els.shortcutsRows) return;
+  els.shortcutsRows.innerHTML = '';
+  const map = (state.settings && state.settings.custom_shortcuts) || {};
+  for (const cmd of PALETTE_COMMANDS) {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td'); tdName.textContent = cmd.name;
+    tr.appendChild(tdName);
+    const tdBind = document.createElement('td');
+    const cur = map[cmd.name] || '';
+    if (cur) {
+      const k = document.createElement('kbd'); k.textContent = cur; tdBind.appendChild(k);
+    } else if (cmd.shortcut) {
+      const def = document.createElement('span'); def.style.color = 'var(--text-3)';
+      def.textContent = '(default: ' + cmd.shortcut + ')'; tdBind.appendChild(def);
+    } else {
+      tdBind.textContent = '';
+    }
+    tr.appendChild(tdBind);
+    const tdAct = document.createElement('td');
+    const setBtn = document.createElement('button'); setBtn.className = 'ghost-btn'; setBtn.textContent = cur ? 'Change' : 'Set...';
+    setBtn.addEventListener('click', () => beginShortcutCapture(cmd.name, setBtn));
+    tdAct.appendChild(setBtn);
+    if (cur) {
+      const clr = document.createElement('button'); clr.className = 'danger-btn'; clr.textContent = 'Clear';
+      clr.style.marginLeft = '6px';
+      clr.addEventListener('click', async () => {
+        const m = { ...(state.settings.custom_shortcuts || {}) };
+        delete m[cmd.name];
+        state.settings.custom_shortcuts = m;
+        try { await invoke('set_settings', { settings: state.settings }); } catch (_) {}
+        renderShortcutsTable();
+      });
+      tdAct.appendChild(clr);
+    }
+    tr.appendChild(tdAct);
+    els.shortcutsRows.appendChild(tr);
+  }
+}
+function beginShortcutCapture(cmdName, btn) {
+  btn.textContent = 'Press keys… (Esc to cancel)';
+  btn.style.background = 'var(--accent)';
+  btn.style.color = 'var(--accent-fg)';
+  const handler = async (e) => {
+    if (e.key === 'Escape') {
+      cleanup();
+      renderShortcutsTable();
+      return;
+    }
+    const k = normalizeShortcut(e);
+    if (!k) return; // ignore bare modifiers
+    e.preventDefault();
+    e.stopPropagation();
+    const m = { ...(state.settings.custom_shortcuts || {}) };
+    m[cmdName] = k;
+    state.settings.custom_shortcuts = m;
+    try { await invoke('set_settings', { settings: state.settings }); } catch (_) {}
+    cleanup();
+    renderShortcutsTable();
+  };
+  function cleanup() {
+    document.removeEventListener('keydown', handler, true);
+    btn.style.background = ''; btn.style.color = '';
+  }
+  document.addEventListener('keydown', handler, true);
+}
+// Match a normalised key against all bound custom shortcuts and run the matched command.
+function tryRunCustomShortcut(e) {
+  const map = state.settings && state.settings.custom_shortcuts;
+  if (!map) return false;
+  const want = normalizeShortcut(e);
+  if (!want) return false;
+  for (const [name, key] of Object.entries(map)) {
+    if (key === want) {
+      const cmd = PALETTE_COMMANDS.find(c => c.name === name);
+      if (cmd) { e.preventDefault(); cmd.run(); return true; }
+    }
+  }
+  return false;
 }
 
 // v0.57 — Browser-style back / forward navigation across opened notes.
@@ -1688,6 +1785,7 @@ function switchTab(name) {
   if (name === 'board') refreshBoard();
   if (name === 'calendar') refreshCalendar();
   if (name === 'snippets') snippetsSetup();
+  if (name === 'shortcuts') renderShortcutsTable();
 }
 
 async function loadSettings() {
@@ -3910,6 +4008,10 @@ document.addEventListener('keydown', (e) => {
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'l') { e.preventDefault(); applyFormat('link'); return; }
   if (e.ctrlKey && e.key === ',')               { e.preventDefault(); cycleTheme(); return; }
   if (e.key === '/' && !inField)                { e.preventDefault(); els.search.focus(); return; }
+  // v0.59 — try custom user-defined shortcuts before defaults so users can override
+  // anything they want; defaults still win on key conflict because we already ran above.
+  if (tryRunCustomShortcut(e)) return;
+
   if (e.key === 'Escape') {
     if (state.searchModal.open) { closeSearchModal(); return; }
     if (els.diffModal && !els.diffModal.classList.contains('hidden')) { closeDiffModal(); return; }

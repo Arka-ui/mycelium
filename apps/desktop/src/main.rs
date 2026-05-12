@@ -3121,6 +3121,10 @@ struct Settings {
     /// v0.56 — timestamp of the last successful workspace backup (set by frontend after export).
     #[serde(default)]
     last_backup_at: Option<DateTime<Utc>>,
+    /// v0.59 — user-defined keyboard shortcuts. Maps a palette-command name → key string
+    /// (e.g. `{"Open random note": "Ctrl+Shift+R"}`). Frontend interprets at keydown.
+    #[serde(default)]
+    custom_shortcuts: std::collections::BTreeMap<String, String>,
 }
 
 fn default_backup_reminder_days() -> u32 {
@@ -3202,6 +3206,7 @@ impl Default for Settings {
             sync_scroll: true,
             backup_reminder_days: 14,
             last_backup_at: None,
+            custom_shortcuts: std::collections::BTreeMap::new(),
         }
     }
 }

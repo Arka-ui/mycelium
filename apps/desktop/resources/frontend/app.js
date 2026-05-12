@@ -167,6 +167,11 @@ function renderList() {
     if (n.pinned) li.classList.add('pinned');
     if (state.selectedIds.has(n.id)) li.classList.add('selected');
     li.dataset.id = n.id;
+    // v0.28 — sidebar color bar from frontmatter `color:`.
+    if (n.color && isSafeCssColor(n.color)) {
+      li.style.borderLeft = '3px solid ' + n.color;
+      li.style.paddingLeft = '7px';
+    }
 
     if (n.pinned) {
       // HTML5 drag handle on pinned rows so we can manually order them.
@@ -195,7 +200,10 @@ function renderList() {
 
     const titleRow = document.createElement('div'); titleRow.className = 'nl-row-title';
     const ti = document.createElement('span'); ti.className = 'nl-title';
-    ti.textContent = n.title && n.title.trim() ? n.title : t('untitled', 'Untitled');
+    // v0.28 — frontmatter `icon:` shown before the title (single short string).
+    let titleText = n.title && n.title.trim() ? n.title : t('untitled', 'Untitled');
+    if (n.icon && n.icon.length <= 8) titleText = n.icon + ' ' + titleText;
+    ti.textContent = titleText;
     if (n.pinned) {
       const star = document.createElement('span'); star.className = 'nl-pin'; star.textContent = '★';
       titleRow.appendChild(star);
@@ -3065,6 +3073,19 @@ async function refreshBoard() {
   }
 }
 function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// v0.28 — only allow simple CSS color forms to avoid injection.
+function isSafeCssColor(s) {
+  if (!s) return false;
+  s = String(s).trim();
+  if (s.length > 32) return false;
+  if (/^#[0-9a-fA-F]{3}$/.test(s)) return true;
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return true;
+  if (/^#[0-9a-fA-F]{8}$/.test(s)) return true;
+  if (/^[a-zA-Z]{3,20}$/.test(s)) return true; // named CSS colors
+  if (/^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/.test(s)) return true;
+  if (/^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0|1|0?\.\d+)\s*\)$/.test(s)) return true;
+  return false;
+}
 if (els.boardRefreshBtn) els.boardRefreshBtn.addEventListener('click', () => {
   state.settings.board_property = (els.boardPropertyInput.value || 'status').trim();
   invoke('set_settings', { settings: state.settings }).catch(()=>{});

@@ -48,6 +48,12 @@ struct NoteSummary {
     trashed_at: Option<DateTime<Utc>>,
     #[serde(default)]
     display_order: i32,
+    /// v0.28 — frontmatter `color:` value (CSS color string), populated by `summarize`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    /// v0.28 — frontmatter `icon:` value (typically an emoji), populated by `summarize`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,6 +191,25 @@ impl Store {
     }
 
     fn summarize(note: &Note) -> NoteSummary {
+        // v0.28 — pull `color:` and `icon:` from frontmatter (silent if absent).
+        let mut color: Option<String> = None;
+        let mut icon: Option<String> = None;
+        let (props, _) = parse_frontmatter(&note.body);
+        for (k, v) in props {
+            let lc = k.to_lowercase();
+            if lc == "color" && color.is_none() {
+                let trimmed = v.trim();
+                if !trimmed.is_empty() {
+                    color = Some(trimmed.to_string());
+                }
+            }
+            if lc == "icon" && icon.is_none() {
+                let trimmed = v.trim();
+                if !trimmed.is_empty() {
+                    icon = Some(trimmed.to_string());
+                }
+            }
+        }
         NoteSummary {
             id: note.id.clone(),
             title: note.title.clone(),
@@ -193,6 +218,8 @@ impl Store {
             tags: extract_tags(&note.body),
             trashed_at: note.trashed_at,
             display_order: note.display_order,
+            color,
+            icon,
         }
     }
 

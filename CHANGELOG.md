@@ -1,3 +1,26 @@
+# Mycelium v0.28.0-beta.1 - Visual note metadata
+
+beta.28 lets notes carry a splash of identity in the sidebar via two new frontmatter properties: `color:` and `icon:`.
+
+## New in v0.28.0
+
+### Frontmatter `color:`
+- Set `color: blue` (or `#7aa6ff`, or `rgb(122, 166, 255)`) in a note's frontmatter and the sidebar entry gains a 3 px colored bar on the left edge.
+- Accepted values: hex (`#rgb`, `#rrggbb`, `#rrggbbaa`), CSS named colors, `rgb()` / `rgba()`. Anything else is silently ignored (no DOM injection).
+- Length capped at 32 chars before validation.
+
+### Frontmatter `icon:`
+- Set `icon: 🚀` (or any emoji / 1–8 char glyph) and the sidebar title gains the icon as a prefix.
+- Long strings are silently dropped to keep the title row legible.
+
+### Backend
+- `NoteSummary` now includes optional `color` and `icon` fields; populated by `summarize` from the parsed frontmatter.
+
+### Auto-update
+- Pushing v0.28.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.27.0-beta.1 - Encrypted backups
 
 beta.27 lets you take an encrypted snapshot of the entire workspace — notes, themes, templates, plugins, settings — and stash it on a USB stick or in cloud storage without leaking the contents.

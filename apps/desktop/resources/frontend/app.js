@@ -3057,6 +3057,13 @@ const PALETTE_COMMANDS = [
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
   { name: 'Start focus timer', shortcut: '', run: () => startPomodoro(state.settings.pomodoro_minutes || 25) },
   { name: 'Cancel focus timer', shortcut: '', run: () => cancelPomodoro() },
+  { name: 'Toggle always-on-top window', shortcut: '', run: async () => {
+      state.alwaysOnTop = !state.alwaysOnTop;
+      try {
+        await invoke('set_always_on_top', { value: !!state.alwaysOnTop });
+        setStatus('Always-on-top: ' + (state.alwaysOnTop ? 'ON' : 'OFF'));
+      } catch (e) { alert('Failed: ' + e); }
+  } },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });

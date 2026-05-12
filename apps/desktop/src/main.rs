@@ -3158,6 +3158,12 @@ fn uninstall_plugin(id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// v0.41 — Toggle the main window's always-on-top flag.
+#[tauri::command]
+fn set_always_on_top(window: tauri::Window, value: bool) -> Result<(), String> {
+    window.set_always_on_top(value).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_data_dir() -> Result<(), String> {
     let dir = data_root();
@@ -3302,6 +3308,7 @@ fn main() -> Result<()> {
             install_plugin,
             uninstall_plugin,
             open_data_dir,
+            set_always_on_top,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

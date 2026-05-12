@@ -1,3 +1,18 @@
+# Mycelium v0.41.0-beta.1 - Always-on-top
+
+beta.41 ships a tiny but high-impact window control: pin Mycelium above other windows.
+
+## New in v0.41.0
+
+### Always-on-top toggle
+- Palette → "Toggle always-on-top window" calls a new `set_always_on_top(value)` Tauri command which calls Tauri's `WebviewWindow.set_always_on_top` under the hood.
+- Status bar reports the new state ("Always-on-top: ON" / "OFF").
+
+### Auto-update
+- Pushing v0.41.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.40.0-beta.1 - Auto-lock on idle
 
 beta.40 closes a real-world security gap: leave the laptop unattended with the workspace unlocked, and Mycelium can lock itself.

@@ -51,6 +51,7 @@ const els = {};
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
+  'view-orphans','outgoing-list',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -323,6 +324,11 @@ async function renderTagBar() {
       b.className = 'tag-chip' + (state.activeTag === tag ? ' on' : '');
       b.textContent = '#' + tag + ' ' + count;
       b.addEventListener('click', () => { state.activeTag = state.activeTag === tag ? null : tag; renderList(); renderTagBar(); });
+      // v0.15 — right-click → rename across all notes
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showTagContextMenu(e.clientX, e.clientY, tag);
+      });
       els.tagBar.appendChild(b);
     }
   } catch (e) { console.error(e); }
@@ -462,16 +468,16 @@ function renderPreview() {
   }
   els.preview.innerHTML = html;
   els.preview.querySelectorAll('a.wiki-link').forEach(a => {
+    const title = a.dataset.wiki;
+    const found = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase());
+    // v0.15 — broken-wiki-link visual cue
+    if (!found) { a.classList.add('dead'); a.title = 'No note titled "' + title + '" — click to create.'; }
     a.addEventListener('click', async (e) => {
       e.preventDefault();
-      const title = a.dataset.wiki;
-      const found = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase());
-      if (found) openNote(found.id);
-      else {
-        if (confirm(`No note titled "${title}". Create one?`)) {
-          const note = await invoke('create_note', { title, body: '' });
-          await loadNotes(); openNote(note.id);
-        }
+      if (found) { openNote(found.id); return; }
+      if (confirm(`No note titled "${title}". Create one?`)) {
+        const note = await invoke('create_note', { title, body: '' });
+        await loadNotes(); openNote(note.id);
       }
     });
   });
@@ -578,23 +584,49 @@ async function refreshStats() {
 
 async function refreshBacklinks() {
   if (!state.settings.show_backlinks) { els.backlinksPanel.classList.add('hidden'); return; }
-  if (!state.active || !state.active.title) { els.backlinksPanel.classList.add('hidden'); return; }
+  if (!state.active) { els.backlinksPanel.classList.add('hidden'); return; }
+  let backlinks = [];
+  let outgoing = [];
   try {
-    const links = await invoke('backlinks', { title: state.active.title });
-    if (!links.length) { els.backlinksPanel.classList.add('hidden'); return; }
-    els.backlinksPanel.classList.remove('hidden');
-    els.backlinksList.innerHTML = '';
-    for (const b of links) {
-      const li = document.createElement('li');
-      const a = document.createElement('a'); a.href = '#';
-      a.textContent = b.title || 'Untitled';
-      a.addEventListener('click', (e) => { e.preventDefault(); openNote(b.id); });
-      li.appendChild(a);
-      const t = document.createElement('span'); t.className = 'bl-time'; t.textContent = fmtDate(b.updated_at);
-      li.appendChild(t);
-      els.backlinksList.appendChild(li);
-    }
+    if (state.active.title) backlinks = await invoke('backlinks', { title: state.active.title });
+    outgoing = await invoke('outgoing_links', { id: state.activeId });
   } catch (e) { console.error(e); }
+  // Hide whole panel if both empty.
+  if (!backlinks.length && !outgoing.length) { els.backlinksPanel.classList.add('hidden'); return; }
+  els.backlinksPanel.classList.remove('hidden');
+  els.backlinksList.innerHTML = '';
+  for (const b of backlinks) {
+    const li = document.createElement('li');
+    const a = document.createElement('a'); a.href = '#';
+    a.textContent = b.title || 'Untitled';
+    a.addEventListener('click', (e) => { e.preventDefault(); openNote(b.id); });
+    li.appendChild(a);
+    const t = document.createElement('span'); t.className = 'bl-time'; t.textContent = fmtDate(b.updated_at);
+    li.appendChild(t);
+    els.backlinksList.appendChild(li);
+  }
+  els.outgoingList.innerHTML = '';
+  for (const o of outgoing) {
+    const li = document.createElement('li');
+    const a = document.createElement('a'); a.href = '#';
+    a.textContent = o.title;
+    if (!o.exists) { li.classList.add('dead'); a.title = 'No note with this title — click to create.'; }
+    a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (o.exists && o.id) { openNote(o.id); return; }
+      const note = await invoke('create_note', { title: o.title, body: '' });
+      await loadNotes(); openNote(note.id);
+    });
+    li.appendChild(a);
+    if (!o.exists) {
+      const tag = document.createElement('span'); tag.className = 'bl-time bl-dead'; tag.textContent = 'missing';
+      li.appendChild(tag);
+    }
+    els.outgoingList.appendChild(li);
+  }
+  // Hide outgoing heading if list empty.
+  const headOut = document.querySelector('.bl-h-out');
+  if (headOut) headOut.style.display = outgoing.length ? '' : 'none';
 }
 
 async function exportActiveMd() {
@@ -667,6 +699,19 @@ async function openAllNotes() {
   document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'all'));
   if (state.activeId) showView('editor'); else showView('empty');
   await loadNotes();
+}
+
+// v0.15 — Orphans filter view
+async function openOrphans() {
+  state.view = 'orphans';
+  clearSelection(false);
+  document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'orphans'));
+  if (state.activeId) showView('editor'); else showView('empty');
+  try {
+    state.notes = await invoke('orphan_notes');
+    renderList();
+    renderTagBar();
+  } catch (e) { setStatus('orphans load failed: ' + e); }
 }
 
 function renderTrashList(items) {
@@ -1365,6 +1410,43 @@ async function openTemplateMenu(anchor) {
   menu.classList.remove('hidden');
 }
 
+// v0.15 — context menu for tag chips (rename / filter / clear filter)
+function showTagContextMenu(x, y, tag) {
+  const menu = els.ctxMenu; menu.innerHTML = '';
+  const items = [
+    { label: 'Filter by #' + tag, run: () => { state.activeTag = tag; renderList(); renderTagBar(); } },
+    { label: 'Clear tag filter', run: () => { state.activeTag = null; renderList(); renderTagBar(); } },
+    { sep: true },
+    { label: 'Rename tag (#' + tag + ' → ...)...', run: async () => {
+        const next = prompt('Rename #' + tag + ' to:', tag);
+        if (!next) return;
+        const clean = next.trim().replace(/^#/, '').toLowerCase();
+        if (!/^[a-z0-9_-]+$/.test(clean)) { alert('Tag name must be alphanumeric / - / _.'); return; }
+        if (clean === tag) return;
+        if (!confirm(`Rename #${tag} to #${clean} across every non-trashed note? This rewrites note bodies.`)) return;
+        try {
+          const n = await invoke('rename_tag', { oldTag: tag, newTag: clean });
+          setStatus(`Renamed #${tag} → #${clean} in ${n} note${n === 1 ? '' : 's'}.`);
+          if (state.activeTag === tag) state.activeTag = clean;
+          await loadNotes();
+          if (state.activeId) await openNote(state.activeId);
+        } catch (e) { alert('Rename failed: ' + e); }
+    } },
+  ];
+  for (const it of items) {
+    const li = document.createElement('li');
+    if (it.sep) li.className = 'ctx-sep';
+    else { li.textContent = it.label; li.addEventListener('click', () => { hideMenus(); it.run(); }); }
+    menu.appendChild(li);
+  }
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.classList.remove('hidden');
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 6) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+
 function showContextMenu(x, y, note) {
   const menu = els.ctxMenu; menu.innerHTML = '';
   const items = [
@@ -1960,6 +2042,7 @@ const PALETTE_COMMANDS = [
   { name: 'Toggle reading mode', shortcut: 'Ctrl+Shift+M', run: toggleReadingMode },
   { name: 'Open random note', shortcut: 'Ctrl+R', run: openRandomNote },
   { name: 'Print / save as PDF', shortcut: 'Ctrl+P', run: printActiveNote },
+  { name: 'Show orphan notes (no links in or out)', shortcut: '', run: openOrphans },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
@@ -2182,6 +2265,7 @@ els.exportAllBtn.addEventListener('click', exportAllMd);
 
 els.viewAll.addEventListener('click', openAllNotes);
 els.viewTrash.addEventListener('click', openTrash);
+if (els.viewOrphans) els.viewOrphans.addEventListener('click', openOrphans);
 els.emptyTrashBtn.addEventListener('click', emptyTrash);
 
 els.cmdInput.addEventListener('input', () => refreshPalette(els.cmdInput.value));

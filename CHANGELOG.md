@@ -1,3 +1,33 @@
+# Mycelium v0.15.0-beta.1 - Link & graph intelligence
+
+beta.15 makes the wiki-link graph a first-class citizen: see what's connected, what's broken, what's stranded, and rename a tag once to fix it everywhere.
+
+## New in v0.15.0
+
+### Orphans sidebar view
+- New "Orphans" tab in the sidebar nav, between **All notes** and **Trash**.
+- Lists every non-trashed note with **zero incoming and zero outgoing wiki-links** — your stranded notes that nothing connects to.
+- New backend command: `orphan_notes`.
+
+### Outgoing links panel
+- The Backlinks panel now also shows **Outgoing links** — every distinct `[[Title]]` referenced by the current note.
+- Each row links straight to the target (or, if the target doesn't exist, creates it on click and shows a `missing` badge).
+- New backend command: `outgoing_links(id)`.
+
+### Broken `[[wiki-link]]` highlighting
+- Wiki-links in preview that don't resolve to a note now render with a wavy red underline and a tooltip — clicking offers to create the missing note.
+- Outgoing-link rows for missing targets are similarly tagged.
+
+### Rename tag everywhere
+- **Right-click any tag chip** in the tag bar → "Rename tag (#x → ...)" → enter the new name. The backend rewrites every non-trashed note's body to swap `#oldtag` → `#newtag` and reports how many notes were touched.
+- Tag-name validation: alphanumeric + `-` + `_`. Case-folded match.
+- New backend command: `rename_tag(old_tag, new_tag) -> u32`.
+
+### Auto-update
+- Pushing v0.15.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.14.0-beta.1 - Writing comfort
 
 beta.14 dials the editor in for long sessions: readable font size, word wrap toggle, smart typography in preview, move-line shortcut, and one-click print to PDF.

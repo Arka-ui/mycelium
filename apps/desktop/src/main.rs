@@ -835,6 +835,162 @@ fn all_tags(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
 }
 
 #[tauri::command]
+fn outgoing_links(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let note = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for n in &all {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if !n.title.trim().is_empty() {
+            title_to_id.insert(n.title.to_lowercase(), n.id.clone());
+        }
+    }
+    let finder = WikiLinkFinder;
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut out = vec![];
+    for (a, b) in finder.find_iter(&note.body) {
+        let target = note.body[a + 2..b - 2].trim();
+        if target.is_empty() {
+            continue;
+        }
+        let key = target.to_lowercase();
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let exists = title_to_id.get(&key).cloned();
+        out.push(serde_json::json!({
+            "title": target,
+            "exists": exists.is_some(),
+            "id": exists,
+        }));
+    }
+    Ok(out)
+}
+
+/// Notes with zero incoming AND zero outgoing wiki-links (excluding trashed).
+#[tauri::command]
+fn orphan_notes(state: State<'_, AppState>) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut active: Vec<&Note> = vec![];
+    for n in &all {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if !n.title.trim().is_empty() {
+            title_to_id.insert(n.title.to_lowercase(), n.id.clone());
+        }
+        active.push(n);
+    }
+    let finder = WikiLinkFinder;
+    let mut incoming: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut outgoing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for n in &active {
+        for (a, b) in finder.find_iter(&n.body) {
+            let target = n.body[a + 2..b - 2].trim().to_lowercase();
+            if let Some(target_id) = title_to_id.get(&target) {
+                if target_id != &n.id {
+                    incoming.insert(target_id.clone());
+                    outgoing.insert(n.id.clone());
+                }
+            }
+        }
+    }
+    let mut out: Vec<NoteSummary> = active
+        .iter()
+        .filter(|n| !incoming.contains(&n.id) && !outgoing.contains(&n.id))
+        .map(|n| Store::summarize(n))
+        .collect();
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
+/// Rename `#oldtag` to `#newtag` across every non-trashed note's body.
+/// Returns the number of notes touched.
+#[tauri::command]
+fn rename_tag(state: State<'_, AppState>, old_tag: String, new_tag: String) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let old_lc = old_tag.trim().to_lowercase();
+    let new_lc = new_tag.trim().to_lowercase();
+    if old_lc.is_empty() || new_lc.is_empty() {
+        return Err("tag names must be non-empty".into());
+    }
+    if !old_lc
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || !new_lc
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("tag names must be alphanumeric / - / _".into());
+    }
+    if old_lc == new_lc {
+        return Ok(0);
+    }
+    let store = state.store.lock().unwrap();
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    let mut touched = 0u32;
+    for note in all {
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        let new_body = rewrite_tag_in_body(&note.body, &old_lc, &new_lc);
+        if new_body != note.body {
+            store
+                .update(&note.id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+            touched += 1;
+        }
+    }
+    Ok(touched)
+}
+
+fn rewrite_tag_in_body(body: &str, old_lc: &str, new_lc: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'#' && (i == 0 || !bytes[i - 1].is_ascii_alphanumeric()) {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b'-')
+            {
+                end += 1;
+            }
+            if end > start {
+                let tag = &body[start..end];
+                if tag.to_lowercase() == old_lc {
+                    out.push('#');
+                    out.push_str(new_lc);
+                    i = end;
+                    continue;
+                }
+            }
+        }
+        // Copy one UTF-8 char preserving multi-byte sequences.
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
+#[tauri::command]
 fn backlinks(state: State<'_, AppState>, title: String) -> Result<Vec<NoteSummary>, String> {
     let needle = format!("[[{}]]", title);
     let notes = state
@@ -1930,6 +2086,9 @@ fn main() -> Result<()> {
             search_notes,
             all_tags,
             backlinks,
+            outgoing_links,
+            orphan_notes,
+            rename_tag,
             export_note_md,
             export_all_md,
             import_md,

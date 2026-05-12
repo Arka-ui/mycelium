@@ -28,6 +28,7 @@
 
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
+      <button id="view-orphans" class="side-nav-btn" data-view="orphans">Orphans</button>
       <button id="view-trash" class="side-nav-btn" data-view="trash">Trash</button>
     </nav>
 
@@ -113,6 +114,8 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <aside id="backlinks-panel" class="backlinks-panel hidden">
         <h4>Backlinks</h4>
         <ul id="backlinks-list"></ul>
+        <h4 class="bl-h-out">Outgoing links</h4>
+        <ul id="outgoing-list"></ul>
       </aside>
 
       <footer class="ed-foot">
@@ -417,10 +420,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.14.0</strong></p>
+          <p>Version: <strong id="about-version">v0.15.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.14: writing comfort — adjustable editor font size (Ctrl+= / Ctrl+- / Ctrl+0), word-wrap toggle, smart typography in preview, move-line up/down (Alt+Up/Down), and one-click Print / save-as-PDF.</p>
+          <p class="setting-help">Beta.15: link &amp; graph intelligence — Orphans sidebar view, outgoing-links panel, broken <code>[[wiki-link]]</code> highlighting with one-click create, and rename-a-tag-everywhere from the tag chip.</p>
         </div>
       </section>
 

@@ -774,3 +774,42 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
 .find-bar input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .find-bar .ghost-btn { padding: 4px 9px; font-size: 12px; }
 .find-count { color: var(--text-3); font-size: 11.5px; min-width: 50px; text-align: right; }
+
+/* --- v0.11 — code block copy button ---------------------------------- */
+.code-block { position: relative; }
+.code-block pre { margin: 8px 0; }
+.code-copy {
+  position: absolute; top: 6px; right: 6px;
+  background: var(--bg-2); color: var(--text-2);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 2px 7px; font-size: 12px; cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.code-block:hover .code-copy { opacity: 1; }
+.code-copy:hover { background: var(--bg-3); color: var(--text); }
+
+/* --- v0.11 — foldable headings --------------------------------------- */
+.preview .fold-h { position: relative; padding-left: 22px; cursor: default; }
+.preview .fold-toggle {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  background: transparent; border: none; color: var(--text-3);
+  cursor: pointer; padding: 0 4px; font-size: 12px; line-height: 1;
+  transition: transform 0.15s ease;
+}
+.preview .fold-toggle:hover { color: var(--text); }
+.preview .fold-h.is-collapsed .fold-toggle { transform: translateY(-50%) rotate(-90deg); }
+.preview .is-folded-out { display: none; }
+
+/* --- v0.11 — wiki-link autocomplete popover -------------------------- */
+.wiki-pop {
+  position: fixed; z-index: 90;
+  list-style: none; margin: 0; padding: 4px 0;
+  background: var(--bg-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  min-width: 200px; max-width: 320px; max-height: 200px; overflow-y: auto;
+  font-size: 12.5px;
+}
+.wiki-pop-item { padding: 5px 12px; cursor: pointer; color: var(--text-2); }
+.wiki-pop-item:hover, .wiki-pop-item.on { background: var(--bg-3); color: var(--text); }

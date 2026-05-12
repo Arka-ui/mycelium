@@ -50,7 +50,7 @@ const els = {};
   'import-md-btn','export-all-btn',
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
-  'opt-locale',
+  'opt-locale','opt-auto-pair',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -319,6 +319,8 @@ async function openNote(id) {
   const note = await invoke('get_note', { id });
   if (!note) { setStatus('note vanished'); await loadNotes(); showEmpty(); return; }
   state.activeId = id; state.active = note;
+  state.collapsedLines = new Set(); // v0.11 — folds reset per note
+  closeWikiAutocomplete();
   showView('editor');
   els.title.value = note.title || '';
   els.body.value = note.body || '';
@@ -457,6 +459,68 @@ function renderPreview() {
       if (!Number.isNaN(line)) toggleTaskAtLine(line);
     });
   });
+  // v0.11 — copy buttons on code blocks.
+  els.preview.querySelectorAll('button.code-copy').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const b64 = btn.getAttribute('data-code-b64') || '';
+      let code = '';
+      try { code = decodeURIComponent(escape(atob(b64))); } catch (_) { code = ''; }
+      try {
+        await navigator.clipboard.writeText(code);
+        btn.textContent = '✓';
+        setTimeout(() => { btn.textContent = '⧉'; }, 1200);
+      } catch (err) {
+        // Fallback: select inside <pre> for manual copy.
+        const pre = btn.parentElement.querySelector('pre');
+        if (pre) {
+          const range = document.createRange();
+          range.selectNodeContents(pre);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        }
+      }
+    });
+  });
+  // v0.11 — foldable headings.
+  applyFoldedState();
+  els.preview.querySelectorAll('h1.fold-h, h2.fold-h, h3.fold-h, h4.fold-h, h5.fold-h, h6.fold-h').forEach(h => {
+    const btn = h.querySelector('button.fold-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const line = parseInt(h.dataset.line, 10);
+      if (Number.isNaN(line)) return;
+      if (!state.collapsedLines) state.collapsedLines = new Set();
+      if (state.collapsedLines.has(line)) state.collapsedLines.delete(line);
+      else state.collapsedLines.add(line);
+      applyFoldedState();
+    });
+  });
+}
+
+function applyFoldedState() {
+  if (!els.preview) return;
+  if (!state.collapsedLines) state.collapsedLines = new Set();
+  const headings = Array.from(els.preview.querySelectorAll('h1.fold-h, h2.fold-h, h3.fold-h, h4.fold-h, h5.fold-h, h6.fold-h'));
+  // Reset
+  els.preview.querySelectorAll('.is-folded-out').forEach(el => el.classList.remove('is-folded-out'));
+  headings.forEach(h => h.classList.remove('is-collapsed'));
+  for (const h of headings) {
+    const line = parseInt(h.dataset.line, 10);
+    if (!state.collapsedLines.has(line)) continue;
+    h.classList.add('is-collapsed');
+    const level = parseInt(h.dataset.level, 10) || 1;
+    // Hide every following sibling until a heading of <= level appears.
+    let sib = h.nextElementSibling;
+    while (sib) {
+      if (sib.classList && sib.classList.contains('fold-h')) {
+        const slvl = parseInt(sib.dataset.level, 10) || 1;
+        if (slvl <= level) break;
+      }
+      sib.classList.add('is-folded-out');
+      sib = sib.nextElementSibling;
+    }
+  }
 }
 
 async function refreshStats() {
@@ -629,12 +693,14 @@ async function loadSettings() {
     if (state.settings.spell_check === undefined) state.settings.spell_check = false;
     if (!state.settings.sort_by) state.settings.sort_by = 'updated';
     if (!state.settings.locale) state.settings.locale = 'en';
+    if (state.settings.auto_pair === undefined) state.settings.auto_pair = true;
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
     els.optSpellCheck.checked = !!state.settings.spell_check;
     els.optSort.value = state.settings.sort_by;
     if (els.optLocale) els.optLocale.value = state.settings.locale;
+    if (els.optAutoPair) els.optAutoPair.checked = !!state.settings.auto_pair;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -831,6 +897,7 @@ async function saveSettings() {
   state.settings.spell_check = !!els.optSpellCheck.checked;
   state.settings.sort_by = els.optSort.value || 'updated';
   if (els.optLocale) state.settings.locale = els.optLocale.value || 'en';
+  if (els.optAutoPair) state.settings.auto_pair = !!els.optAutoPair.checked;
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
   applySpellCheck();
@@ -1242,6 +1309,110 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+// --- v0.11 — wiki-link autocomplete -----------------------------------
+function ensureWikiPopover() {
+  let pop = document.getElementById('wiki-pop');
+  if (pop) return pop;
+  pop = document.createElement('ul');
+  pop.id = 'wiki-pop';
+  pop.className = 'wiki-pop hidden';
+  document.body.appendChild(pop);
+  return pop;
+}
+function closeWikiAutocomplete() {
+  const pop = document.getElementById('wiki-pop');
+  if (pop) pop.classList.add('hidden');
+  state.wikiAuto = null;
+}
+function maybeOpenWikiAutocomplete() {
+  if (!state.activeId) return;
+  const ta = els.body;
+  const caret = ta.selectionStart;
+  // Look back for the last `[[` not yet closed by `]]` on this line.
+  const upto = ta.value.slice(0, caret);
+  const lineStart = upto.lastIndexOf('\n') + 1;
+  const lineUpto = upto.slice(lineStart);
+  const lastOpen = lineUpto.lastIndexOf('[[');
+  if (lastOpen < 0) { closeWikiAutocomplete(); return; }
+  const after = lineUpto.slice(lastOpen + 2);
+  if (after.includes(']]')) { closeWikiAutocomplete(); return; }
+  if (/[\n]/.test(after)) { closeWikiAutocomplete(); return; }
+  const query = after.toLowerCase();
+  const matches = state.notes
+    .filter(n => n.title && (!query || n.title.toLowerCase().includes(query)))
+    .slice(0, 8);
+  if (!matches.length) { closeWikiAutocomplete(); return; }
+  const pop = ensureWikiPopover();
+  pop.innerHTML = '';
+  state.wikiAuto = { from: lineStart + lastOpen, to: caret, items: matches, cursor: 0 };
+  matches.forEach((n, idx) => {
+    const li = document.createElement('li');
+    li.className = 'wiki-pop-item' + (idx === 0 ? ' on' : '');
+    li.textContent = n.title || 'Untitled';
+    li.addEventListener('mousedown', (e) => { e.preventDefault(); commitWikiAutocomplete(idx); });
+    pop.appendChild(li);
+  });
+  // Position near the caret. We use textarea's bounding rect + a rough estimate.
+  const r = ta.getBoundingClientRect();
+  const before = ta.value.slice(0, caret);
+  const linesBefore = before.split('\n').length - 1;
+  const lineHeight = 24;
+  const top = Math.min(r.top + (linesBefore + 1) * lineHeight - ta.scrollTop + 4, window.innerHeight - 220);
+  const left = Math.min(r.left + 80, window.innerWidth - 260);
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(r.top + 8, top) + 'px';
+  pop.classList.remove('hidden');
+}
+function commitWikiAutocomplete(index) {
+  if (!state.wikiAuto) return;
+  const item = state.wikiAuto.items[index];
+  if (!item) return;
+  const ta = els.body;
+  const before = ta.value.slice(0, state.wikiAuto.from);
+  const after = ta.value.slice(state.wikiAuto.to);
+  const insert = '[[' + (item.title || '') + ']]';
+  ta.value = before + insert + after;
+  const newCaret = before.length + insert.length;
+  ta.setSelectionRange(newCaret, newCaret);
+  closeWikiAutocomplete();
+  scheduleSave();
+}
+function moveWikiCursor(delta) {
+  if (!state.wikiAuto) return;
+  const pop = document.getElementById('wiki-pop');
+  if (!pop) return;
+  state.wikiAuto.cursor = Math.max(0, Math.min(state.wikiAuto.items.length - 1, state.wikiAuto.cursor + delta));
+  Array.from(pop.children).forEach((li, i) => li.classList.toggle('on', i === state.wikiAuto.cursor));
+}
+
+// --- v0.11 — auto-pair brackets ---------------------------------------
+const AUTO_PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
+function handleAutoPair(e) {
+  if (!state.settings.auto_pair) return false;
+  const ta = els.body;
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  const ch = e.key;
+  if (!AUTO_PAIRS[ch]) return false;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const before = ta.value.slice(0, start);
+  const sel = ta.value.slice(start, end);
+  const after = ta.value.slice(end);
+  // If selection exists, surround it.
+  if (start !== end) {
+    e.preventDefault();
+    ta.value = before + ch + sel + AUTO_PAIRS[ch] + after;
+    ta.setSelectionRange(start + 1, end + 1);
+    scheduleSave();
+    return true;
+  }
+  // Otherwise, insert the pair and place caret between.
+  e.preventDefault();
+  ta.value = before + ch + AUTO_PAIRS[ch] + after;
+  ta.setSelectionRange(start + 1, start + 1);
+  scheduleSave();
+  return true;
+}
+
 // --- find & replace ---------------------------------------------------
 function openFindBar() {
   if (!state.activeId) return;
@@ -1602,7 +1773,18 @@ els.pinBtn.addEventListener('click', togglePin);
 els.previewBtn.addEventListener('click', togglePreview);
 els.exportBtn.addEventListener('click', exportActiveMd);
 els.title.addEventListener('input', scheduleSave);
-els.body.addEventListener('input', scheduleSave);
+els.body.addEventListener('input', () => { scheduleSave(); maybeOpenWikiAutocomplete(); });
+els.body.addEventListener('click', () => { closeWikiAutocomplete(); });
+els.body.addEventListener('keydown', (e) => {
+  // Wiki autocomplete navigation comes first.
+  if (state.wikiAuto && !document.getElementById('wiki-pop').classList.contains('hidden')) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveWikiCursor(1); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); moveWikiCursor(-1); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commitWikiAutocomplete(state.wikiAuto.cursor); return; }
+    if (e.key === 'Escape') { e.preventDefault(); closeWikiAutocomplete(); return; }
+  }
+  handleAutoPair(e);
+});
 els.search.addEventListener('input', () => {
   state.query = els.search.value;
   els.saveSearchBtn.hidden = !state.query.trim();
@@ -1717,6 +1899,7 @@ els.cheatsheetModal.addEventListener('click', (e) => { if (e.target === els.chea
 els.optSpellCheck.addEventListener('change', saveSettings);
 els.optSort.addEventListener('change', () => { saveSettings(); renderList(); });
 if (els.optLocale) els.optLocale.addEventListener('change', () => { saveSettings(); renderList(); refreshBulkBar(); });
+if (els.optAutoPair) els.optAutoPair.addEventListener('change', saveSettings);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));

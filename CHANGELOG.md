@@ -1,3 +1,35 @@
+# Mycelium v0.11.0-beta.1 - Editor power-up
+
+beta.11 turns the editor itself into a fast, friendly writing surface: link without thinking, fold a long doc to scan, copy a code block in one click, and let the editor close your brackets for you.
+
+## New in v0.11.0
+
+### Wiki-link autocomplete
+- Type `[[` in the editor body and a popover appears with up to 8 matching note titles, ranked by substring match.
+- **Arrow keys** navigate, **Enter / Tab** inserts `[[Title]]`, **Esc** closes.
+- The query updates as you keep typing; click outside to dismiss.
+
+### Foldable headings in preview
+- Every rendered heading (`#` … `######`) gets a small `▾` toggle. Click to collapse the section beneath it (everything until the next equal-or-higher-level heading).
+- Per-note state lives in client memory; switching notes resets folds.
+- No source-text changes — only the rendered preview folds.
+
+### One-click code block copy
+- Every fenced code block in preview gets a corner **⧉ Copy** button (visible on hover).
+- Uses `navigator.clipboard.writeText`; the button confirms with **✓** for ~1.2 s after a successful copy.
+- Falls back to `document.getSelection()` over the `<pre>` if the clipboard API is unavailable.
+
+### Auto-pair brackets and quotes
+- Toggleable in **Settings → General**. On by default.
+- Typing `(`, `[`, `{`, `"`, `'`, or `` ` `` inserts the closing pair and places the caret between them.
+- With a selection active, the pair surrounds the selection instead.
+- New `auto_pair` setting (defaults to `true`).
+
+### Auto-update
+- Pushing v0.11.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.10.0-beta.1 - Quality of life
 
 beta.10 sands down four rough edges that the steady-state user hits every day: pinned notes have no manual order, bulk operations require touching one note at a time, finding-and-replacing inside a note isn't a thing, and every string in the app is hardcoded English. This release fixes all four.

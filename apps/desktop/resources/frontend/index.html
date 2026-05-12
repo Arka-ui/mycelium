@@ -185,6 +185,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">Underlines misspelled words. Right-click for suggestions. Off by default to keep code-text clean.</div>
             </div>
           </label>
+          <label class="setting-row">
+            <input id="opt-auto-pair" type="checkbox">
+            <div>
+              <div class="setting-name">Auto-pair brackets and quotes</div>
+              <div class="setting-help">Typing <code>(</code>, <code>[</code>, <code>{</code>, <code>"</code>, <code>'</code> or <code>`</code> auto-inserts the closing pair. With a selection, surrounds it.</div>
+            </div>
+          </label>
         </div>
         <div class="setting-group">
           <h3>Note list</h3>
@@ -365,10 +372,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.10.0</strong></p>
+          <p>Version: <strong id="about-version">v0.11.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.10: quality of life — drag-reorder pinned notes, multi-select sidebar (Ctrl/Shift + click) with bulk pin / trash / export, in-editor find &amp; replace (Ctrl+H), and a locale + i18n stub ready for community translations.</p>
+          <p class="setting-help">Beta.11: editor power-up — wiki-link autocomplete (type <code>[[</code>), foldable headings in preview, one-click copy on every code block, and toggleable bracket auto-pairing.</p>
         </div>
       </section>
 
@@ -426,6 +433,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Wrap selection in <code>`code`</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Wrap selection in <code>[label](url)</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Open find &amp; replace bar</td></tr>
+          <tr><td><kbd>[</kbd><kbd>[</kbd></td><td>Open wiki-link autocomplete (in editor)</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

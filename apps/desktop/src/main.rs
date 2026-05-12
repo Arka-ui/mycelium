@@ -1565,6 +1565,8 @@ struct Settings {
     lock: Option<LockConfig>,
     #[serde(default = "default_locale")]
     locale: String,
+    #[serde(default = "default_true")]
+    auto_pair: bool,
 }
 
 fn default_locale() -> String {
@@ -1602,6 +1604,7 @@ impl Default for Settings {
             sort_by: "updated".to_string(),
             lock: None,
             locale: "en".to_string(),
+            auto_pair: true,
         }
     }
 }

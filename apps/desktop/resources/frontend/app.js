@@ -4096,6 +4096,22 @@ document.addEventListener('keydown', (e) => {
   // v0.57 — back/forward navigation across opened notes (browser-style).
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); navBack(); return; }
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); navForward(); return; }
+  // v0.63 — Ctrl+1..9 opens the Nth pinned note (by display_order, then updated_at).
+  if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && /^[1-9]$/.test(e.key)) {
+    const n = parseInt(e.key, 10);
+    const pinned = ((state._allNotesCache && state._allNotesCache.length ? state._allNotesCache : state.notes) || [])
+      .filter(x => x.pinned && !x.trashed_at)
+      .slice()
+      .sort((a, b) => {
+        const ao = a.display_order && a.display_order > 0 ? a.display_order : Number.MAX_SAFE_INTEGER;
+        const bo = b.display_order && b.display_order > 0 ? b.display_order : Number.MAX_SAFE_INTEGER;
+        if (ao !== bo) return ao - bo;
+        return (b.updated_at || '').localeCompare(a.updated_at || '');
+      });
+    const target = pinned[n - 1];
+    if (target) { e.preventDefault(); openNote(target.id); return; }
+    // Don't preventDefault if there's no Nth pinned note — let other handlers run normally.
+  }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
   // v0.33 — Ctrl+/ toggles comment in editor; falls back to cheatsheet elsewhere.
   if (e.ctrlKey && e.key === '/' && target === els.body) { e.preventDefault(); toggleComment(); return; }

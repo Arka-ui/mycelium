@@ -1,3 +1,22 @@
+# Mycelium v0.63.0-beta.1 - Pinned-note quick keys
+
+beta.63 adds VS-Code-style number-key shortcuts for jumping to pinned notes.
+
+## New in v0.63.0
+
+### `Ctrl+1` … `Ctrl+9`
+- Press `Ctrl + N` (where N is 1–9) to open the **N-th pinned note**, sorted first by `display_order` (1-based; manually-ordered first), then by `updated_at` (most recent next).
+- Sources from the unfiltered note set so the binding is stable regardless of any active sidebar filter.
+- Falls through (does nothing extra) if there's no Nth pinned note, so the rest of the app's `Ctrl+1` handling (if any) keeps working.
+
+### Cheatsheet
+- New row in the help cheatsheet documents the keys.
+
+### Auto-update
+- Pushing v0.63.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.62.0-beta.1 - Wiki-link hover preview
 
 beta.62 makes the wiki-link graph easier to navigate by previewing what's on the other side without leaving the current note.

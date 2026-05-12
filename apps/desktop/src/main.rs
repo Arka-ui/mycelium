@@ -3157,6 +3157,9 @@ struct Settings {
     /// (e.g. `{"Open random note": "Ctrl+Shift+R"}`). Frontend interprets at keydown.
     #[serde(default)]
     custom_shortcuts: std::collections::BTreeMap<String, String>,
+    /// v0.64 — per-tag color overrides. Maps lowercase tag → CSS color string.
+    #[serde(default)]
+    tag_colors: std::collections::BTreeMap<String, String>,
 }
 
 fn default_backup_reminder_days() -> u32 {
@@ -3239,6 +3242,7 @@ impl Default for Settings {
             backup_reminder_days: 14,
             last_backup_at: None,
             custom_shortcuts: std::collections::BTreeMap::new(),
+            tag_colors: std::collections::BTreeMap::new(),
         }
     }
 }

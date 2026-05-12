@@ -841,8 +841,11 @@ function renderList() {
     sub.appendChild(time);
     if ((n.tags || []).length) {
       const tagWrap = document.createElement('span'); tagWrap.className = 'nl-tags';
+      const colors = (state.settings && state.settings.tag_colors) || {};
       for (const tag of n.tags.slice(0, 3)) {
         const sp = document.createElement('span'); sp.className = 'nl-tag'; sp.textContent = '#' + tag;
+        const c = colors[tag];
+        if (c && isSafeCssColor(c)) sp.style.color = c;
         tagWrap.appendChild(sp);
       }
       sub.appendChild(tagWrap);
@@ -1038,12 +1041,18 @@ async function renderTagBar() {
     all.textContent = 'All';
     all.addEventListener('click', () => { state.activeTag = null; renderList(); renderTagBar(); refreshFilterPill(); });
     els.tagBar.appendChild(all);
+    const colors = (state.settings && state.settings.tag_colors) || {};
     for (const [tag, count] of tags) {
       const b = document.createElement('button');
       b.className = 'tag-chip' + (state.activeTag === tag ? ' on' : '');
       b.textContent = '#' + tag + ' ' + count;
+      // v0.64 — apply per-tag color if user has set one
+      const c = colors[tag];
+      if (c && isSafeCssColor(c)) {
+        b.style.borderColor = c;
+        b.style.color = c;
+      }
       b.addEventListener('click', () => { state.activeTag = state.activeTag === tag ? null : tag; renderList(); renderTagBar(); refreshFilterPill(); });
-      // v0.15 — right-click → rename across all notes
       b.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         showTagContextMenu(e.clientX, e.clientY, tag);
@@ -2612,6 +2621,23 @@ function showTagContextMenu(x, y, tag) {
   const items = [
     { label: 'Filter by #' + tag, run: () => { state.activeTag = tag; renderList(); renderTagBar(); } },
     { label: 'Clear tag filter', run: () => { state.activeTag = null; renderList(); renderTagBar(); } },
+    { sep: true },
+    // v0.64 — set tag color
+    { label: 'Set color for #' + tag + '...', run: async () => {
+        const cur = ((state.settings && state.settings.tag_colors) || {})[tag] || '';
+        const next = prompt('CSS color for #' + tag + ' (hex like #7aa6ff, named like blue, or blank to clear):', cur);
+        if (next === null) return;
+        const v = next.trim();
+        const colors = { ...(state.settings.tag_colors || {}) };
+        if (!v) delete colors[tag];
+        else if (isSafeCssColor(v)) colors[tag] = v;
+        else { alert('Not a recognised color form.'); return; }
+        state.settings.tag_colors = colors;
+        try { await invoke('set_settings', { settings: state.settings }); }
+        catch (e) { alert('Save failed: ' + e); return; }
+        renderTagBar();
+        renderList();
+    } },
     { sep: true },
     { label: 'Rename tag (#' + tag + ' → ...)...', run: async () => {
         const next = prompt('Rename #' + tag + ' to:', tag);

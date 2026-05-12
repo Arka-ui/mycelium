@@ -1,3 +1,23 @@
+# Mycelium v0.64.0-beta.1 - Tag colors
+
+beta.64 lets you tag-by-color: assign a CSS color to a tag and the tag bar + inline sidebar tag chips both pick it up.
+
+## New in v0.64.0
+
+### Per-tag color
+- Right-click any tag chip in the tag bar → **"Set color for #tag…"** prompt accepts hex (`#rrggbb`), CSS named colors (`blue`, `tomato`), or `rgb()` / `rgba()`. Anything else is rejected.
+- Empty input clears the tag's color.
+- Tag bar chips render with a colored border + text.
+- Sidebar inline tag chips on each note row render with the colored text.
+
+### Backend
+- New setting field: `tag_colors` (`BTreeMap<String, String>` of lowercased tag → CSS color string). No new commands.
+
+### Auto-update
+- Pushing v0.64.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.63.0-beta.1 - Pinned-note quick keys
 
 beta.63 adds VS-Code-style number-key shortcuts for jumping to pinned notes.

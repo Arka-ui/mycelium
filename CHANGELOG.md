@@ -1,3 +1,26 @@
+# Mycelium v0.53.0-beta.1 - Properties form editor
+
+beta.53 puts a key/value form between you and the `---` frontmatter block, so adding `status: doing` (or removing `due:`) doesn't require typing YAML.
+
+## New in v0.53.0
+
+### Properties modal
+- New ⚙ toolbar button on the editor head (and palette → "Edit note properties (frontmatter)...") opens a centered modal listing every existing frontmatter key/value as an editable row.
+- **+ Add property** appends a blank row.
+- **×** drops a row.
+- **Save** upserts each non-empty row via `set_property` and removes any keys that vanished from the form.
+- Re-opens the note after save so the props strip + sidebar color/icon refresh immediately.
+
+### Notes
+- Keys must be alphanumeric / `-` / `_` (validated by `set_property`).
+- Empty-key rows are silently ignored on save.
+- Existing `note_properties` and `set_property` commands (v0.16 / v0.17) do all the heavy lifting; no new backend.
+
+### Auto-update
+- Pushing v0.53.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.52.0-beta.1 - Rename rewrites links
 
 beta.52 closes a long-standing footgun: renaming a note used to leave every `[[OldTitle]]` reference pointing at nothing. Now the rename also rewrites every reference across the workspace.

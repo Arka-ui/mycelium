@@ -62,6 +62,7 @@ const els = {};
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
   'diff-modal','diff-close','diff-meta','diff-body',
+  'props-modal','props-close','props-rows','props-add-btn','props-save-btn','props-btn',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
@@ -98,6 +99,75 @@ function openDiffModal(historyEntry, oldBody, newBody) {
   els.diffModal.classList.remove('hidden');
 }
 function closeDiffModal() { if (els.diffModal) els.diffModal.classList.add('hidden'); }
+
+// v0.53 — Note properties form editor
+state.propsForm = [];
+async function openPropsModal() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!els.propsModal) return;
+  let props = {};
+  try { props = await invoke('note_properties', { id: state.activeId }); }
+  catch (_) { props = {}; }
+  state.propsForm = Object.entries(props || {}).map(([k, v]) => ({ key: k, value: String(v == null ? '' : v) }));
+  if (state.propsForm.length === 0) state.propsForm.push({ key: '', value: '' });
+  renderPropsForm();
+  els.propsModal.classList.remove('hidden');
+}
+function closePropsModal() { if (els.propsModal) els.propsModal.classList.add('hidden'); }
+function renderPropsForm() {
+  if (!els.propsRows) return;
+  els.propsRows.innerHTML = '';
+  for (let i = 0; i < state.propsForm.length; i++) {
+    const row = state.propsForm[i];
+    const tr = document.createElement('tr');
+    const tdK = document.createElement('td');
+    const inK = document.createElement('input'); inK.type = 'text'; inK.className = 'text-input snip-key';
+    inK.value = row.key; inK.addEventListener('input', () => { row.key = inK.value; });
+    tdK.appendChild(inK);
+    const tdV = document.createElement('td');
+    const inV = document.createElement('input'); inV.type = 'text'; inV.className = 'text-input snip-desc';
+    inV.value = row.value; inV.addEventListener('input', () => { row.value = inV.value; });
+    tdV.appendChild(inV);
+    const tdA = document.createElement('td');
+    const del = document.createElement('button'); del.className = 'danger-btn'; del.textContent = '×';
+    del.addEventListener('click', () => { state.propsForm.splice(i, 1); renderPropsForm(); });
+    tdA.appendChild(del);
+    tr.appendChild(tdK); tr.appendChild(tdV); tr.appendChild(tdA);
+    els.propsRows.appendChild(tr);
+  }
+}
+async function savePropsForm() {
+  if (!state.activeId) return;
+  // Determine current keys from the form and from the existing frontmatter; remove any
+  // keys that vanished, then upsert remaining rows.
+  let existing = {};
+  try { existing = await invoke('note_properties', { id: state.activeId }) || {}; }
+  catch (_) {}
+  const formKeysLc = new Set();
+  for (const r of state.propsForm) {
+    const k = (r.key || '').trim();
+    if (!k) continue;
+    formKeysLc.add(k.toLowerCase());
+  }
+  // Remove keys that were dropped from the form.
+  for (const k of Object.keys(existing)) {
+    if (!formKeysLc.has(k.toLowerCase())) {
+      try { await invoke('set_property', { id: state.activeId, key: k, value: null }); }
+      catch (_) {}
+    }
+  }
+  // Upsert each row.
+  for (const r of state.propsForm) {
+    const k = (r.key || '').trim();
+    if (!k) continue;
+    try { await invoke('set_property', { id: state.activeId, key: k, value: r.value }); }
+    catch (e) { alert('Save failed for ' + k + ': ' + e); return; }
+  }
+  closePropsModal();
+  await loadNotes();
+  if (state.activeId) await openNote(state.activeId);
+  setStatus('Properties saved.');
+}
 
 // v0.44 — compare two notes (uses the same diff modal as snapshot diff).
 async function compareWithNote() {
@@ -3409,6 +3479,7 @@ const PALETTE_COMMANDS = [
   { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
   { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
+  { name: 'Edit note properties (frontmatter)...', shortcut: '', run: openPropsModal },
   { name: 'Start focus timer', shortcut: '', run: () => startPomodoro(state.settings.pomodoro_minutes || 25) },
   { name: 'Cancel focus timer', shortcut: '', run: () => cancelPomodoro() },
   { name: 'Toggle always-on-top window', shortcut: '', run: async () => {
@@ -3632,6 +3703,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (state.searchModal.open) { closeSearchModal(); return; }
     if (els.diffModal && !els.diffModal.classList.contains('hidden')) { closeDiffModal(); return; }
+    if (els.propsModal && !els.propsModal.classList.contains('hidden')) { closePropsModal(); return; }
     if (!els.cheatsheetModal.classList.contains('hidden')) { closeCheatsheet(); return; }
     if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
@@ -3782,6 +3854,11 @@ if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { 
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
 if (els.optAutoLockIdle) els.optAutoLockIdle.addEventListener('change', saveSettings);
 if (els.diffClose) els.diffClose.addEventListener('click', closeDiffModal);
+if (els.propsBtn) els.propsBtn.addEventListener('click', openPropsModal);
+if (els.propsClose) els.propsClose.addEventListener('click', closePropsModal);
+if (els.propsModal) els.propsModal.addEventListener('click', (e) => { if (e.target === els.propsModal) closePropsModal(); });
+if (els.propsAddBtn) els.propsAddBtn.addEventListener('click', () => { state.propsForm.push({ key: '', value: '' }); renderPropsForm(); });
+if (els.propsSaveBtn) els.propsSaveBtn.addEventListener('click', savePropsForm);
 if (els.filterPillClear) els.filterPillClear.addEventListener('click', clearActiveFilter);
 if (els.diffModal) els.diffModal.addEventListener('click', (e) => { if (e.target === els.diffModal) closeDiffModal(); });
 if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomodoro.interval) cancelPomodoro(); else startPomodoro(state.settings.pomodoro_minutes); });

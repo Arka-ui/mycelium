@@ -444,6 +444,36 @@ function handleNoteClick(e, n) {
   openNote(n.id);
 }
 
+// v0.35 — keyboard navigation through visible notes
+function navigateNoteList(delta) {
+  const visible = state._visibleNotes && state._visibleNotes.length ? state._visibleNotes : state.notes;
+  if (!visible.length) return;
+  let idx = visible.findIndex(n => n.id === state.activeId);
+  if (idx < 0) idx = -1;
+  const next = Math.max(0, Math.min(visible.length - 1, idx + delta));
+  if (next !== idx) openNote(visible[next].id);
+}
+function navigateNoteListAbs(idx) {
+  const visible = state._visibleNotes && state._visibleNotes.length ? state._visibleNotes : state.notes;
+  if (!visible.length) return;
+  const i = Math.max(0, Math.min(visible.length - 1, idx));
+  openNote(visible[i].id);
+}
+async function promptRenameNote() {
+  if (!state.activeId || !state.active) return;
+  const cur = state.active.title || '';
+  const next = prompt('Rename note title:', cur);
+  if (next === null) return;
+  if (next === cur) return;
+  try {
+    const note = await invoke('update_note', { id: state.activeId, title: next, body: null });
+    state.active = note;
+    els.title.value = note.title || '';
+    setStatus('Renamed.');
+    await loadNotes();
+  } catch (e) { alert('Rename failed: ' + e); }
+}
+
 function clearSelection(rerender) {
   state.selectedIds.clear();
   state.selectionAnchorId = null;
@@ -2819,6 +2849,7 @@ const PALETTE_COMMANDS = [
   { name: 'Editor: delete current line', shortcut: 'Ctrl+Shift+K', run: () => { if (els.body) { els.body.focus(); deleteCurrentLine(); } } },
   { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
   { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
+  { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
   { name: 'Duplicate current note as...', shortcut: '', run: async () => {
     if (!state.activeId) return;
     const newTitle = prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
@@ -2960,6 +2991,17 @@ document.addEventListener('keydown', (e) => {
 
   if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); openSearchModal(); return; }
+
+  // v0.35 — sidebar keyboard navigation when focus isn't in a writable field.
+  if (!inField) {
+    if (e.key === 'ArrowDown' && state.notes.length) { e.preventDefault(); navigateNoteList(1); return; }
+    if (e.key === 'ArrowUp' && state.notes.length) { e.preventDefault(); navigateNoteList(-1); return; }
+    if (e.key === 'Home' && state.notes.length) { e.preventDefault(); navigateNoteListAbs(0); return; }
+    if (e.key === 'End' && state.notes.length) { e.preventDefault(); navigateNoteListAbs(state.notes.length - 1); return; }
+    if (e.key === 'Enter' && state.activeId) { e.preventDefault(); els.body && els.body.focus(); return; }
+    if (e.key === 'Delete' && state.activeId) { e.preventDefault(); deleteActive(); return; }
+    if (e.key === 'F2' && state.activeId) { e.preventDefault(); promptRenameNote(); return; }
+  }
   if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'h') { e.preventDefault(); openFindBar(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && !inField) { e.preventDefault(); newDailyNote(); return; }

@@ -1,3 +1,24 @@
+# Mycelium v0.35.0-beta.1 - Sidebar keyboard navigation
+
+beta.35 lets you navigate the workspace without leaving the keyboard.
+
+## New in v0.35.0
+
+### Arrow keys in the sidebar
+- **↑** / **↓** move the highlight up and down through visible notes (respecting active tag/orphan filters and pinned-on-top order). Selected note opens immediately.
+- **Home** / **End** jump to the first / last visible note.
+- Active only when no input or textarea is focused.
+
+### Enter / Delete / F2
+- **Enter** moves focus into the editor body — start typing.
+- **Delete** moves the current note to trash.
+- **F2** prompts for a new title and renames the open note. Also available in the command palette as "Rename current note...".
+
+### Auto-update
+- Pushing v0.35.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.34.0-beta.1 - Trash retention
 
 beta.34 graduates the Trash from "leaks forever" to a self-cleaning system.

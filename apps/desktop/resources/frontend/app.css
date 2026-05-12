@@ -669,3 +669,28 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
 }
 .cs-table td:first-child { width: 30%; color: var(--text-3); }
 .cs-table td code { font-size: 12px; }
+
+.lock-screen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500;
+}
+.lock-screen.hidden { display: none; }
+.lock-card {
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 36px 32px; width: min(420px, 92vw);
+  text-align: center;
+}
+.lock-icon { font-size: 36px; margin-bottom: 8px; }
+.lock-card h2 { margin: 0 0 8px; font-size: 19px; font-weight: 600; }
+.lock-card input {
+  width: 100%; margin: 16px 0 12px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 14px;
+}
+.lock-card input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.lock-card .primary-btn { width: 100%; margin: 0; padding: 10px 16px; }
+.lock-err { color: var(--danger); margin-top: 12px; min-height: 18px; }

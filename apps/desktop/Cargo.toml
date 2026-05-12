@@ -27,6 +27,8 @@ tracing-appender = "0.2"
 dirs = "5"
 ulid = { version = "1", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+blake3 = "1"
+rand = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_Security"] }

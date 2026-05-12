@@ -177,6 +177,12 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           </div>
           <p class="setting-help">Pinned notes always come first within the chosen sort.</p>
         </div>
+        <div class="setting-group">
+          <h3>Privacy &amp; lock</h3>
+          <p class="setting-help" id="lock-state-text">Loading...</p>
+          <div class="setting-row" id="lock-controls"></div>
+          <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and you can <strong>Lock now</strong> at any time to require re-entry. Note: this is an <em>access lock</em> &mdash; notes themselves are not encrypted at rest yet (that arrives in beta.8).</p>
+        </div>
       </section>
 
       <section class="tab-pane" data-pane="themes">
@@ -297,10 +303,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.6.0</strong></p>
+          <p>Version: <strong id="about-version">v0.7.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.6: floating selection toolbar, format shortcuts (Ctrl+B/I/E/L), spell-check toggle, configurable note sort, keyboard cheatsheet (Ctrl+/).</p>
+          <p class="setting-help">Beta.7: workspace lock with passphrase (50k-iteration BLAKE3 verifier). At-rest encryption of note files lands in beta.8.</p>
         </div>
       </section>
 
@@ -320,6 +326,17 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
   <button data-fmt="h1"     title="Heading 1">H1</button>
   <button data-fmt="h2"     title="Heading 2">H2</button>
   <button data-fmt="quote"  title="Blockquote">&ldquo;</button>
+</div>
+
+<div id="lock-screen" class="lock-screen hidden">
+  <div class="lock-card">
+    <div class="lock-icon">&#128274;</div>
+    <h2>Mycelium is locked</h2>
+    <p class="setting-help">Enter your workspace passphrase to continue.</p>
+    <input id="lock-pass" type="password" autocomplete="current-password" placeholder="Passphrase">
+    <button id="lock-unlock-btn" class="primary-btn">Unlock</button>
+    <p id="lock-error" class="setting-help lock-err"></p>
+  </div>
 </div>
 
 <div id="cheatsheet-modal" class="modal-backdrop hidden">

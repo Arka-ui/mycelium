@@ -63,6 +63,7 @@
   <div id="sidebar-divider" class="sidebar-divider" title="Drag to resize sidebar"></div>
 
   <main id="editor-pane">
+    <div id="tab-bar" class="tab-bar-row hidden"></div>
     <div id="empty-state" class="empty">
       <h1>Welcome to Mycelium</h1>
       <p>Create a note to get started.</p>
@@ -492,10 +493,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.28.0</strong></p>
+          <p>Version: <strong id="about-version">v0.29.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.28: visual note metadata — frontmatter <code>color: blue</code> draws a colored bar on the sidebar entry; <code>icon: 🚀</code> prepends the emoji to the title.</p>
+          <p class="setting-help">Beta.29: note tabs — Ctrl+click a sidebar entry to open it in a new tab. Tab bar above the editor lets you switch with Ctrl+Tab or click. Middle-click closes a tab. Open tabs persist across restarts.</p>
         </div>
       </section>
 
@@ -565,6 +566,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print (or save as PDF)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>\</kbd></td><td>Toggle sidebar visibility</td></tr>
           <tr><td><kbd>;name</kbd>+<kbd>Tab</kbd></td><td>Expand a snippet (Settings → Snippets)</td></tr>
+          <tr><td><kbd>Alt</kbd>+click sidebar note</td><td>Open in a new tab</td></tr>
+          <tr><td>Middle-click sidebar note</td><td>Open in background tab</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle through open tabs</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close current tab</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

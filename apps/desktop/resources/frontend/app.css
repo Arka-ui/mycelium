@@ -966,6 +966,36 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 .snip-desc { width: 100%; min-width: 120px; }
 .snip-table .danger-btn { padding: 2px 8px; line-height: 1; }
 
+/* --- v0.29 — note tabs ---------------------------------------------- */
+.tab-bar-row {
+  display: flex; flex-wrap: nowrap; overflow-x: auto;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 4px 0;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tab-bar-row::-webkit-scrollbar { height: 4px; }
+.tab {
+  background: var(--bg-3); color: var(--text-2);
+  border: 1px solid var(--border); border-bottom: none;
+  border-top-left-radius: 6px; border-top-right-radius: 6px;
+  padding: 4px 8px 5px;
+  font-size: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 220px; min-width: 60px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab:hover { background: var(--bg); color: var(--text); }
+.tab.active { background: var(--bg); color: var(--text); border-bottom: 1px solid var(--bg); position: relative; z-index: 1; }
+.tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-x {
+  display: inline-block; width: 14px; height: 14px; line-height: 12px; text-align: center;
+  border-radius: 3px; color: var(--text-3); font-size: 14px;
+}
+.tab-x:hover { background: var(--danger); color: white; }
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

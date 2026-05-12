@@ -1,3 +1,33 @@
+# Mycelium v0.29.0-beta.1 - Note tabs
+
+beta.29 introduces an IDE-style tab bar above the editor. Open as many notes as you like in parallel, switch with Ctrl+Tab, close with Ctrl+W. Tabs persist across restarts.
+
+## New in v0.29.0
+
+### Tab bar
+- A row above the editor lists every open note as a tab. Active tab is highlighted; inactive tabs dim.
+- Click a tab → focus it. **× button** or **middle-click** → close it.
+- Long titles are truncated with ellipsis. The tab row scrolls horizontally if you open many.
+- Auto-hides when no tabs are open.
+
+### Opening notes in tabs
+- **Click** a sidebar entry → opens in the current tab (replacing it if active).
+- **Alt + click** → opens the note in a new tab and focuses it.
+- **Middle-click** → adds the note to the tab strip without changing focus (background tab).
+
+### Keyboard shortcuts
+- **Ctrl + Tab** — next tab (wraps).
+- **Ctrl + Shift + Tab** — previous tab (wraps).
+- **Ctrl + W** — close current tab. Falls back to the previous tab; if none, returns to the empty state.
+
+### Persistence
+- Open tab IDs persist in `localStorage` under `mycelium.tabs.v1` and are reloaded on the next launch.
+
+### Auto-update
+- Pushing v0.29.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.28.0-beta.1 - Visual note metadata
 
 beta.28 lets notes carry a splash of identity in the sidebar via two new frontmatter properties: `color:` and `icon:`.

@@ -55,6 +55,7 @@ const els = {};
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
+  'tab-bar',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
@@ -78,7 +79,65 @@ const state = {
   find: { open: false, lastIndex: -1 },
   reading: false,
   recents: [],
+  tabs: [], // v0.29 — array of open note ids; activeId is always the focused one if present
 };
+
+// v0.29 — tab persistence
+const TABS_KEY = 'mycelium.tabs.v1';
+function loadTabs() {
+  try { state.tabs = JSON.parse(localStorage.getItem(TABS_KEY) || '[]') || []; }
+  catch (_) { state.tabs = []; }
+}
+function saveTabs() {
+  try { localStorage.setItem(TABS_KEY, JSON.stringify(state.tabs)); } catch (_) {}
+}
+function addTab(id) {
+  if (!id) return;
+  if (!state.tabs.includes(id)) state.tabs.push(id);
+  saveTabs();
+  renderTabs();
+}
+function closeTab(id) {
+  const idx = state.tabs.indexOf(id);
+  if (idx < 0) return;
+  state.tabs.splice(idx, 1);
+  saveTabs();
+  if (state.activeId === id) {
+    const fallback = state.tabs[idx] || state.tabs[idx - 1] || null;
+    if (fallback) openNote(fallback); else { showEmpty(); renderTabs(); }
+    return;
+  }
+  renderTabs();
+}
+function cycleTab(delta) {
+  if (!state.tabs.length) return;
+  const i = Math.max(0, state.tabs.indexOf(state.activeId));
+  const next = state.tabs[(i + delta + state.tabs.length) % state.tabs.length];
+  if (next) openNote(next);
+}
+function renderTabs() {
+  if (!els.tabBar) return;
+  if (!state.tabs.length) { els.tabBar.classList.add('hidden'); els.tabBar.innerHTML = ''; return; }
+  els.tabBar.classList.remove('hidden');
+  els.tabBar.innerHTML = '';
+  for (const id of state.tabs) {
+    const meta = state.notes.find(n => n.id === id);
+    const tab = document.createElement('button');
+    tab.className = 'tab' + (id === state.activeId ? ' active' : '');
+    tab.dataset.id = id;
+    const label = document.createElement('span'); label.className = 'tab-label';
+    let txt = (meta && meta.title) || 'Untitled';
+    if (meta && meta.icon && meta.icon.length <= 4) txt = meta.icon + ' ' + txt;
+    label.textContent = txt;
+    tab.appendChild(label);
+    const x = document.createElement('span'); x.className = 'tab-x'; x.textContent = '×';
+    x.addEventListener('click', (e) => { e.stopPropagation(); closeTab(id); });
+    tab.appendChild(x);
+    tab.addEventListener('click', () => openNote(id));
+    tab.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); closeTab(id); } });
+    els.tabBar.appendChild(tab);
+  }
+}
 
 // v0.12 — recently opened notes (most recent first), capped at 10.
 const RECENTS_KEY = 'mycelium.recents.v1';
@@ -232,12 +291,21 @@ function renderList() {
     li.appendChild(sub);
 
     li.addEventListener('click', (e) => handleNoteClick(e, n));
+    // v0.29 — middle-click opens in a tab (no focus change).
+    li.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); addTab(n.id); } });
     els.noteList.appendChild(li);
   }
 }
 
 // --- multi-select -------------------------------------------------------
 function handleNoteClick(e, n) {
+  // v0.29 — Alt+click opens the note in a new tab (Ctrl+click stays for multi-select).
+  if (e.altKey) {
+    e.preventDefault();
+    addTab(n.id);
+    openNote(n.id);
+    return;
+  }
   if (e.metaKey || e.ctrlKey) {
     e.preventDefault();
     if (state.selectedIds.has(n.id)) state.selectedIds.delete(n.id);
@@ -357,6 +425,7 @@ async function openNote(id) {
   state.collapsedLines = new Set(); // v0.11 — folds reset per note
   closeWikiAutocomplete();
   pushRecent(id); // v0.12 — recents
+  addTab(id);     // v0.29 — register / focus tab
   showView('editor');
   els.title.value = note.title || '';
   els.body.value = note.body || '';
@@ -371,6 +440,7 @@ async function openNote(id) {
   refreshOutline();
   refreshProps();
   renderList();
+  renderTabs(); // v0.29
   emitToPlugins('note:opened', cloneNote(note));
 }
 
@@ -2487,6 +2557,10 @@ const PALETTE_COMMANDS = [
   { name: 'Encrypted workspace backup...', shortcut: '', run: exportWorkspaceEncrypted },
   { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
   { name: 'Toggle sidebar', shortcut: 'Ctrl+\\', run: toggleSidebar },
+  { name: 'Tabs: next', shortcut: 'Ctrl+Tab', run: () => cycleTab(1) },
+  { name: 'Tabs: previous', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1) },
+  { name: 'Tabs: close current', shortcut: 'Ctrl+W', run: () => state.activeId && closeTab(state.activeId) },
+  { name: 'Tabs: close all', shortcut: '', run: () => { state.tabs = []; saveTabs(); showEmpty(); renderTabs(); } },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
@@ -2629,6 +2703,10 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === '0') { e.preventDefault(); resetFontSize(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); printActiveNote(); return; }
   if (e.ctrlKey && e.key === '\\') { e.preventDefault(); toggleSidebar(); return; }
+  // v0.29 — tab shortcuts
+  if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); cycleTab(1); return; }
+  if (e.ctrlKey && e.key === 'Tab' && e.shiftKey) { e.preventDefault(); cycleTab(-1); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'w') { e.preventDefault(); if (state.activeId) closeTab(state.activeId); return; }
   if (e.altKey && e.key === 'ArrowUp' && target === els.body) { e.preventDefault(); moveLine(-1); return; }
   if (e.altKey && e.key === 'ArrowDown' && target === els.body) { e.preventDefault(); moveLine(1); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
@@ -3185,6 +3263,7 @@ if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) =
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }
   loadRecents();
+  loadTabs();
   await loadSettings();
   await loadThemes();
   applyTheme(state.settings.theme || 'dark');

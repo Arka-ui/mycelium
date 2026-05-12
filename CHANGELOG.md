@@ -1,3 +1,29 @@
+# Mycelium v0.19.0-beta.1 - Calendar view
+
+beta.19 closes the loop on frontmatter properties: deadlines, schedules, agendas now have a month-grid view that pins notes to dates.
+
+## New in v0.19.0
+
+### Month calendar
+- New **Settings → Calendar** tab. Reads any frontmatter date property (default `due`).
+- Month grid: 7 columns × up to 6 rows, Monday-first.
+- Each note carrying `KEY: YYYY-MM-DD` (or longer ISO timestamp) appears pinned to that day with its title as a clickable chip.
+- Today's cell is outlined with the accent color.
+- Empty cells are clickable → filter the sidebar to all notes with `KEY = day`.
+
+### Navigation
+- **Prev** / **Today** / **Next** buttons traverse months. The "Today" button always returns to the current month.
+- **Property** input lets you switch the watched key on the fly (default `due`); pressing Enter saves and refreshes.
+
+### Backend
+- New `month_calendar(year, month, key?)` command. Returns `{ year, month, property, by_day: { 'YYYY-MM-DD': [{id, title, pinned}, …] } }`.
+- New `calendar_property` setting (default `"due"`).
+
+### Auto-update
+- Pushing v0.19.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.18.0-beta.1 - Inline queries
 
 beta.18 ships a tiny query DSL that turns any note into a live dashboard.

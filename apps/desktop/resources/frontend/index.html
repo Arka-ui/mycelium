@@ -155,6 +155,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="data">Data</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="board">Board</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -400,6 +401,23 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         <div id="board-grid" class="board-grid"></div>
       </section>
 
+      <section class="tab-pane" data-pane="calendar">
+        <div class="setting-group">
+          <h3>Month calendar</h3>
+          <p class="setting-help">Notes carrying a frontmatter date property (default <code>due</code>) appear pinned to their day. Click a note in a cell to open it. Click an empty cell to filter the sidebar to all notes due that day.</p>
+          <div class="setting-row">
+            <button id="cal-prev-btn" class="ghost-btn">&larr; Prev</button>
+            <button id="cal-today-btn" class="ghost-btn">Today</button>
+            <button id="cal-next-btn" class="ghost-btn">Next &rarr;</button>
+            <span id="cal-label" class="cal-label"></span>
+            <label style="margin-left:auto">Property
+              <input id="cal-property-input" class="text-input" placeholder="due" style="width:90px">
+            </label>
+          </div>
+        </div>
+        <div id="cal-grid" class="cal-month-grid"></div>
+      </section>
+
       <section class="tab-pane" data-pane="updates">
         <div class="setting-group">
           <h3>Auto-update</h3>
@@ -436,10 +454,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.18.0</strong></p>
+          <p>Version: <strong id="about-version">v0.19.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.18: inline queries — drop <code>!query: status=todo</code> (or <code>tag=foo</code>, <code>orphan</code>, <code>pinned</code>, <code>untitled</code>) on its own line in any note and preview renders a live, clickable list of matching notes.</p>
+          <p class="setting-help">Beta.19: month calendar — Settings → Calendar reads any frontmatter date property (default <code>due</code>) and pins matching notes to a month grid. Prev / Today / Next navigate.</p>
         </div>
       </section>
 

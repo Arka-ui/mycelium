@@ -1023,6 +1023,79 @@ fn rewrite_property(body: &str, key: &str, value: Option<&str>) -> String {
     out
 }
 
+/// Month-grid calendar grouping notes by a frontmatter date property (default `due`).
+/// Returns the matrix of weeks (each week is 7 days; each day has a list of notes due that day).
+/// `year` / `month` are 1-based ISO. Notes whose property doesn't parse as `YYYY-MM-DD` are ignored.
+#[tauri::command]
+fn month_calendar(
+    state: State<'_, AppState>,
+    year: i32,
+    month: u32,
+    key: Option<String>,
+) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    if !(1..=12).contains(&month) {
+        return Err("month must be 1..=12".into());
+    }
+    let key_lc = key
+        .unwrap_or_else(|| "due".to_string())
+        .trim()
+        .to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    let mut by_day: std::collections::BTreeMap<String, Vec<serde_json::Value>> =
+        std::collections::BTreeMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in &props {
+            if k.to_lowercase() != key_lc {
+                continue;
+            }
+            // Accept `YYYY-MM-DD` and longer ISO timestamps. Anything else is skipped.
+            let day = v.get(..10).unwrap_or("");
+            if day.len() != 10
+                || !day.is_char_boundary(4)
+                || !day.is_char_boundary(7)
+                || day.as_bytes().get(4) != Some(&b'-')
+                || day.as_bytes().get(7) != Some(&b'-')
+            {
+                continue;
+            }
+            // Confirm year and month numerically.
+            let parsed_year: i32 = match day[..4].parse() {
+                Ok(y) => y,
+                Err(_) => continue,
+            };
+            let parsed_month: u32 = match day[5..7].parse() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if parsed_year != year || parsed_month != month {
+                continue;
+            }
+            by_day
+                .entry(day.to_string())
+                .or_default()
+                .push(serde_json::json!({
+                    "id": n.id,
+                    "title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+                    "pinned": n.pinned,
+                }));
+            break;
+        }
+    }
+    Ok(serde_json::json!({
+        "year": year,
+        "month": month,
+        "property": key_lc,
+        "by_day": by_day,
+    }))
+}
+
 /// Run a tiny query DSL across the workspace. Supported forms:
 /// - `tag=NAME`  → notes carrying #NAME
 /// - `KEY=VALUE` → notes with frontmatter `KEY: VALUE`
@@ -2093,10 +2166,15 @@ struct Settings {
     smart_typography: bool,
     #[serde(default = "default_board_property")]
     board_property: String,
+    #[serde(default = "default_calendar_property")]
+    calendar_property: String,
 }
 
 fn default_board_property() -> String {
     "status".to_string()
+}
+fn default_calendar_property() -> String {
+    "due".to_string()
 }
 
 fn default_editor_font_size() -> u32 {
@@ -2145,6 +2223,7 @@ impl Default for Settings {
             word_wrap: true,
             smart_typography: false,
             board_property: "status".to_string(),
+            calendar_property: "due".to_string(),
         }
     }
 }
@@ -2460,6 +2539,7 @@ fn main() -> Result<()> {
             set_property,
             board_data,
             query_notes,
+            month_calendar,
             export_note_md,
             export_all_md,
             import_md,

@@ -54,6 +54,7 @@ const els = {};
   'view-orphans','outgoing-list',
   'props-strip',
   'board-property-input','board-refresh-btn','board-grid',
+  'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -850,6 +851,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
   if (name === 'dashboard') refreshDashboard();
   if (name === 'board') refreshBoard();
+  if (name === 'calendar') refreshCalendar();
 }
 
 async function loadSettings() {
@@ -883,7 +885,9 @@ async function loadSettings() {
     applyEditorFontSize();
     applyWordWrap();
     if (!state.settings.board_property) state.settings.board_property = 'status';
+    if (!state.settings.calendar_property) state.settings.calendar_property = 'due';
     if (els.boardPropertyInput) els.boardPropertyInput.value = state.settings.board_property;
+    if (els.calPropertyInput) els.calPropertyInput.value = state.settings.calendar_property;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -2705,6 +2709,93 @@ if (els.boardRefreshBtn) els.boardRefreshBtn.addEventListener('click', () => {
 });
 if (els.boardPropertyInput) els.boardPropertyInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); els.boardRefreshBtn.click(); }
+});
+
+// --- v0.19 — month calendar -----------------------------------------
+state.calCursor = null; // { year, month }
+function calCursorOrNow() {
+  if (state.calCursor) return state.calCursor;
+  const d = new Date();
+  state.calCursor = { year: d.getFullYear(), month: d.getMonth() + 1 };
+  return state.calCursor;
+}
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+async function refreshCalendar() {
+  if (!els.calGrid) return;
+  const cur = calCursorOrNow();
+  const key = (els.calPropertyInput && els.calPropertyInput.value.trim()) || (state.settings.calendar_property || 'due');
+  if (els.calPropertyInput && !els.calPropertyInput.value) els.calPropertyInput.value = key;
+  if (els.calLabel) els.calLabel.textContent = `${MONTHS[cur.month - 1]} ${cur.year}`;
+  let data;
+  try { data = await invoke('month_calendar', { year: cur.year, month: cur.month, key }); }
+  catch (e) { els.calGrid.innerHTML = '<div class="cal-empty">' + e + '</div>'; return; }
+  // Build a 6-row x 7-col grid starting on Monday for the month.
+  const firstDay = new Date(Date.UTC(cur.year, cur.month - 1, 1));
+  const startDow = (firstDow(firstDay) + 6) % 7; // Monday = 0
+  const lastDate = new Date(Date.UTC(cur.year, cur.month, 0)).getUTCDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  els.calGrid.innerHTML = '';
+  // Headers
+  const head = document.createElement('div'); head.className = 'cal-head';
+  for (const dn of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) {
+    const c = document.createElement('div'); c.className = 'cal-dow'; c.textContent = dn; head.appendChild(c);
+  }
+  els.calGrid.appendChild(head);
+
+  const grid = document.createElement('div'); grid.className = 'cal-cells';
+  for (let pad = 0; pad < startDow; pad++) {
+    const c = document.createElement('div'); c.className = 'cal-cell empty'; grid.appendChild(c);
+  }
+  for (let day = 1; day <= lastDate; day++) {
+    const dayStr = `${cur.year.toString().padStart(4, '0')}-${cur.month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (dayStr === todayStr ? ' today' : '');
+    const head = document.createElement('div'); head.className = 'cal-day'; head.textContent = String(day);
+    cell.appendChild(head);
+    const items = (data.by_day && data.by_day[dayStr]) || [];
+    if (items.length) {
+      const list = document.createElement('div'); list.className = 'cal-items';
+      for (const it of items.slice(0, 4)) {
+        const a = document.createElement('a'); a.href = '#'; a.className = 'cal-item' + (it.pinned ? ' pinned' : '');
+        a.textContent = it.title;
+        a.addEventListener('click', (e) => { e.preventDefault(); closeSettings(); openNote(it.id); });
+        list.appendChild(a);
+      }
+      if (items.length > 4) {
+        const more = document.createElement('div'); more.className = 'cal-more';
+        more.textContent = '+' + (items.length - 4) + ' more';
+        list.appendChild(more);
+      }
+      cell.appendChild(list);
+    } else {
+      cell.addEventListener('click', () => filterByProperty(key, dayStr));
+      cell.style.cursor = 'pointer';
+      cell.title = `Filter by ${key} = ${dayStr}`;
+    }
+    grid.appendChild(cell);
+  }
+  els.calGrid.appendChild(grid);
+}
+function firstDow(d) { return d.getUTCDay(); } // 0 = Sun
+function calStep(delta) {
+  const cur = calCursorOrNow();
+  let m = cur.month + delta;
+  let y = cur.year;
+  while (m < 1) { m += 12; y -= 1; }
+  while (m > 12) { m -= 12; y += 1; }
+  state.calCursor = { year: y, month: m };
+  refreshCalendar();
+}
+if (els.calPrevBtn) els.calPrevBtn.addEventListener('click', () => calStep(-1));
+if (els.calNextBtn) els.calNextBtn.addEventListener('click', () => calStep(1));
+if (els.calTodayBtn) els.calTodayBtn.addEventListener('click', () => { state.calCursor = null; refreshCalendar(); });
+if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    state.settings.calendar_property = (els.calPropertyInput.value || 'due').trim();
+    invoke('set_settings', { settings: state.settings }).catch(()=>{});
+    refreshCalendar();
+  }
 });
 
 (async () => {

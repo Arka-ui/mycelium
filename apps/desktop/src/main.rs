@@ -2582,6 +2582,46 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
     let mut top_tags: Vec<(String, u32)> = tag_counts.into_iter().collect();
     top_tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     top_tags.truncate(10);
+
+    // v0.49 — compute consecutive-day "save streak" ending today (UTC), based on updated_at.
+    let mut active_days: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if let Some(t) = n.updated_at {
+            active_days.insert(t.format("%Y-%m-%d").to_string());
+        }
+    }
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let mut streak: u32 = 0;
+    if active_days.contains(&today) {
+        streak = 1;
+        for back in 1..3650 {
+            let d = (Utc::now() - chrono::Duration::days(back as i64))
+                .format("%Y-%m-%d")
+                .to_string();
+            if active_days.contains(&d) {
+                streak += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // v0.49 — rough writing-time estimate at 220 wpm; floor 1 min if any words exist.
+    let writing_minutes: u64 = if total_words > 0 {
+        ((total_words as f64) / 220.0).ceil() as u64
+    } else {
+        0
+    };
+    // Average words per active day (avoids /0).
+    let avg_words_per_active_day: u64 = if active_days.is_empty() {
+        0
+    } else {
+        total_words / (active_days.len() as u64)
+    };
+
     Ok(serde_json::json!({
         "total_notes": total_notes,
         "total_words": total_words,
@@ -2592,6 +2632,10 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
         "distinct_tags": distinct_tags,
         "earliest": earliest,
         "latest": latest,
+        "streak_days": streak,
+        "active_days": active_days.len() as u32,
+        "writing_minutes": writing_minutes,
+        "avg_words_per_active_day": avg_words_per_active_day,
     }))
 }
 

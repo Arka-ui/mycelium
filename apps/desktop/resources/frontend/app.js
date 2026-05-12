@@ -352,6 +352,18 @@ function t(key, fallback) {
 const THEMES = ['dark', 'light', 'hc'];
 
 function setStatus(s) { els.status.textContent = s; }
+// v0.49 — short human-readable duration from minutes
+function fmtMinutes(m) {
+  if (m < 60) return m + ' min';
+  if (m < 60 * 24) {
+    const h = Math.floor(m / 60), r = m % 60;
+    return r ? `${h}h ${r}m` : `${h}h`;
+  }
+  const d = Math.floor(m / (60 * 24)), r = m % (60 * 24);
+  const h = Math.floor(r / 60);
+  return h ? `${d}d ${h}h` : `${d}d`;
+}
+
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -3759,6 +3771,11 @@ async function refreshDashboard() {
       { label: 'Wiki-links', value: stats.links },
       // v0.43 — use the full distinct count (top_tags is truncated to 10 server-side).
       { label: 'Tags', value: (stats.distinct_tags != null ? stats.distinct_tags : (stats.top_tags || []).length) },
+      // v0.49 — streak + writing-time + active days
+      { label: 'Streak (days)', value: stats.streak_days || 0 },
+      { label: 'Active days', value: stats.active_days || 0 },
+      { label: 'Avg words / active day', value: (stats.avg_words_per_active_day || 0).toLocaleString() },
+      { label: 'Writing time', value: fmtMinutes(stats.writing_minutes || 0) },
     ];
     els.dashGrid.innerHTML = '';
     for (const c of cells) {

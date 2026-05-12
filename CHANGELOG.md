@@ -1,3 +1,23 @@
+# Mycelium v0.49.0-beta.1 - Dashboard depth
+
+beta.49 expands the at-a-glance dashboard with four new productivity-focused cards.
+
+## New in v0.49.0
+
+### New cards
+- **Streak (days)** — consecutive UTC days, ending today, on which at least one note was updated.
+- **Active days** — distinct UTC days that have any updated note (includes the past, not just the streak).
+- **Avg words / active day** — `total_words / active_days` (rounded down).
+- **Writing time** — total words / 220 wpm (rounded up to the nearest minute), formatted as `Nh Mm` or `Nd Hh` for longer totals.
+
+### Backend
+- `dashboard_stats` now also returns `streak_days`, `active_days`, `avg_words_per_active_day`, `writing_minutes`.
+
+### Auto-update
+- Pushing v0.49.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.48.0-beta.1 - "Today" sidebar section
 
 beta.48 surfaces the notes you actually touched today right at the top of the sidebar.

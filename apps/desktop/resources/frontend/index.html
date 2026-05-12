@@ -616,10 +616,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.66.0</strong></p>
+          <p>Version: <strong id="about-version">v0.67.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.66: per-note encryption — palette commands "Encrypt this note (passphrase)…", "Unlock this note (passphrase)…", and "Permanently decrypt this note" let you encrypt individual notes with their own passphrase (separate from the workspace lock).</p>
+          <p class="setting-help">Beta.67: blockquote continuation + per-note encryption auto-lock — Enter on a <code>&gt;</code> line continues the quote (empty line exits); workspace lock and idle auto-lock now also clear cached per-note passphrases (closes the v0.66 TODO).</p>
         </div>
       </section>
 
@@ -682,6 +682,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Open find &amp; replace bar</td></tr>
           <tr><td><kbd>[</kbd><kbd>[</kbd></td><td>Open wiki-link autocomplete (in editor)</td></tr>
           <tr><td><kbd>Enter</kbd> on a list item</td><td>Continue the list (smart bullet / number)</td></tr>
+          <tr><td><kbd>Enter</kbd> on a <code>&gt; quote</code> line</td><td>Continue the blockquote (empty line exits)</td></tr>
           <tr><td><kbd>Tab</kbd> in a list</td><td>Indent the current line</td></tr>
           <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> in a list</td><td>Outdent the current line</td></tr>
           <tr><td>Paste URL on a selection</td><td>Wraps selection as <code>[selection](url)</code></td></tr>

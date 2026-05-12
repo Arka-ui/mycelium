@@ -3047,6 +3047,7 @@ function setupIdleAutoLock() {
     try {
       await invoke('lock_now');
       state.locked = true;
+      if (state.notePassphrases) state.notePassphrases.clear(); // v0.67
       closeSettings();
       showLockScreen();
       setStatus('Auto-locked after idle.');
@@ -3405,6 +3406,32 @@ function handleSmartEnter(e) {
     }
     e.preventDefault();
     const insert = '\n' + indent + (n + 1) + '. ';
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    ta.value = before + insert + after;
+    const np = before.length + insert.length;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  // v0.67 — Blockquote continuation: "> text" → next line starts with "> ".
+  // Empty "> " line exits the quote (replaces with blank line).
+  let qm = line.match(/^(\s*)(>+\s*)(.*)$/);
+  if (qm) {
+    const indent = qm[1], quote = qm[2], content = qm[3];
+    if (content.trim() === '') {
+      e.preventDefault();
+      const before = value.slice(0, lineStart);
+      const after = value.slice(pos);
+      ta.value = before + '\n' + after;
+      ta.setSelectionRange(before.length + 1, before.length + 1);
+      scheduleSave();
+      return true;
+    }
+    e.preventDefault();
+    // Normalize the quote prefix (e.g. ">" → "> "; ">>" stays ">>").
+    const normalized = quote.replace(/\s+$/, '') + ' ';
+    const insert = '\n' + indent + normalized;
     const before = value.slice(0, pos);
     const after = value.slice(pos);
     ta.value = before + insert + after;
@@ -3925,8 +3952,13 @@ async function disableLockFlow() {
 }
 
 async function lockNowFlow() {
-  try { await invoke('lock_now'); state.locked = true; closeSettings(); showLockScreen(); }
-  catch (e) { alert('Lock failed: ' + e); }
+  try {
+    await invoke('lock_now');
+    state.locked = true;
+    if (state.notePassphrases) state.notePassphrases.clear(); // v0.67
+    closeSettings();
+    showLockScreen();
+  } catch (e) { alert('Lock failed: ' + e); }
 }
 
 const PALETTE_COMMANDS = [

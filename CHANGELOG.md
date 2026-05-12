@@ -1,3 +1,22 @@
+# Mycelium v0.67.0-beta.1 - Blockquote continuation + auto-lock per-note keys
+
+beta.67 plugs a small editor papercut and closes a security TODO from v0.66.
+
+## New in v0.67.0
+
+### Blockquote continuation
+- **Enter** on a `> some text` line opens a new line beginning with `> ` (matching the existing leading indentation; nested `>>` is preserved).
+- **Enter** on an empty `> ` line exits the quote (mirrors plain bullet behavior).
+
+### Per-note encryption: auto-lock now clears cached passphrases
+- Both **workspace Lock now** (manual) and the **idle auto-lock** (v0.40) now also call `state.notePassphrases.clear()`, so previously-unlocked individual notes return to the encrypted view on the next open.
+- Closes the trade-off note from v0.66 ("Auto-lock-on-idle doesn't clear per-note caches yet").
+
+### Auto-update
+- Pushing v0.67.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.66.0-beta.1 - Per-note encryption
 
 beta.66 introduces per-note encryption — independent of the workspace lock — so individual sensitive notes can carry their own passphrase even on an unlocked workspace.

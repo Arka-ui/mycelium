@@ -493,10 +493,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.29.0</strong></p>
+          <p>Version: <strong id="about-version">v0.30.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.29: note tabs — Ctrl+click a sidebar entry to open it in a new tab. Tab bar above the editor lets you switch with Ctrl+Tab or click. Middle-click closes a tab. Open tabs persist across restarts.</p>
+          <p class="setting-help">Beta.30: search-everywhere modal — Ctrl+Shift+F opens a centered live search across every note with snippet previews and keyboard navigation.</p>
         </div>
       </section>
 
@@ -542,6 +542,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New note</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Daily note (today)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Command palette</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></td><td>Search every note (with snippets)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Force save</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>Toggle preview</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd></td><td>Toggle reading mode</td></tr>
@@ -576,6 +577,18 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td>drag pinned notes</td><td>Reorder pinned notes</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div id="search-modal" class="search-modal hidden">
+  <div class="search-inner">
+    <input id="search-modal-input" type="text" placeholder="Search across every note..." autocomplete="off" spellcheck="false">
+    <ul id="search-modal-results" class="search-modal-results"></ul>
+    <div class="cmd-hint">
+      <kbd>&#8593;</kbd><kbd>&#8595;</kbd> navigate &middot;
+      <kbd>&#8629;</kbd> open &middot;
+      <kbd>Esc</kbd> close
     </div>
   </div>
 </div>

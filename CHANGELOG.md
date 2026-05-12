@@ -1,3 +1,24 @@
+# Mycelium v0.30.0-beta.1 - Search-everywhere modal
+
+beta.30 graduates the sidebar search box: a centered modal with snippet previews and keyboard-driven results, opened from anywhere with Ctrl+Shift+F.
+
+## New in v0.30.0
+
+### Modal
+- **Ctrl + Shift + F** (or palette → "Search every note...") opens a centered search modal pinned to the top 10% of the viewport.
+- Live search across every note (title + body), 120 ms debounce.
+- Each result shows the title (with ★ for pinned), the snippet around the match (highlighted), and a metadata line ("in body / in title · time ago").
+- **↑ / ↓** navigate, **Enter** opens, **Esc** closes. Click also opens.
+- Pre-fills with the current sidebar search query when opened (so you can elevate a sidebar search to the modal).
+
+### Highlighting
+- The matched substring inside each snippet is wrapped in `<mark>` with an accent-tinted background. Pure client-side, no extra backend round trip.
+
+### Auto-update
+- Pushing v0.30.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.29.0-beta.1 - Note tabs
 
 beta.29 introduces an IDE-style tab bar above the editor. Open as many notes as you like in parallel, switch with Ctrl+Tab, close with Ctrl+W. Tabs persist across restarts.

@@ -56,6 +56,7 @@ const els = {};
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
+  'search-modal','search-modal-input','search-modal-results',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
@@ -81,6 +82,92 @@ const state = {
   recents: [],
   tabs: [], // v0.29 — array of open note ids; activeId is always the focused one if present
 };
+
+// v0.30 — Search-everywhere modal
+state.searchModal = { open: false, items: [], cursor: 0, debounce: null };
+function openSearchModal() {
+  if (!els.searchModal) return;
+  state.searchModal.open = true;
+  state.searchModal.items = [];
+  state.searchModal.cursor = 0;
+  els.searchModal.classList.remove('hidden');
+  els.searchModalInput.value = state.query && state.query.trim() ? state.query.trim() : '';
+  setTimeout(() => { els.searchModalInput.focus(); els.searchModalInput.select(); refreshSearchModal(); }, 30);
+}
+function closeSearchModal() {
+  state.searchModal.open = false;
+  if (els.searchModal) els.searchModal.classList.add('hidden');
+}
+async function refreshSearchModal() {
+  const q = (els.searchModalInput.value || '').trim();
+  els.searchModalResults.innerHTML = '';
+  if (!q) {
+    const li = document.createElement('li');
+    li.className = 'search-empty'; li.textContent = 'Type to search every note (title and body)';
+    els.searchModalResults.appendChild(li);
+    state.searchModal.items = [];
+    return;
+  }
+  let hits = [];
+  try { hits = await invoke('search_notes', { query: q }); }
+  catch (e) {
+    const li = document.createElement('li');
+    li.className = 'search-error'; li.textContent = 'Search failed: ' + e;
+    els.searchModalResults.appendChild(li);
+    return;
+  }
+  state.searchModal.items = hits;
+  state.searchModal.cursor = 0;
+  if (!hits.length) {
+    const li = document.createElement('li');
+    li.className = 'search-empty'; li.textContent = 'No matches.';
+    els.searchModalResults.appendChild(li);
+    return;
+  }
+  hits.forEach((h, idx) => {
+    const li = document.createElement('li');
+    li.className = 'search-result' + (idx === 0 ? ' on' : '');
+    const t = document.createElement('div'); t.className = 'sr-title';
+    t.textContent = (h.pinned ? '★ ' : '') + (h.title || 'Untitled');
+    li.appendChild(t);
+    if (h.snippet) {
+      const s = document.createElement('div'); s.className = 'sr-snippet';
+      s.innerHTML = highlightQuery(h.snippet, q);
+      li.appendChild(s);
+    }
+    const meta = document.createElement('div'); meta.className = 'sr-meta';
+    meta.textContent = (h.match_in_body ? 'in body · ' : 'in title · ') + fmtDate(h.updated_at);
+    li.appendChild(meta);
+    li.addEventListener('click', () => { closeSearchModal(); openNote(h.id); });
+    els.searchModalResults.appendChild(li);
+  });
+}
+function highlightQuery(text, q) {
+  if (!q) return escapeHtml(text);
+  const lc = text.toLowerCase();
+  const lq = q.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const at = lc.indexOf(lq, i);
+    if (at < 0) { out += escapeHtml(text.slice(i)); break; }
+    out += escapeHtml(text.slice(i, at)) + '<mark>' + escapeHtml(text.slice(at, at + q.length)) + '</mark>';
+    i = at + q.length;
+  }
+  return out;
+}
+function moveSearchCursor(delta) {
+  if (!state.searchModal.items.length) return;
+  state.searchModal.cursor = Math.max(0, Math.min(state.searchModal.items.length - 1, state.searchModal.cursor + delta));
+  Array.from(els.searchModalResults.children).forEach((li, i) => li.classList.toggle('on', i === state.searchModal.cursor));
+  const sel = els.searchModalResults.children[state.searchModal.cursor];
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+function activateSearchSelection() {
+  const it = state.searchModal.items[state.searchModal.cursor];
+  if (!it) return;
+  closeSearchModal(); openNote(it.id);
+}
 
 // v0.29 — tab persistence
 const TABS_KEY = 'mycelium.tabs.v1';
@@ -2561,6 +2648,7 @@ const PALETTE_COMMANDS = [
   { name: 'Tabs: previous', shortcut: 'Ctrl+Shift+Tab', run: () => cycleTab(-1) },
   { name: 'Tabs: close current', shortcut: 'Ctrl+W', run: () => state.activeId && closeTab(state.activeId) },
   { name: 'Tabs: close all', shortcut: '', run: () => { state.tabs = []; saveTabs(); showEmpty(); renderTabs(); } },
+  { name: 'Search every note...', shortcut: 'Ctrl+Shift+F', run: openSearchModal },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
@@ -2691,6 +2779,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); openSearchModal(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'h') { e.preventDefault(); openFindBar(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && !inField) { e.preventDefault(); newDailyNote(); return; }
@@ -2718,6 +2807,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === ',')               { e.preventDefault(); cycleTheme(); return; }
   if (e.key === '/' && !inField)                { e.preventDefault(); els.search.focus(); return; }
   if (e.key === 'Escape') {
+    if (state.searchModal.open) { closeSearchModal(); return; }
     if (!els.cheatsheetModal.classList.contains('hidden')) { closeCheatsheet(); return; }
     if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
@@ -2828,6 +2918,21 @@ els.attachBtn.addEventListener('click', pickAttachment);
 els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
+
+// v0.30 — Search modal listeners
+if (els.searchModalInput) {
+  els.searchModalInput.addEventListener('input', () => {
+    clearTimeout(state.searchModal.debounce);
+    state.searchModal.debounce = setTimeout(refreshSearchModal, 120);
+  });
+  els.searchModalInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeSearchModal(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveSearchCursor(1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); moveSearchCursor(-1); return; }
+    if (e.key === 'Enter') { e.preventDefault(); activateSearchSelection(); return; }
+  });
+}
+if (els.searchModal) els.searchModal.addEventListener('click', (e) => { if (e.target === els.searchModal) closeSearchModal(); });
 
 els.body.addEventListener('paste', async (e) => {
   if (!e.clipboardData) return;

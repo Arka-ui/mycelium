@@ -1096,6 +1096,126 @@ fn month_calendar(
     }))
 }
 
+/// Same as `backlinks` but each result carries the line containing `[[Title]]` as `snippet`.
+#[tauri::command]
+fn backlinks_with_context(
+    state: State<'_, AppState>,
+    title: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let needle = format!("[[{}]]", title);
+    let needle_lc = needle.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let body_lc = n.body.to_lowercase();
+        if !body_lc.contains(&needle_lc) {
+            continue;
+        }
+        let mut snippet = String::new();
+        for line in n.body.lines() {
+            if line.to_lowercase().contains(&needle_lc) {
+                let trimmed = line.trim();
+                snippet = if trimmed.chars().count() > 120 {
+                    let mut s: String = trimmed.chars().take(120).collect();
+                    s.push('…');
+                    s
+                } else {
+                    trimmed.to_string()
+                };
+                break;
+            }
+        }
+        out.push(serde_json::json!({
+            "id": n.id,
+            "title": n.title,
+            "updated_at": n.updated_at,
+            "pinned": n.pinned,
+            "snippet": snippet,
+        }));
+    }
+    out.sort_by(|a, b| {
+        b["updated_at"]
+            .as_str()
+            .unwrap_or("")
+            .cmp(a["updated_at"].as_str().unwrap_or(""))
+    });
+    Ok(out)
+}
+
+/// Plain-text mentions: notes containing `Title` as text but NOT only as `[[Title]]`.
+#[tauri::command]
+fn mentions(state: State<'_, AppState>, title: String) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let raw = title.trim();
+    if raw.is_empty() {
+        return Ok(vec![]);
+    }
+    let want = raw.to_lowercase();
+    let wiki = format!("[[{}]]", raw).to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let body_lc = n.body.to_lowercase();
+        if !body_lc.contains(&want) {
+            continue;
+        }
+        let mut hit_offset: Option<usize> = None;
+        let mut search_from = 0usize;
+        while let Some(pos) = body_lc[search_from..].find(&want) {
+            let abs = search_from + pos;
+            let before = &body_lc[..abs];
+            let after = &body_lc[abs + want.len()..];
+            let in_wiki = before.ends_with("[[") && after.starts_with("]]");
+            if !in_wiki {
+                hit_offset = Some(abs);
+                break;
+            }
+            search_from = abs + want.len();
+        }
+        if let Some(abs) = hit_offset {
+            let line_start = n.body[..abs].rfind('\n').map(|p| p + 1).unwrap_or(0);
+            let line_end = n.body[abs..]
+                .find('\n')
+                .map(|p| abs + p)
+                .unwrap_or(n.body.len());
+            let line = &n.body[line_start..line_end];
+            let trimmed = line.trim();
+            let snippet = if trimmed.chars().count() > 120 {
+                let mut s: String = trimmed.chars().take(120).collect();
+                s.push('…');
+                s
+            } else {
+                trimmed.to_string()
+            };
+            if snippet.to_lowercase() == wiki {
+                continue;
+            }
+            out.push(serde_json::json!({
+                "id": n.id,
+                "title": n.title,
+                "updated_at": n.updated_at,
+                "snippet": snippet,
+            }));
+        }
+    }
+    out.sort_by(|a, b| {
+        b["updated_at"]
+            .as_str()
+            .unwrap_or("")
+            .cmp(a["updated_at"].as_str().unwrap_or(""))
+    });
+    Ok(out)
+}
+
 /// Append a captured line to today's daily note (creating it if absent).
 /// The note is created with the same shape as `daily_note` and the line is timestamped.
 #[tauri::command]
@@ -2759,6 +2879,8 @@ fn main() -> Result<()> {
             all_aliases,
             suggested_notes,
             quick_capture_append,
+            backlinks_with_context,
+            mentions,
             export_note_md,
             export_all_md,
             import_md,

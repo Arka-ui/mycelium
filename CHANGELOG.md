@@ -1,3 +1,24 @@
+# Mycelium v0.23.0-beta.1 - Rich backlinks
+
+beta.23 turns the backlinks panel from a list of titles into a rich context view, and adds a Mentions section for notes that reference the current title in prose.
+
+## New in v0.23.0
+
+### Backlinks with context snippets
+- Each backlink row now shows the line in the source note that contains `[[ThisTitle]]`, trimmed to 120 chars.
+- Lines are italic / dimmed under the title for visual grouping.
+- New backend: `backlinks_with_context(title)` (the simpler `backlinks(title)` still ships for back-compat).
+
+### Mentions section
+- Below Backlinks, a new **Mentions** section lists notes that contain the current note's title as plain text (case-insensitive) but NOT just as `[[wiki]]`. Useful for finding implicit references you forgot to wikify.
+- Same snippet styling.
+- New backend: `mentions(title)` — skips occurrences wrapped in `[[…]]`.
+
+### Auto-update
+- Pushing v0.23.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.22.0-beta.1 - Capture & share
 
 beta.22 makes throwaway thoughts and finished notes both faster to move in and out of the workspace.

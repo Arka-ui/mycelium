@@ -51,7 +51,7 @@ const els = {};
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
-  'view-orphans','outgoing-list','suggested-list',
+  'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'board-property-input','board-refresh-btn','board-grid',
@@ -683,24 +683,56 @@ async function refreshBacklinks() {
   let backlinks = [];
   let outgoing = [];
   let suggested = [];
+  let mentionsList = [];
   try {
-    if (state.active.title) backlinks = await invoke('backlinks', { title: state.active.title });
+    if (state.active.title) backlinks = await invoke('backlinks_with_context', { title: state.active.title });
     outgoing = await invoke('outgoing_links', { id: state.activeId });
     suggested = await invoke('suggested_notes', { id: state.activeId, limit: 6 });
+    if (state.active.title) mentionsList = await invoke('mentions', { title: state.active.title });
   } catch (e) { console.error(e); }
-  if (!backlinks.length && !outgoing.length && !suggested.length) { els.backlinksPanel.classList.add('hidden'); return; }
+  if (!backlinks.length && !outgoing.length && !suggested.length && !mentionsList.length) { els.backlinksPanel.classList.add('hidden'); return; }
   els.backlinksPanel.classList.remove('hidden');
   els.backlinksList.innerHTML = '';
   for (const b of backlinks) {
     const li = document.createElement('li');
+    li.classList.add('bl-with-snippet');
+    const top = document.createElement('div'); top.className = 'bl-row';
     const a = document.createElement('a'); a.href = '#';
     a.textContent = b.title || 'Untitled';
     a.addEventListener('click', (e) => { e.preventDefault(); openNote(b.id); });
-    li.appendChild(a);
+    top.appendChild(a);
     const t = document.createElement('span'); t.className = 'bl-time'; t.textContent = fmtDate(b.updated_at);
-    li.appendChild(t);
+    top.appendChild(t);
+    li.appendChild(top);
+    if (b.snippet) {
+      const s = document.createElement('div'); s.className = 'bl-snippet'; s.textContent = b.snippet;
+      li.appendChild(s);
+    }
     els.backlinksList.appendChild(li);
   }
+  // v0.23 — mentions
+  if (els.mentionsList) {
+    els.mentionsList.innerHTML = '';
+    for (const m of mentionsList) {
+      const li = document.createElement('li');
+      li.classList.add('bl-with-snippet');
+      const top = document.createElement('div'); top.className = 'bl-row';
+      const a = document.createElement('a'); a.href = '#';
+      a.textContent = m.title || 'Untitled';
+      a.addEventListener('click', (e) => { e.preventDefault(); openNote(m.id); });
+      top.appendChild(a);
+      const t = document.createElement('span'); t.className = 'bl-time'; t.textContent = fmtDate(m.updated_at);
+      top.appendChild(t);
+      li.appendChild(top);
+      if (m.snippet) {
+        const s = document.createElement('div'); s.className = 'bl-snippet'; s.textContent = m.snippet;
+        li.appendChild(s);
+      }
+      els.mentionsList.appendChild(li);
+    }
+  }
+  const headMen = document.querySelector('.bl-h-mentions');
+  if (headMen) headMen.style.display = mentionsList.length ? '' : 'none';
   els.outgoingList.innerHTML = '';
   for (const o of outgoing) {
     const li = document.createElement('li');

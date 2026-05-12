@@ -908,6 +908,16 @@ textarea.body-input { tab-size: 2; }
 #outgoing-list li.dead a { color: var(--danger); }
 .bl-h-out { margin-top: 12px; }
 .bl-dead { color: var(--danger) !important; font-style: italic; }
+/* --- v0.23 — backlinks/mentions with context snippets ---------------- */
+.bl-with-snippet { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px dashed var(--border); }
+.bl-with-snippet:first-child { border-top: none; }
+.bl-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.bl-snippet { color: var(--text-3); font-size: 11.5px; font-style: italic; line-height: 1.4; }
+#mentions-list { list-style: none; padding: 0; margin: 0; }
+#mentions-list a { color: var(--text-2); text-decoration: none; font-size: 12.5px; }
+#mentions-list a:hover { color: var(--accent); text-decoration: underline; }
+.bl-h-mentions { margin-top: 12px; }
+
 #suggested-list { list-style: none; padding: 0; margin: 0; }
 #suggested-list li { padding: 4px 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 #suggested-list a { color: var(--text-2); text-decoration: none; font-size: 12.5px; }

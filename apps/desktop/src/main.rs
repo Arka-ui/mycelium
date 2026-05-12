@@ -809,6 +809,113 @@ fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, Strin
     Ok(n)
 }
 
+/// v0.52 — Rename a note's title AND rewrite every `[[OldTitle]]` reference in other
+/// non-trashed notes to `[[NewTitle]]`. Variants supported in the rewrite:
+///   `[[OldTitle]]`, `[[OldTitle|display]]`, `[[OldTitle#anchor]]`, `[[OldTitle^bookmark]]`,
+///   and combinations like `[[OldTitle#h|d]]`.
+/// Title match is case-insensitive on the part before any `|` / `#` / `^`.
+/// Returns `{ touched_notes, updated_links }`.
+#[tauri::command]
+fn rename_note_with_links(
+    state: State<'_, AppState>,
+    id: String,
+    new_title: String,
+) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let new_title = new_title.trim().to_string();
+    if new_title.is_empty() {
+        return Err("new title cannot be empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let target = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let old_title = target.title.trim().to_string();
+    if old_title == new_title {
+        // Title unchanged — nothing to rewrite.
+        return Ok(serde_json::json!({ "touched_notes": 0, "updated_links": 0 }));
+    }
+    if old_title.is_empty() {
+        // Old title was empty so there are no [[OldTitle]] refs to rewrite — just rename.
+        store
+            .update(&id, Some(new_title), None)
+            .map_err(|e| e.to_string())?;
+        return Ok(serde_json::json!({ "touched_notes": 0, "updated_links": 0 }));
+    }
+    let old_lc = old_title.to_lowercase();
+    let mut touched_notes = 0u32;
+    let mut updated_links = 0u32;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    for note in all {
+        if note.id == id {
+            continue;
+        }
+        if note.trashed_at.is_some() {
+            continue;
+        }
+        let (new_body, count) = rewrite_wikilink_targets(&note.body, &old_lc, &new_title);
+        if count > 0 {
+            updated_links += count;
+            touched_notes += 1;
+            store
+                .update(&note.id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    // Finally rename the target itself.
+    store
+        .update(&id, Some(new_title), None)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "touched_notes": touched_notes,
+        "updated_links": updated_links,
+    }))
+}
+
+/// Replace `[[Title<sep><rest>]]` occurrences (sep ∈ {none, `|`, `#`, `^`}) where the link
+/// target case-insensitively equals `old_lc`, swapping just the title part with `new_title`.
+/// Returns the new body and the count of replacements.
+fn rewrite_wikilink_targets(body: &str, old_lc: &str, new_title: &str) -> (String, u32) {
+    let mut out = String::with_capacity(body.len());
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    let mut count = 0u32;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'[' && bytes[i + 1] == b'[' {
+            // Find matching ]]
+            if let Some(rel_end) = body[i + 2..].find("]]") {
+                let inner_start = i + 2;
+                let inner_end = inner_start + rel_end;
+                let inner = &body[inner_start..inner_end];
+                // Split out the title prefix: everything before the first |, #, or ^.
+                let mut sep_idx = inner.len();
+                for (j, ch) in inner.char_indices() {
+                    if ch == '|' || ch == '#' || ch == '^' {
+                        sep_idx = j;
+                        break;
+                    }
+                }
+                let title_part = &inner[..sep_idx];
+                let trail = &inner[sep_idx..];
+                if title_part.trim().to_lowercase() == old_lc {
+                    out.push_str("[[");
+                    out.push_str(new_title);
+                    out.push_str(trail);
+                    out.push_str("]]");
+                    i = inner_end + 2;
+                    count += 1;
+                    continue;
+                }
+            }
+        }
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    (out, count)
+}
+
 /// v0.50 — Walk every non-trashed note's body for `- [ ]` / `- [x]` task list items.
 /// Returns a flat list of `{note_id, note_title, line, text, done}` so the frontend can
 /// build a global TODO view. Default `done_filter`: false-only (open tasks).
@@ -3397,6 +3504,7 @@ fn main() -> Result<()> {
             merge_notes,
             top_words,
             all_tasks,
+            rename_note_with_links,
             search_notes,
             all_tags,
             backlinks,

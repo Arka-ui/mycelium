@@ -710,13 +710,19 @@ async function promptRenameNote() {
   const cur = state.active.title || '';
   const next = prompt('Rename note title:', cur);
   if (next === null) return;
-  if (next === cur) return;
+  const trimmed = next.trim();
+  if (!trimmed || trimmed === cur) return;
   try {
-    const note = await invoke('update_note', { id: state.activeId, title: next, body: null });
-    state.active = note;
-    els.title.value = note.title || '';
-    setStatus('Renamed.');
+    // v0.52 — single command renames the note AND rewrites every [[OldTitle]] reference
+    // in other notes (handles |display, #anchor, ^bookmark variants).
+    const result = await invoke('rename_note_with_links', { id: state.activeId, newTitle: trimmed });
+    const t = result && result.touched_notes ? result.touched_notes : 0;
+    const l = result && result.updated_links ? result.updated_links : 0;
+    if (t > 0) setStatus(`Renamed; rewrote ${l} link${l === 1 ? '' : 's'} in ${t} note${t === 1 ? '' : 's'}.`);
+    else setStatus('Renamed.');
+    // Re-load the active note so title input reflects the new value.
     await loadNotes();
+    if (state.activeId) await openNote(state.activeId);
   } catch (e) { alert('Rename failed: ' + e); }
 }
 

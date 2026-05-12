@@ -1,3 +1,28 @@
+# Mycelium v0.52.0-beta.1 - Rename rewrites links
+
+beta.52 closes a long-standing footgun: renaming a note used to leave every `[[OldTitle]]` reference pointing at nothing. Now the rename also rewrites every reference across the workspace.
+
+## New in v0.52.0
+
+### `rename_note_with_links`
+- New backend command. Renames the target note, then walks every other non-trashed note's body for `[[OldTitle...]]` patterns and rewrites the title prefix to `NewTitle`.
+- Variants handled in the rewrite:
+  - `[[OldTitle]]`
+  - `[[OldTitle|display text]]`
+  - `[[OldTitle#heading]]`
+  - `[[OldTitle^bookmark]]`
+  - Any combination (e.g. `[[OldTitle#h|d]]`).
+- Title match is case-insensitive on the part before `|` / `#` / `^`.
+- UTF-8 safe; preserves non-link content byte-for-byte.
+
+### F2 / "Rename current note..."
+- The existing rename palette command and F2 shortcut now use the new flow. Status bar reports `Renamed; rewrote N links in M notes.`
+
+### Auto-update
+- Pushing v0.52.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.51.0-beta.1 - Draft restore + save status dot
 
 beta.51 makes the editor feel safer by stashing a local draft after every keystroke and offering to restore it on the next open if it differs from the persisted body.

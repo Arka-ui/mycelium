@@ -2653,6 +2653,19 @@ fn list_history(id: String) -> Result<Vec<HistoryEntry>, String> {
     Ok(out)
 }
 
+/// v0.39 — Read a snapshot's full body without restoring it. Used by the diff viewer.
+#[tauri::command]
+fn snapshot_body(id: String, timestamp: String) -> Result<String, String> {
+    let dir = history_dir(&id);
+    let p = dir.join(format!("{}.json", timestamp));
+    if !p.exists() {
+        return Err("snapshot not found".into());
+    }
+    let bytes = fs::read(&p).map_err(|e| e.to_string())?;
+    let note: Note = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    Ok(note.body)
+}
+
 #[tauri::command]
 fn restore_history(
     state: State<'_, AppState>,
@@ -3261,6 +3274,7 @@ fn main() -> Result<()> {
             outline,
             snapshot_note,
             list_history,
+            snapshot_body,
             restore_history,
             purge_history,
             export_workspace,

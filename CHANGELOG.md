@@ -1,3 +1,23 @@
+# Mycelium v0.39.0-beta.1 - Snapshot diff viewer
+
+beta.39 lets you see exactly what changed between any history snapshot and the current note — without restoring first.
+
+## New in v0.39.0
+
+### "Diff vs current" button on every history entry
+- Opens a centered modal with a unified line diff:
+  - `+ added line` in green
+  - `- removed line` in red
+  - context lines dimmed
+  - long unchanged runs collapse to `@@ N unchanged lines @@`
+- Pure client-side LCS (Longest Common Subsequence) over lines.
+- Backend: new `snapshot_body(id, timestamp)` command returns the snapshot's full body (without restoring).
+
+### Auto-update
+- Pushing v0.39.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.38.0-beta.1 - Focus timer
 
 beta.38 lands a built-in Pomodoro / focus timer.

@@ -58,6 +58,7 @@ const els = {};
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
+  'diff-modal','diff-close','diff-meta','diff-body',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
@@ -84,6 +85,64 @@ const state = {
   recents: [],
   tabs: [], // v0.29 — array of open note ids; activeId is always the focused one if present
 };
+
+// v0.39 — Snapshot diff viewer (LCS-based unified line diff)
+function openDiffModal(historyEntry, oldBody, newBody) {
+  if (!els.diffModal) return;
+  els.diffMeta.textContent = `Snapshot: ${new Date(historyEntry.timestamp).toLocaleString()} · ${historyEntry.title || 'Untitled'}`;
+  const diff = unifiedLineDiff(oldBody, newBody);
+  els.diffBody.innerHTML = diff;
+  els.diffModal.classList.remove('hidden');
+}
+function closeDiffModal() { if (els.diffModal) els.diffModal.classList.add('hidden'); }
+
+// LCS-based diff over lines, returns HTML with .add / .del / .ctx spans.
+function unifiedLineDiff(a, b) {
+  const A = a.split('\n');
+  const B = b.split('\n');
+  // LCS table (size m+1 x n+1).
+  const m = A.length, n = B.length;
+  // Build LCS lengths.
+  const lcs = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      lcs[i][j] = A[i] === B[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0, j = 0;
+  while (i < m && j < n) {
+    if (A[i] === B[j]) { out.push({ kind: 'ctx', line: A[i] }); i++; j++; }
+    else if (lcs[i + 1][j] >= lcs[i][j + 1]) { out.push({ kind: 'del', line: A[i] }); i++; }
+    else { out.push({ kind: 'add', line: B[j] }); j++; }
+  }
+  while (i < m) { out.push({ kind: 'del', line: A[i++] }); }
+  while (j < n) { out.push({ kind: 'add', line: B[j++] }); }
+  // Render to HTML; collapse runs of >5 unchanged lines into "@@ N lines unchanged @@".
+  const RUN = 5;
+  let buf = '';
+  let unchanged = [];
+  function flushUnchanged() {
+    if (!unchanged.length) return;
+    if (unchanged.length > RUN * 2) {
+      // Print first RUN, "@@ N hidden @@", last RUN.
+      for (const u of unchanged.slice(0, RUN)) buf += '<span class="ctx">  ' + escapeHtml(u) + '</span>\n';
+      buf += '<span class="cut">@@ ' + (unchanged.length - RUN * 2) + ' unchanged lines @@</span>\n';
+      for (const u of unchanged.slice(unchanged.length - RUN)) buf += '<span class="ctx">  ' + escapeHtml(u) + '</span>\n';
+    } else {
+      for (const u of unchanged) buf += '<span class="ctx">  ' + escapeHtml(u) + '</span>\n';
+    }
+    unchanged = [];
+  }
+  for (const o of out) {
+    if (o.kind === 'ctx') { unchanged.push(o.line); continue; }
+    flushUnchanged();
+    if (o.kind === 'add') buf += '<span class="add">+ ' + escapeHtml(o.line) + '</span>\n';
+    else                  buf += '<span class="del">- ' + escapeHtml(o.line) + '</span>\n';
+  }
+  flushUnchanged();
+  return buf || '<span class="ctx">(notes are identical)</span>';
+}
 
 // v0.30 — Search-everywhere modal
 state.searchModal = { open: false, items: [], cursor: 0, debounce: null };
@@ -1478,6 +1537,13 @@ async function refreshHistoryList() {
       main.appendChild(name); main.appendChild(sub);
       const actions = document.createElement('div'); actions.className = 'row-actions';
       actions.appendChild(btn('ghost-btn', 'Preview', () => { alert((it.body_preview || '').slice(0, 400) + (it.body_preview && it.body_preview.length > 400 ? '…' : '')); }));
+      actions.appendChild(btn('ghost-btn', 'Diff vs current', async () => {
+        try {
+          const stamp = formatHistoryStamp(it.timestamp);
+          const snapBody = await invoke('snapshot_body', { id: state.activeId, timestamp: stamp });
+          openDiffModal(it, snapBody, els.body.value || '');
+        } catch (e) { alert('Diff failed: ' + e); }
+      }));
       actions.appendChild(btn('primary-btn small', 'Restore', async () => {
         if (!confirm('Restore this snapshot? The current note state is automatically saved as a snapshot first.')) return;
         await invoke('snapshot_note', { id: state.activeId });
@@ -3146,6 +3212,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/' && !inField)                { e.preventDefault(); els.search.focus(); return; }
   if (e.key === 'Escape') {
     if (state.searchModal.open) { closeSearchModal(); return; }
+    if (els.diffModal && !els.diffModal.classList.contains('hidden')) { closeDiffModal(); return; }
     if (!els.cheatsheetModal.classList.contains('hidden')) { closeCheatsheet(); return; }
     if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
@@ -3265,6 +3332,8 @@ if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
 if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
+if (els.diffClose) els.diffClose.addEventListener('click', closeDiffModal);
+if (els.diffModal) els.diffModal.addEventListener('click', (e) => { if (e.target === els.diffModal) closeDiffModal(); });
 if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomodoro.interval) cancelPomodoro(); else startPomodoro(state.settings.pomodoro_minutes); });
 if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {
   const n = await purgeEligibleTrash();

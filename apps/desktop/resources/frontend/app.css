@@ -1070,6 +1070,21 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 }
 .pomodoro:hover { background: var(--bg); }
 
+/* --- v0.39 — diff viewer --------------------------------------------- */
+.diff-body {
+  background: var(--bg-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px; margin: 8px 0 0;
+  font-family: ui-monospace, monospace; font-size: 12.5px;
+  line-height: 1.4;
+  white-space: pre; overflow-x: auto;
+  max-height: 60vh; overflow-y: auto;
+}
+.diff-body .add { color: #6dc06d; background: color-mix(in srgb, #6dc06d 12%, transparent); display: block; }
+.diff-body .del { color: #d97a7a; background: color-mix(in srgb, #d97a7a 12%, transparent); display: block; }
+.diff-body .ctx { color: var(--text-3); display: block; }
+.diff-body .cut { color: var(--text-3); display: block; font-style: italic; padding: 4px 0; }
+
 /* --- v0.37 — auto-wiki-link visual cue ----------------------------- */
 .preview a.wiki-link.auto {
   text-decoration: underline dotted;

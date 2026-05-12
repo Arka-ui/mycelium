@@ -1,3 +1,25 @@
+# Mycelium v0.32.0-beta.1 - Writing goals & scroll memory
+
+beta.32 helps long-form writing in two ways: a frontmatter writing-goal chip in the editor footer, and per-note scroll position memory.
+
+## New in v0.32.0
+
+### Writing-goal chip
+- Add `goal: 1000` (or `goal: 500 chars`, `goal: 5 min`) to a note's frontmatter and the editor footer shows a colored chip:
+
+  > Goal: 312 / 1000 words (31%)
+- Three units recognised: words (default), `chars`, `min` (read-time minutes).
+- The chip turns accent-tinted when the goal is met.
+
+### Per-note scroll position
+- The editor remembers where you scrolled in each note. Switching to a long note and coming back puts you within a frame of where you left off.
+- Stored in `localStorage` under `mycelium.scroll.v1` (debounced 200 ms while scrolling). Lives across restarts.
+
+### Auto-update
+- Pushing v0.32.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.31.0-beta.1 - Template variables
 
 beta.31 makes templates dynamic: drop a `{{date}}` or `{{title}}` token in any template body and it gets substituted when you create the note. A `{{cursor}}` marker places the caret automatically.

@@ -1036,6 +1036,20 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 .search-empty, .search-error { color: var(--text-3); font-style: italic; padding: 14px 18px; }
 .search-error { color: var(--danger); }
 
+/* --- v0.32 — writing goal chip in the editor footer ----------------- */
+#stat-goal {
+  background: var(--bg-3);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+#stat-goal.goal-met {
+  background: color-mix(in srgb, var(--accent) 25%, var(--bg-3));
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

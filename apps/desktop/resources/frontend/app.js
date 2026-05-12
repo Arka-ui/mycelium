@@ -57,6 +57,7 @@ const els = {};
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
+  'stat-goal',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
@@ -528,6 +529,7 @@ async function openNote(id) {
   refreshProps();
   renderList();
   renderTabs(); // v0.29
+  restoreScroll(id); // v0.32
   emitToPlugins('note:opened', cloneNote(note));
 }
 
@@ -795,7 +797,60 @@ async function refreshStats() {
     els.statWords.textContent = s.words + (s.words === 1 ? ' word' : ' words');
     els.statChars.textContent = s.chars + ' chars';
     els.statRead.textContent = '~' + s.read_minutes + ' min read';
+    // v0.32 — show writing-goal progress if frontmatter `goal:` set on the active note.
+    if (els.statGoal) updateGoalChip(s);
   } catch (e) { /* silent */ }
+}
+
+// v0.32 — derive goal from frontmatter and render a colored chip.
+function updateGoalChip(stats) {
+  els.statGoal.classList.add('hidden');
+  els.statGoal.textContent = '';
+  els.statGoal.classList.remove('goal-met');
+  const body = els.body && els.body.value ? els.body.value : '';
+  // Pull frontmatter `goal:` line (we only need the raw text — backend's parse is also fine but cheaper here).
+  const m = body.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return;
+  const goalLine = m[1].split(/\r?\n/).find(l => /^\s*goal\s*:/i.test(l));
+  if (!goalLine) return;
+  const v = goalLine.split(':').slice(1).join(':').trim();
+  if (!v) return;
+  let unit = 'words';
+  let target = parseInt(v, 10);
+  if (Number.isNaN(target) || target <= 0) return;
+  if (/chars?/i.test(v)) unit = 'chars';
+  if (/min(utes?)?/i.test(v)) unit = 'min';
+  let current = stats.words;
+  if (unit === 'chars') current = stats.chars;
+  if (unit === 'min') current = stats.read_minutes;
+  const pct = Math.min(100, Math.round((current / target) * 100));
+  const met = current >= target;
+  els.statGoal.classList.remove('hidden');
+  els.statGoal.textContent = `Goal: ${current} / ${target} ${unit} (${pct}%)`;
+  if (met) els.statGoal.classList.add('goal-met');
+}
+
+// v0.32 — per-note scroll position memory in localStorage
+const SCROLL_KEY = 'mycelium.scroll.v1';
+function loadScrollMap() {
+  try { return JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}') || {}; }
+  catch (_) { return {}; }
+}
+function saveScrollMap(map) {
+  try { localStorage.setItem(SCROLL_KEY, JSON.stringify(map)); } catch (_) {}
+}
+function rememberScroll(id, pos) {
+  if (!id) return;
+  const map = loadScrollMap();
+  map[id] = pos;
+  saveScrollMap(map);
+}
+function restoreScroll(id) {
+  if (!id || !els.body) return;
+  const pos = loadScrollMap()[id];
+  if (typeof pos === 'number') {
+    requestAnimationFrame(() => { els.body.scrollTop = pos; });
+  }
 }
 
 // v0.16 — refresh the properties strip below the title.
@@ -2854,6 +2909,12 @@ if (els.readingBtn) els.readingBtn.addEventListener('click', toggleReadingMode);
 els.exportBtn.addEventListener('click', exportActiveMd);
 els.title.addEventListener('input', scheduleSave);
 els.body.addEventListener('input', () => { scheduleSave(); maybeOpenWikiAutocomplete(); });
+// v0.32 — remember scroll position per note (debounced).
+els.body.addEventListener('scroll', () => {
+  if (!state.activeId) return;
+  clearTimeout(els._scrollTimer);
+  els._scrollTimer = setTimeout(() => rememberScroll(state.activeId, els.body.scrollTop), 200);
+});
 els.body.addEventListener('click', () => { closeWikiAutocomplete(); });
 els.body.addEventListener('keydown', (e) => {
   // Wiki autocomplete navigation comes first.

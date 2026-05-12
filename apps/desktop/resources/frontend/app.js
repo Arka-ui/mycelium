@@ -353,6 +353,39 @@ function t(key, fallback) {
 const THEMES = ['dark', 'light', 'hc'];
 
 function setStatus(s) { els.status.textContent = s; }
+// v0.51 — colored save status dot/state
+function setSaveState(s) {
+  if (!els.saveState) return;
+  els.saveState.textContent = s;
+  els.saveState.classList.remove('save-saved', 'save-saving', 'save-error');
+  if (s === 'saved') els.saveState.classList.add('save-saved');
+  else if (s === 'saving...' || s === 'editing...') els.saveState.classList.add('save-saving');
+  else if (s === 'save failed') els.saveState.classList.add('save-error');
+}
+
+// v0.51 — Per-note local draft (persists every keystroke; restored if newer than file).
+const DRAFTS_KEY = 'mycelium.drafts.v1';
+function loadDrafts() {
+  try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}') || {}; }
+  catch (_) { return {}; }
+}
+function saveDrafts(map) {
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(map)); } catch (_) {}
+}
+function rememberDraft(id, body) {
+  if (!id) return;
+  const map = loadDrafts();
+  map[id] = { body, ts: Date.now() };
+  saveDrafts(map);
+}
+function clearDraft(id) {
+  const map = loadDrafts();
+  if (map[id]) { delete map[id]; saveDrafts(map); }
+}
+function getDraft(id) {
+  const map = loadDrafts();
+  return map[id] || null;
+}
 // v0.49 — short human-readable duration from minutes
 function fmtMinutes(m) {
   if (m < 60) return m + ' min';
@@ -809,7 +842,23 @@ async function openNote(id) {
   els.meta.textContent = (note.pinned ? 'Pinned · ' : '') + 'Updated ' + fmtDate(note.updated_at);
   els.pinBtn.classList.toggle('on', !!note.pinned);
   els.pinBtn.title = note.pinned ? 'Unpin' : 'Pin to top';
-  els.saveState.textContent = 'saved';
+  setSaveState('saved');
+  // v0.51 — draft restore prompt: if a local draft is newer than the file's body, offer to restore it.
+  const draft = getDraft(id);
+  if (draft && typeof draft.body === 'string' && draft.body !== (note.body || '')) {
+    const ageMin = Math.round((Date.now() - draft.ts) / 60000);
+    const ok = confirm(
+      `A local unsaved draft of this note exists (last edited ${ageMin} min ago).\n\n` +
+      `OK = restore the draft (you can save again to persist it)\n` +
+      `Cancel = discard the draft and keep the saved version`
+    );
+    if (ok) {
+      els.body.value = draft.body;
+      scheduleSave();
+    } else {
+      clearDraft(id);
+    }
+  }
   if (state.settings.default_preview) { state.preview = true; updatePreviewUI(); }
   else { state.preview = false; updatePreviewUI(); }
   refreshStats();
@@ -877,12 +926,13 @@ async function flushSave() {
       body = stripped;
     }
   }
-  els.saveState.textContent = 'saving...';
+  setSaveState('saving...');
   try {
     const note = await invoke('update_note', { id, title, body });
     state.active = note;
     els.meta.textContent = (note.pinned ? 'Pinned · ' : '') + 'Updated ' + fmtDate(note.updated_at);
-    els.saveState.textContent = 'saved';
+    setSaveState('saved');
+    clearDraft(id); // v0.51 — drop the local draft once we've persisted to disk
     refreshStats();
     refreshOutline();
     refreshProps();
@@ -891,11 +941,13 @@ async function flushSave() {
     applyColorBand(); // v0.47 — color band may have changed via frontmatter edit
     maybeSnapshot();
     emitToPlugins('note:saved', cloneNote(note));
-  } catch (e) { els.saveState.textContent = 'save failed'; setStatus('save failed: ' + e); }
+  } catch (e) { setSaveState('save failed'); setStatus('save failed: ' + e); }
 }
 
 function scheduleSave() {
-  els.saveState.textContent = 'editing...';
+  setSaveState('editing...');
+  // v0.51 — write a per-note draft to localStorage on every keystroke for crash recovery.
+  if (state.activeId && els.body) rememberDraft(state.activeId, els.body.value);
   if (state.pendingTimer) clearTimeout(state.pendingTimer);
   state.pendingTimer = setTimeout(() => { state.pendingTimer = null; flushSave(); }, 500);
   if (state.preview) renderPreview();

@@ -1,3 +1,27 @@
+# Mycelium v0.51.0-beta.1 - Draft restore + save status dot
+
+beta.51 makes the editor feel safer by stashing a local draft after every keystroke and offering to restore it on the next open if it differs from the persisted body.
+
+## New in v0.51.0
+
+### Local draft autosave
+- Every change to the editor body writes a per-note draft to `localStorage` (`mycelium.drafts.v1`).
+- On `openNote`, if a draft for that id exists AND its body differs from the file's saved body, you're prompted to restore (or discard).
+- Drafts are cleared after a successful disk save.
+- Pure client-side; no Tauri command needed.
+
+### Save state dot
+- The footer "save state" indicator now carries a coloured dot:
+  - 🟢 saved
+  - 🟡 saving / editing (pulses)
+  - 🔴 save failed
+- Plain text label unchanged for screen-reader friendliness.
+
+### Auto-update
+- Pushing v0.51.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.50.0-beta.1 - Global Tasks view
 
 beta.50 surfaces every `- [ ]` task across the workspace as a single global TODO list.

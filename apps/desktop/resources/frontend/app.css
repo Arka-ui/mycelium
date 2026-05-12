@@ -168,6 +168,16 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
   padding: 10px 0 16px; border-top: 1px solid var(--border);
   margin-top: 8px; font-size: 12px; color: var(--text-3);
 }
+/* v0.51 — coloured dot prefix on the save-state span */
+#save-state { display: inline-flex; align-items: center; gap: 6px; }
+#save-state::before {
+  content: ''; display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--text-3);
+}
+#save-state.save-saved::before  { background: #6dc06d; }
+#save-state.save-saving::before { background: #ddc14a; animation: save-pulse 0.9s ease-in-out infinite; }
+#save-state.save-error::before  { background: var(--danger); }
+@keyframes save-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }

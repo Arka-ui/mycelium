@@ -54,6 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
+  'filter-pill','filter-pill-text','filter-pill-count','filter-pill-clear',
   'opt-auto-wiki-link','opt-pomodoro','pomodoro','opt-auto-lock-idle','opt-sync-scroll',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
@@ -377,7 +378,6 @@ async function loadNotes() {
   try {
     if (state.query.trim()) {
       state.notes = await invoke('search_notes', { query: state.query.trim() });
-      // v0.43 — keep an unfiltered cache so wiki-autocomplete and reorder stay sane.
       refreshAllNotesCache();
     } else {
       state.notes = await invoke('list_notes');
@@ -385,8 +385,39 @@ async function loadNotes() {
     }
     renderList();
     renderTagBar();
-    refreshTrashBadge(); // v0.34
+    refreshTrashBadge();
+    refreshFilterPill(); // v0.46
   } catch (e) { setStatus('error: ' + e); console.error(e); }
+}
+
+// v0.46 — sticky pill above the note list summarising the active filter.
+// The pill knows about: search query, tag filter, orphans view, and property filter.
+function refreshFilterPill() {
+  if (!els.filterPill) return;
+  let label = '';
+  if (state.query && state.query.trim()) label = 'Search: ' + state.query.trim();
+  else if (state.activeTag) label = 'Tag: #' + state.activeTag;
+  else if (state.view === 'orphans') label = 'Orphans (no in/out wiki-links)';
+  else if (state.view === 'props') label = 'Property filter';
+  if (!label) {
+    els.filterPill.classList.add('hidden');
+    return;
+  }
+  els.filterPill.classList.remove('hidden');
+  els.filterPillText.textContent = label;
+  let visible = state.notes;
+  if (state.activeTag) visible = visible.filter(n => (n.tags || []).includes(state.activeTag));
+  els.filterPillCount.textContent = visible.length + (visible.length === 1 ? ' note' : ' notes');
+}
+function clearActiveFilter() {
+  state.query = '';
+  if (els.search) els.search.value = '';
+  state.activeTag = null;
+  if (state.view === 'orphans' || state.view === 'props') {
+    state.view = 'all';
+    document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'all'));
+  }
+  loadNotes();
 }
 
 // v0.34 — show count badge on the Trash sidebar tab.
@@ -660,13 +691,13 @@ async function renderTagBar() {
     const all = document.createElement('button');
     all.className = 'tag-chip' + (state.activeTag === null ? ' on' : '');
     all.textContent = 'All';
-    all.addEventListener('click', () => { state.activeTag = null; renderList(); renderTagBar(); });
+    all.addEventListener('click', () => { state.activeTag = null; renderList(); renderTagBar(); refreshFilterPill(); });
     els.tagBar.appendChild(all);
     for (const [tag, count] of tags) {
       const b = document.createElement('button');
       b.className = 'tag-chip' + (state.activeTag === tag ? ' on' : '');
       b.textContent = '#' + tag + ' ' + count;
-      b.addEventListener('click', () => { state.activeTag = state.activeTag === tag ? null : tag; renderList(); renderTagBar(); });
+      b.addEventListener('click', () => { state.activeTag = state.activeTag === tag ? null : tag; renderList(); renderTagBar(); refreshFilterPill(); });
       // v0.15 — right-click → rename across all notes
       b.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -3356,7 +3387,9 @@ document.addEventListener('keydown', (e) => {
     if (state.reading) { toggleReadingMode(); return; }
     if (state.selectedIds.size) { clearSelection(); return; }
     if (!els.selToolbar.classList.contains('hidden')) { hideSelToolbar(); return; }
-    if (target === els.search) { els.search.value = ''; state.query = ''; loadNotes(); els.search.blur(); }
+    if (target === els.search) { els.search.value = ''; state.query = ''; loadNotes(); els.search.blur(); return; }
+    // v0.46 — Esc with no other modal/selection clears any active filter pill.
+    if (els.filterPill && !els.filterPill.classList.contains('hidden')) { clearActiveFilter(); return; }
   }
 });
 
@@ -3494,6 +3527,7 @@ if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { 
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
 if (els.optAutoLockIdle) els.optAutoLockIdle.addEventListener('change', saveSettings);
 if (els.diffClose) els.diffClose.addEventListener('click', closeDiffModal);
+if (els.filterPillClear) els.filterPillClear.addEventListener('click', clearActiveFilter);
 if (els.diffModal) els.diffModal.addEventListener('click', (e) => { if (e.target === els.diffModal) closeDiffModal(); });
 if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomodoro.interval) cancelPomodoro(); else startPomodoro(state.settings.pomodoro_minutes); });
 if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {

@@ -42,6 +42,12 @@
 
     <div id="tag-bar" class="tag-bar hidden"></div>
 
+    <div id="filter-pill" class="filter-pill hidden">
+      <span id="filter-pill-text"></span>
+      <span id="filter-pill-count" class="filter-pill-count"></span>
+      <button id="filter-pill-clear" title="Clear filter (Esc)" aria-label="Clear filter">×</button>
+    </div>
+
     <div id="bulk-bar" class="bulk-bar hidden">
       <span id="bulk-count" class="bulk-count">0 selected</span>
       <div class="bulk-actions">
@@ -559,10 +565,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.45.0</strong></p>
+          <p>Version: <strong id="about-version">v0.46.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.45: in-note bookmarks — drop <code>^bookmark-name</code> anywhere in a note's body and the preview shows a tiny anchor glyph; <code>[[Note^bookmark-name]]</code> wiki-links jump straight to it (just like <code>[[Note#Heading]]</code>).</p>
+          <p class="setting-help">Beta.46: active-filter pill — when a tag, search, orphan or property filter is active, a sticky pill appears above the note list showing the current filter and the matching count, with a × to clear (Esc also clears).</p>
         </div>
       </section>
 

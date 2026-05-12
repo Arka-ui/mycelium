@@ -1,3 +1,23 @@
+# Mycelium v0.46.0-beta.1 - Active-filter pill
+
+beta.46 makes it always obvious when the sidebar is showing a filtered view, and gives you one click to clear it.
+
+## New in v0.46.0
+
+### Filter pill
+- A sticky accent-bordered pill appears above the note list whenever a filter is active. Recognises four filter sources:
+  - **Search** — the sidebar search field has text.
+  - **Tag** — a `#tag` chip is selected in the tag bar.
+  - **Orphans** — the Orphans nav button is active.
+  - **Property** — the workspace is filtered by a frontmatter property (palette → "Filter notes by property...").
+- Shows the filter description and the matching count (e.g., "Tag: #work • 12 notes").
+- Click the **×** button (or press **Esc**) to clear back to the default All-notes view.
+
+### Auto-update
+- Pushing v0.46.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.45.0-beta.1 - In-note bookmarks
 
 beta.45 introduces in-note named anchors — like a heading link, but pointable to any spot in the body.

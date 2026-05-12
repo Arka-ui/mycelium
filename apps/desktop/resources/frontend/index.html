@@ -79,6 +79,7 @@
           <button id="outline-btn" class="icon-btn" title="Toggle outline">&#9776;</button>
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
           <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
+          <button id="reading-btn" class="icon-btn" title="Toggle reading mode (Ctrl+Shift+M)">&#128214;</button>
           <button id="history-btn" class="icon-btn" title="Note history">&#8634;</button>
           <button id="attach-btn" class="icon-btn" title="Attach file (or drag-drop / paste)">&#128206;</button>
           <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
@@ -372,10 +373,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.11.0</strong></p>
+          <p>Version: <strong id="about-version">v0.12.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.11: editor power-up — wiki-link autocomplete (type <code>[[</code>), foldable headings in preview, one-click copy on every code block, and toggleable bracket auto-pairing.</p>
+          <p class="setting-help">Beta.12: reading &amp; navigation — reading mode (Ctrl+Shift+M), inline <code>:::toc:::</code> table of contents, recently-opened in the command palette, and "Open random note" for spaced review.</p>
         </div>
       </section>
 
@@ -423,6 +424,8 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Command palette</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Force save</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>Toggle preview</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd></td><td>Toggle reading mode</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Open a random note</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Cycle theme</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td>Show this cheatsheet</td></tr>
           <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>

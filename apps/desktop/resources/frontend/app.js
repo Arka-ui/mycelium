@@ -50,7 +50,7 @@ const els = {};
   'import-md-btn','export-all-btn',
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
-  'opt-locale','opt-auto-pair',
+  'opt-locale','opt-auto-pair','reading-btn',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -68,7 +68,21 @@ const state = {
   selectedIds: new Set(),
   selectionAnchorId: null,
   find: { open: false, lastIndex: -1 },
+  reading: false,
+  recents: [],
 };
+
+// v0.12 — recently opened notes (most recent first), capped at 10.
+const RECENTS_KEY = 'mycelium.recents.v1';
+function loadRecents() {
+  try { state.recents = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]') || []; }
+  catch (_) { state.recents = []; }
+}
+function pushRecent(id) {
+  if (!id) return;
+  state.recents = [id, ...state.recents.filter(x => x !== id)].slice(0, 10);
+  try { localStorage.setItem(RECENTS_KEY, JSON.stringify(state.recents)); } catch (_) {}
+}
 
 // --- i18n ---------------------------------------------------------------
 // Baseline English strings live in code as the fallback in t(). Other locales
@@ -321,6 +335,7 @@ async function openNote(id) {
   state.activeId = id; state.active = note;
   state.collapsedLines = new Set(); // v0.11 — folds reset per note
   closeWikiAutocomplete();
+  pushRecent(id); // v0.12 — recents
   showView('editor');
   els.title.value = note.title || '';
   els.body.value = note.body || '';
@@ -457,6 +472,19 @@ function renderPreview() {
     cb.addEventListener('change', () => {
       const line = parseInt(cb.dataset.line, 10);
       if (!Number.isNaN(line)) toggleTaskAtLine(line);
+    });
+  });
+  // v0.12 — TOC link clicks jump to source line and scroll preview heading into view.
+  els.preview.querySelectorAll('a.toc-link').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const line = parseInt(a.dataset.tocLine, 10);
+      if (Number.isNaN(line)) return;
+      jumpToLine(line + 1);
+      const heads = els.preview.querySelectorAll('.fold-h');
+      for (const h of heads) {
+        if (parseInt(h.dataset.line, 10) === line) { h.scrollIntoView({ behavior: 'smooth', block: 'start' }); break; }
+      }
     });
   });
   // v0.11 — copy buttons on code blocks.
@@ -1309,6 +1337,27 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+// --- v0.12 — reading mode --------------------------------------------
+function toggleReadingMode() {
+  if (!state.activeId) return;
+  state.reading = !state.reading;
+  document.body.classList.toggle('reading-mode', state.reading);
+  if (state.reading) {
+    // Force preview on while in reading mode.
+    if (!state.preview) { state.preview = true; updatePreviewUI(); }
+  }
+  if (els.readingBtn) els.readingBtn.classList.toggle('on', state.reading);
+}
+
+// --- v0.12 — random note ---------------------------------------------
+async function openRandomNote() {
+  const pool = state.notes.filter(n => !n.trashed_at);
+  if (!pool.length) { setStatus('No notes to pick from.'); return; }
+  const candidates = pool.length > 1 ? pool.filter(n => n.id !== state.activeId) : pool;
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  if (pick) await openNote(pick.id);
+}
+
 // --- v0.11 — wiki-link autocomplete -----------------------------------
 function ensureWikiPopover() {
   let pop = document.getElementById('wiki-pop');
@@ -1632,6 +1681,8 @@ const PALETTE_COMMANDS = [
   { name: 'Code selection', shortcut: 'Ctrl+E', run: () => applyFormat('code') },
   { name: 'Link selection', shortcut: 'Ctrl+L', run: () => applyFormat('link') },
   { name: 'Find & replace in note', shortcut: 'Ctrl+H', run: openFindBar },
+  { name: 'Toggle reading mode', shortcut: 'Ctrl+Shift+M', run: toggleReadingMode },
+  { name: 'Open random note', shortcut: 'Ctrl+R', run: openRandomNote },
 ];
 
 function fuzzyScore(text, q) {
@@ -1660,13 +1711,30 @@ function refreshPalette(q) {
     const s = fuzzyScore(c.name, q);
     if (s > 0 || !q) items.push({ kind: 'cmd', label: c.name, hint: c.shortcut, score: s + 5, run: c.run });
   }
+  // v0.12 — recently opened notes ranked above plain note matches when no query.
+  if (!q && state.recents && state.recents.length) {
+    for (const id of state.recents) {
+      const n = state.notes.find(x => x.id === id);
+      if (!n) continue;
+      const title = n.title || 'Untitled';
+      items.push({ kind: 'recent', label: title, hint: 'recent · ' + fmtDate(n.updated_at), score: 100, run: () => openNote(id) });
+    }
+  }
   for (const n of state.notes) {
     const title = n.title || 'Untitled';
     const s = fuzzyScore(title, q);
     if (s > 0 || !q) items.push({ kind: 'note', label: title, hint: 'open · ' + fmtDate(n.updated_at), score: s + (n.pinned ? 2 : 0), run: () => openNote(n.id) });
   }
-  items.sort((a, b) => b.score - a.score);
-  state.palette.items = items.slice(0, 12);
+  // De-duplicate by (kind, label) preserving highest score.
+  const seen = new Map();
+  for (const it of items) {
+    const k = it.kind + '|' + it.label;
+    const prev = seen.get(k);
+    if (!prev || it.score > prev.score) seen.set(k, it);
+  }
+  const merged = Array.from(seen.values());
+  merged.sort((a, b) => b.score - a.score);
+  state.palette.items = merged.slice(0, 14);
   state.palette.cursor = 0;
   renderPaletteResults();
 }
@@ -1675,7 +1743,8 @@ function renderPaletteResults() {
   state.palette.items.forEach((item, i) => {
     const li = document.createElement('li');
     li.className = 'cmd-result' + (i === state.palette.cursor ? ' on' : '');
-    const k = document.createElement('span'); k.className = 'cmd-kind'; k.textContent = item.kind === 'cmd' ? '⌘' : '◌';
+    const k = document.createElement('span'); k.className = 'cmd-kind';
+    k.textContent = item.kind === 'cmd' ? '⌘' : item.kind === 'recent' ? '⏱' : '◌';
     const l = document.createElement('span'); l.className = 'cmd-label'; l.textContent = item.label;
     const h = document.createElement('span'); h.className = 'cmd-hint-line'; h.textContent = item.hint;
     li.appendChild(k); li.appendChild(l); li.appendChild(h);
@@ -1745,7 +1814,9 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key.toLowerCase() === 'h') { e.preventDefault(); openFindBar(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && !inField) { e.preventDefault(); newDailyNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && inField && target === els.title) { e.preventDefault(); newDailyNote(); return; }
-  if (e.ctrlKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); toggleReadingMode(); return; }
+  if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
+  if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'r' && !inField) { e.preventDefault(); openRandomNote(); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
   if (e.ctrlKey && e.key === '/')               { e.preventDefault(); openCheatsheet(); return; }
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('bold'); return; }
@@ -1759,6 +1830,7 @@ document.addEventListener('keydown', (e) => {
     if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
     if (state.find.open) { closeFindBar(); return; }
+    if (state.reading) { toggleReadingMode(); return; }
     if (state.selectedIds.size) { clearSelection(); return; }
     if (!els.selToolbar.classList.contains('hidden')) { hideSelToolbar(); return; }
     if (target === els.search) { els.search.value = ''; state.query = ''; loadNotes(); els.search.blur(); }
@@ -1771,6 +1843,7 @@ els.cmdBtn.addEventListener('click', openPalette);
 els.deleteBtn.addEventListener('click', deleteActive);
 els.pinBtn.addEventListener('click', togglePin);
 els.previewBtn.addEventListener('click', togglePreview);
+if (els.readingBtn) els.readingBtn.addEventListener('click', toggleReadingMode);
 els.exportBtn.addEventListener('click', exportActiveMd);
 els.title.addEventListener('input', scheduleSave);
 els.body.addEventListener('input', () => { scheduleSave(); maybeOpenWikiAutocomplete(); });
@@ -2100,6 +2173,7 @@ els.dashRefreshBtn && els.dashRefreshBtn.addEventListener('click', refreshDashbo
 
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }
+  loadRecents();
   await loadSettings();
   await loadThemes();
   applyTheme(state.settings.theme || 'dark');

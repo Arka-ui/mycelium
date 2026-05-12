@@ -1,3 +1,29 @@
+# Mycelium v0.12.0-beta.1 - Reading & navigation
+
+beta.12 makes long notes navigable and pleasant to read. Switch to a sidebar-free reading mode, drop a `:::toc:::` block to inject a table of contents, jump back to whatever you opened recently from the palette, or hop to a random note for a spaced-review session.
+
+## New in v0.12.0
+
+### Reading mode (zen)
+- **Ctrl + Shift + M** — or click the new 📖 toolbar button — toggles a distraction-free layout: sidebar gone, toolbar gone, find/outline/backlinks gone. The preview is centered with comfortable line-length and 16 px / 1.7 line-height.
+- Forces preview on while reading. **Esc** also exits.
+
+### Inline `:::toc:::`
+- Drop a line containing only `:::toc:::` into any note. In preview, that line becomes a styled, indented Contents block — every heading in the note becomes a clickable link.
+- Clicking a TOC item scrolls preview to the heading and moves the source-textarea cursor to the corresponding line.
+
+### Recently opened in command palette
+- Open the palette (Ctrl + K) with no query — the 10 most-recently-opened notes appear with a ⏱ marker, ranked above plain note matches.
+- Recents persist across restarts via `localStorage` (key `mycelium.recents.v1`).
+
+### Open random note
+- **Ctrl + R** (or "Open random note" in the palette) jumps to a randomly-picked note from the workspace, never repeating the currently-open one. Great for spaced-review of older notes.
+
+### Auto-update
+- Pushing v0.12.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.11.0-beta.1 - Editor power-up
 
 beta.11 turns the editor itself into a fast, friendly writing surface: link without thinking, fold a long doc to scan, copy a code block in one click, and let the editor close your brackets for you.

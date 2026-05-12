@@ -57,7 +57,7 @@ const els = {};
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
-  'stat-goal',
+  'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
@@ -289,7 +289,29 @@ async function loadNotes() {
     }
     renderList();
     renderTagBar();
+    refreshTrashBadge(); // v0.34
   } catch (e) { setStatus('error: ' + e); console.error(e); }
+}
+
+// v0.34 — show count badge on the Trash sidebar tab.
+async function refreshTrashBadge() {
+  if (!els.trashBadge) return;
+  try {
+    const n = await invoke('trash_count');
+    if (n > 0) { els.trashBadge.classList.remove('hidden'); els.trashBadge.textContent = String(n); }
+    else { els.trashBadge.classList.add('hidden'); els.trashBadge.textContent = ''; }
+  } catch (_) { /* silent */ }
+}
+
+// v0.34 — purge eligible trash now (button + boot).
+async function purgeEligibleTrash() {
+  const days = state.settings.trash_purge_days || 0;
+  if (days <= 0) return 0;
+  try {
+    const n = await invoke('auto_purge_trash', { days });
+    if (n > 0) setStatus('Auto-purged ' + n + ' trashed note' + (n === 1 ? '' : 's') + '.');
+    return n;
+  } catch (_) { return 0; }
 }
 
 function renderList() {
@@ -1181,6 +1203,8 @@ async function loadSettings() {
     if (!state.settings.sidebar_width) state.settings.sidebar_width = 280;
     if (state.settings.sidebar_visible === undefined) state.settings.sidebar_visible = true;
     applySidebarLayout();
+    if (state.settings.trash_purge_days === undefined) state.settings.trash_purge_days = 30;
+    if (els.optTrashDays) els.optTrashDays.value = String(state.settings.trash_purge_days);
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1510,6 +1534,7 @@ async function saveSettings() {
   if (els.optSmartTypography) state.settings.smart_typography = !!els.optSmartTypography.checked;
   if (els.optEditorFontSize) state.settings.editor_font_size = parseInt(els.optEditorFontSize.value, 10) || 15;
   if (els.optQuickCapture) state.settings.quick_capture = !!els.optQuickCapture.checked;
+  if (els.optTrashDays) state.settings.trash_purge_days = parseInt(els.optTrashDays.value, 10) || 0;
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -3083,6 +3108,12 @@ els.attachBtn.addEventListener('click', pickAttachment);
 els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
+if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
+if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {
+  const n = await purgeEligibleTrash();
+  refreshTrashBadge();
+  if (n === 0) alert('No trashed notes are old enough to purge.');
+});
 
 // v0.30 — Search modal listeners
 if (els.searchModalInput) {
@@ -3541,6 +3572,7 @@ if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) =
   try { const info = await invoke('app_info'); els.version.textContent = 'v' + info.version; els.aboutVersion.textContent = 'v' + info.version; } catch (e) {}
   await refreshLockUi();
   if (!state.locked) {
+    await purgeEligibleTrash(); // v0.34 — auto-purge on launch
     await loadTemplates();
     await loadSnippets();
     await loadNotes();

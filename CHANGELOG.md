@@ -1,3 +1,28 @@
+# Mycelium v0.34.0-beta.1 - Trash retention
+
+beta.34 graduates the Trash from "leaks forever" to a self-cleaning system.
+
+## New in v0.34.0
+
+### Auto-purge with configurable retention
+- New **Settings → Data → Trash retention** dropdown: Never / 7 / 14 / 30 (default) / 60 / 90 / 180 / 365 days.
+- On launch and on demand, trashed notes older than the threshold are deleted permanently.
+- New status message reports how many notes were purged at boot.
+- Backend: `auto_purge_trash(days)` Tauri command. Setting persisted as `trash_purge_days`.
+
+### Trash count badge in sidebar
+- The sidebar **Trash** tab shows a count chip when there are trashed notes (e.g. `Trash 5`).
+- Updates after every load/refresh.
+- Backend: `trash_count` command.
+
+### Manual purge button
+- "Purge eligible now" button next to the retention dropdown runs the same logic immediately and reports back.
+
+### Auto-update
+- Pushing v0.34.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.33.0-beta.1 - Editor power
 
 beta.33 ships four editor moves that every IDE user expects to find on day one.

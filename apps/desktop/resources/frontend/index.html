@@ -35,7 +35,7 @@
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
       <button id="view-orphans" class="side-nav-btn" data-view="orphans">Orphans</button>
-      <button id="view-trash" class="side-nav-btn" data-view="trash">Trash</button>
+      <button id="view-trash" class="side-nav-btn" data-view="trash">Trash<span id="trash-badge" class="side-nav-badge hidden"></span></button>
     </nav>
 
     <div id="saved-searches" class="saved-searches hidden"></div>
@@ -150,7 +150,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <button id="empty-trash-btn" class="danger-btn">Empty trash</button>
         </div>
       </header>
-      <p class="setting-help">Notes you delete are kept here so you can restore them. They are NOT auto-purged in beta.2 &mdash; that arrives in beta.3.</p>
+      <p class="setting-help">Notes you delete are kept here so you can restore them. They are auto-purged after the configurable interval (Settings → Data → Trash retention).</p>
       <ul id="trash-list" class="note-list trash-list"></ul>
     </article>
   </main>
@@ -379,6 +379,25 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           </div>
         </div>
         <div class="setting-group">
+          <h3>Trash retention</h3>
+          <div class="setting-row">
+            <label>Auto-purge trashed notes after
+              <select id="opt-trash-days" class="select">
+                <option value="0">Never</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days (default)</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">1 year</option>
+              </select>
+            </label>
+            <button id="purge-now-btn" class="ghost-btn">Purge eligible now</button>
+          </div>
+          <p class="setting-help">On launch and on demand, trashed notes older than the threshold are deleted permanently. Set to "Never" to keep trashed notes forever.</p>
+        </div>
+        <div class="setting-group">
           <h3>Storage</h3>
           <div class="setting-row">
             <button id="open-data-btn" class="ghost-btn">Open data folder</button>
@@ -494,10 +513,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.33.0</strong></p>
+          <p>Version: <strong id="about-version">v0.34.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.33: editor power — Tab/Shift+Tab on a multi-line selection block-indents, Ctrl+/ toggles HTML comment around selection, Ctrl+Shift+K deletes the current line, Ctrl+Shift+D duplicates it.</p>
+          <p class="setting-help">Beta.34: trash retention — sidebar Trash badge shows count; configurable auto-purge after 7 / 14 / 30 / 60 / 90 / 180 / 365 days (or never). Runs on launch and on demand.</p>
         </div>
       </section>
 

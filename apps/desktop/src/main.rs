@@ -360,7 +360,6 @@ impl Store {
         Ok(n)
     }
 
-    #[allow(dead_code)]
     fn auto_purge_old_trash(&self, days: i64) -> Result<u32> {
         let cutoff = Utc::now() - chrono::Duration::days(days);
         let mut n = 0u32;
@@ -719,6 +718,28 @@ fn empty_trash(state: State<'_, AppState>) -> Result<u32, String> {
         .lock()
         .unwrap()
         .empty_trash()
+        .map_err(|e| e.to_string())
+}
+
+/// v0.34 — number of trashed notes (for sidebar badge).
+#[tauri::command]
+fn trash_count(state: State<'_, AppState>) -> Result<u32, String> {
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    Ok(notes.iter().filter(|n| n.trashed_at.is_some()).count() as u32)
+}
+
+/// v0.34 — purge all trashed notes older than `days` (called on startup or manually).
+#[tauri::command]
+fn auto_purge_trash(state: State<'_, AppState>, days: u32) -> Result<u32, String> {
+    if days == 0 {
+        return Ok(0);
+    }
+    state
+        .store
+        .lock()
+        .unwrap()
+        .auto_purge_old_trash(days as i64)
         .map_err(|e| e.to_string())
 }
 
@@ -2723,6 +2744,13 @@ struct Settings {
     sidebar_width: u32,
     #[serde(default = "default_true")]
     sidebar_visible: bool,
+    /// v0.34 — auto-purge trashed notes older than this many days. 0 = never.
+    #[serde(default = "default_trash_days")]
+    trash_purge_days: u32,
+}
+
+fn default_trash_days() -> u32 {
+    30
 }
 
 fn default_sidebar_width() -> u32 {
@@ -2785,6 +2813,7 @@ impl Default for Settings {
             quick_capture: true,
             sidebar_width: 280,
             sidebar_visible: true,
+            trash_purge_days: 30,
         }
     }
 }
@@ -3082,6 +3111,8 @@ fn main() -> Result<()> {
             restore_note,
             purge_note,
             empty_trash,
+            trash_count,
+            auto_purge_trash,
             set_pinned,
             set_note_order,
             reorder_pinned,

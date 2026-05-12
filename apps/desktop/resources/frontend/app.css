@@ -1050,6 +1050,16 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
   color: var(--text);
 }
 
+/* --- v0.34 — trash badge ----------------------------------------------- */
+.side-nav-badge {
+  display: inline-block;
+  background: var(--bg-3); color: var(--text-2);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 0 7px; margin-left: 6px;
+  font-size: 10.5px; line-height: 1.5;
+  vertical-align: middle;
+}
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

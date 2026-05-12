@@ -983,6 +983,9 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 }
 .sidebar-toggle:hover { background: var(--bg-3); color: var(--text); }
 
+/* v0.68 — sidebar drop-target highlight */
+#sidebar.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; }
+
 /* --- v0.25 — snippets editor table ---------------------------------- */
 .snip-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
 .snip-table th, .snip-table td {

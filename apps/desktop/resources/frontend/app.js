@@ -4544,6 +4544,50 @@ if (els.optQuickCapture) els.optQuickCapture.addEventListener('change', saveSett
 if (els.sidebarHideBtn) els.sidebarHideBtn.addEventListener('click', toggleSidebar);
 if (els.sidebarToggle) els.sidebarToggle.addEventListener('click', toggleSidebar);
 if (els.sidebarDivider) els.sidebarDivider.addEventListener('mousedown', startSidebarResize);
+
+// v0.68 — drag-drop onto the sidebar creates note(s) from the dropped content.
+if (els.sidebar) {
+  els.sidebar.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer) return;
+    // Accept if there are files OR plain text payload (and we're NOT dragging an internal pinned-note tile).
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.includes('text/x-mycelium-note-id')) return; // internal reorder; let li handler do it
+    if (types.includes('Files') || types.includes('text/plain')) {
+      e.preventDefault();
+      els.sidebar.classList.add('drop-target');
+    }
+  });
+  els.sidebar.addEventListener('dragleave', () => els.sidebar.classList.remove('drop-target'));
+  els.sidebar.addEventListener('drop', async (e) => {
+    if (!e.dataTransfer) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.includes('text/x-mycelium-note-id')) return;
+    e.preventDefault();
+    els.sidebar.classList.remove('drop-target');
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) {
+      let ok = 0, fail = 0;
+      for (const f of files) {
+        if (!/\.(md|markdown|txt)$/i.test(f.name)) { fail++; continue; }
+        try {
+          const text = await f.text();
+          await invoke('import_md', { content: text, suggestedTitle: f.name.replace(/\.[^.]+$/, '') });
+          ok++;
+        } catch (_) { fail++; }
+      }
+      setStatus(`Imported ${ok} file${ok === 1 ? '' : 's'}.${fail ? ' ' + fail + ' skipped/failed.' : ''}`);
+      await loadNotes();
+      return;
+    }
+    const text = e.dataTransfer.getData('text/plain');
+    if (text && text.trim()) {
+      try {
+        const note = await invoke('import_md', { content: text, suggestedTitle: 'Dropped text' });
+        await loadNotes(); openNote(note.id);
+      } catch (e2) { alert('Create failed: ' + e2); }
+    }
+  });
+}
 if (els.snipAddBtn) els.snipAddBtn.addEventListener('click', addSnippetRow);
 if (els.snipSaveBtn) els.snipSaveBtn.addEventListener('click', saveSnippetsFromTable);
 if (els.snipResetBtn) els.snipResetBtn.addEventListener('click', resetSnippetsToDefaults);

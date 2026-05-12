@@ -1,3 +1,27 @@
+# Mycelium v0.68.0-beta.1 - Drop-to-create
+
+beta.68 lets you spawn notes by dropping files or text on the sidebar.
+
+## New in v0.68.0
+
+### File drop
+- Drop one or more `.md` / `.markdown` / `.txt` files on the sidebar → each becomes a new note (first `# heading` becomes the title; falls back to the filename without the extension).
+- Status bar reports `Imported N file(s).` (and skipped/failed count if any).
+
+### Text drop
+- Drop a plain-text selection from another application → a new note is created with that text as the body and the suggested title "Dropped text" (you can rename via F2).
+
+### Drop indicator
+- The sidebar gains a dashed-accent outline while a compatible payload is hovering over it.
+
+### Internal interactions preserved
+- Dragging a pinned note within the sidebar to reorder still works (the new handler short-circuits on the internal MIME type `text/x-mycelium-note-id`).
+
+### Auto-update
+- Pushing v0.68.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.67.0-beta.1 - Blockquote continuation + auto-lock per-note keys
 
 beta.67 plugs a small editor papercut and closes a security TODO from v0.66.

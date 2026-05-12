@@ -54,7 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
-  'opt-auto-wiki-link','opt-pomodoro','pomodoro',
+  'opt-auto-wiki-link','opt-pomodoro','pomodoro','opt-auto-lock-idle',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
@@ -1317,6 +1317,9 @@ async function loadSettings() {
     if (els.optAutoWikiLink) els.optAutoWikiLink.checked = !!state.settings.auto_wiki_link;
     if (!state.settings.pomodoro_minutes) state.settings.pomodoro_minutes = 25;
     if (els.optPomodoro) els.optPomodoro.value = String(state.settings.pomodoro_minutes);
+    if (state.settings.auto_lock_idle_minutes === undefined) state.settings.auto_lock_idle_minutes = 0;
+    if (els.optAutoLockIdle) els.optAutoLockIdle.value = String(state.settings.auto_lock_idle_minutes);
+    setupIdleAutoLock();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1689,6 +1692,8 @@ async function saveSettings() {
   if (els.optTrashDays) state.settings.trash_purge_days = parseInt(els.optTrashDays.value, 10) || 0;
   if (els.optAutoWikiLink) state.settings.auto_wiki_link = !!els.optAutoWikiLink.checked;
   if (els.optPomodoro) state.settings.pomodoro_minutes = parseInt(els.optPomodoro.value, 10) || 25;
+  if (els.optAutoLockIdle) state.settings.auto_lock_idle_minutes = parseInt(els.optAutoLockIdle.value, 10) || 0;
+  setupIdleAutoLock();
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -2364,6 +2369,37 @@ async function importMultipleMd() {
   els.fileInput.click();
 }
 
+// v0.40 — auto-lock workspace after N minutes of idle.
+state.idle = { lastActive: Date.now(), interval: null };
+function setupIdleAutoLock() {
+  // Always (re)bind activity listeners.
+  if (!state.idle._bound) {
+    const reset = () => { state.idle.lastActive = Date.now(); };
+    document.addEventListener('mousemove', reset);
+    document.addEventListener('keydown', reset);
+    document.addEventListener('click', reset);
+    document.addEventListener('scroll', reset, true);
+    state.idle._bound = true;
+  }
+  if (state.idle.interval) { clearInterval(state.idle.interval); state.idle.interval = null; }
+  const min = state.settings.auto_lock_idle_minutes || 0;
+  if (min <= 0) return;
+  if (!state.lockEnabled) return;
+  const ms = min * 60 * 1000;
+  state.idle.interval = setInterval(async () => {
+    if (state.locked) return;
+    if (!state.lockEnabled) return;
+    if (Date.now() - state.idle.lastActive < ms) return;
+    try {
+      await invoke('lock_now');
+      state.locked = true;
+      closeSettings();
+      showLockScreen();
+      setStatus('Auto-locked after idle.');
+    } catch (_) { /* ignore */ }
+  }, 30000); // check twice a minute
+}
+
 // v0.38 — Pomodoro / focus timer
 state.pomodoro = { interval: null, endsAt: 0 };
 function startPomodoro(minutes) {
@@ -2888,6 +2924,7 @@ async function refreshLockUi() {
     state.lockEnabled = !!s.enabled;
     state.locked = !!s.locked;
     if (state.locked) showLockScreen(); else hideLockScreen();
+    setupIdleAutoLock(); // v0.40 — re-bind based on new lockEnabled state
     if (els.lockStateText && els.lockControls) {
       els.lockStateText.textContent = s.enabled
         ? 'Workspace lock is enabled. The app starts on a passphrase prompt; you can lock now any time.'
@@ -3332,6 +3369,7 @@ if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
 if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
+if (els.optAutoLockIdle) els.optAutoLockIdle.addEventListener('change', saveSettings);
 if (els.diffClose) els.diffClose.addEventListener('click', closeDiffModal);
 if (els.diffModal) els.diffModal.addEventListener('click', (e) => { if (e.target === els.diffModal) closeDiffModal(); });
 if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomodoro.interval) cancelPomodoro(); else startPomodoro(state.settings.pomodoro_minutes); });

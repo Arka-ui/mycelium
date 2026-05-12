@@ -2858,6 +2858,9 @@ struct Settings {
     /// v0.38 — Pomodoro / focus timer duration in minutes.
     #[serde(default = "default_pomodoro")]
     pomodoro_minutes: u32,
+    /// v0.40 — auto-lock workspace after N minutes of idle (0 = disabled).
+    #[serde(default)]
+    auto_lock_idle_minutes: u32,
 }
 
 fn default_pomodoro() -> u32 {
@@ -2931,6 +2934,7 @@ impl Default for Settings {
             trash_purge_days: 30,
             auto_wiki_link: false,
             pomodoro_minutes: 25,
+            auto_lock_idle_minutes: 0,
         }
     }
 }

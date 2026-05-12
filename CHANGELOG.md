@@ -1,3 +1,23 @@
+# Mycelium v0.40.0-beta.1 - Auto-lock on idle
+
+beta.40 closes a real-world security gap: leave the laptop unattended with the workspace unlocked, and Mycelium can lock itself.
+
+## New in v0.40.0
+
+### Configurable idle auto-lock
+- New **Settings → General → Privacy & lock → "Auto-lock after idle"** dropdown: Disabled / 1 / 5 / 10 / 15 / 30 / 60 minutes.
+- Activity = mouse move, key press, click, or scroll anywhere in the window. Any of those resets the idle clock.
+- Effective only if the workspace lock is enabled (otherwise the setting is a no-op).
+- A poll fires every 30 s; on threshold crossing the app locks via the same `lock_now` command used by the manual lock button.
+
+### Backend
+- New setting field: `auto_lock_idle_minutes` (default 0 = disabled). No new commands.
+
+### Auto-update
+- Pushing v0.40.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.39.0-beta.1 - Snapshot diff viewer
 
 beta.39 lets you see exactly what changed between any history snapshot and the current note — without restoring first.

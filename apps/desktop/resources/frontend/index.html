@@ -325,6 +325,20 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <p class="setting-help" id="lock-state-text">Loading...</p>
           <div class="setting-row" id="lock-controls"></div>
           <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and every note is encrypted at rest with ChaCha20-Poly1305 (key derived from your passphrase via 50,000 iterations of BLAKE3). With a strong passphrase, even disk-level access cannot read your notes without it. Lose the passphrase = lose the data.</p>
+          <div class="setting-row">
+            <label>Auto-lock after idle
+              <select id="opt-auto-lock-idle" class="select">
+                <option value="0">Disabled</option>
+                <option value="1">1 minute</option>
+                <option value="5">5 minutes</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+              </select>
+            </label>
+            <span class="setting-help">Only effective if the workspace lock is enabled.</span>
+          </div>
         </div>
       </section>
 
@@ -538,10 +552,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.39.0</strong></p>
+          <p>Version: <strong id="about-version">v0.40.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.39: snapshot diff — every history entry now has a "Diff vs current" button that shows a unified line-diff in a new modal, with green additions and red removals.</p>
+          <p class="setting-help">Beta.40: auto-lock on idle — Settings → General → Privacy &amp; lock → "Auto-lock after idle" locks the workspace after the chosen interval of no activity. Requires the workspace lock to be enabled.</p>
         </div>
       </section>
 

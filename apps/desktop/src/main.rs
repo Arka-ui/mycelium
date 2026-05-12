@@ -3413,6 +3413,42 @@ fn uninstall_plugin(id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// v0.55 — Reveal the note's underlying .json file in the OS file manager
+/// (Explorer / Finder / xdg-open). Best-effort; falls back to opening the
+/// notes directory if revealing the specific file isn't supported.
+#[tauri::command]
+fn reveal_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let path = state.store.lock().unwrap().note_path(&id);
+    if !path.exists() {
+        return Err("note file not found on disk".into());
+    }
+    #[cfg(windows)]
+    {
+        // /select reveals the file inside the parent folder.
+        std::process::Command::new("explorer.exe")
+            .args(["/select,", path.to_str().unwrap_or("")])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", path.to_str().unwrap_or("")])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // No common Linux equivalent of "select"; open the parent dir instead.
+        let parent = path.parent().ok_or("no parent directory")?;
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// v0.41 — Toggle the main window's always-on-top flag.
 #[tauri::command]
 fn set_always_on_top(window: tauri::Window, value: bool) -> Result<(), String> {
@@ -3566,6 +3602,7 @@ fn main() -> Result<()> {
             uninstall_plugin,
             open_data_dir,
             set_always_on_top,
+            reveal_note,
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

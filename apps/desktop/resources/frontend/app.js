@@ -2452,6 +2452,12 @@ function showContextMenu(x, y, note) {
       catch (e) { alert('Export failed: ' + e); }
     } },
     { sep: true },
+    // v0.55 — reveal note's .json file in OS file manager
+    { label: 'Reveal note file in OS', run: async () => {
+      try { await invoke('reveal_note', { id: note.id }); }
+      catch (e) { alert('Reveal failed: ' + e); }
+    } },
+    { sep: true },
     { label: 'Move to trash', danger: true, run: async () => {
       if (!confirm('Move this note to trash?')) return;
       await invoke('delete_note', { id: note.id });
@@ -3576,6 +3582,11 @@ const PALETTE_COMMANDS = [
   { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
   { name: 'Edit note properties (frontmatter)...', shortcut: '', run: openPropsModal },
+  { name: 'Reveal current note file in OS', shortcut: '', run: async () => {
+      if (!state.activeId) { alert('Open a note first.'); return; }
+      try { await invoke('reveal_note', { id: state.activeId }); }
+      catch (e) { alert('Reveal failed: ' + e); }
+  } },
   { name: 'Start focus timer', shortcut: '', run: () => startPomodoro(state.settings.pomodoro_minutes || 25) },
   { name: 'Cancel focus timer', shortcut: '', run: () => cancelPomodoro() },
   { name: 'Toggle always-on-top window', shortcut: '', run: async () => {

@@ -1,3 +1,24 @@
+# Mycelium v0.55.0-beta.1 - Reveal in OS
+
+beta.55 lets power users hop straight from a note to its underlying `.json` file in their OS file manager — useful for grep / sed / scripting workflows.
+
+## New in v0.55.0
+
+### `reveal_note(id)` Tauri command
+- Windows: `explorer.exe /select,<path>` (highlights the file inside the parent folder).
+- macOS: `open -R <path>` (Reveal in Finder).
+- Linux / other Unix: `xdg-open <parent_dir>` (no portable "select" verb; opens the notes folder).
+- Returns an error if the file isn't on disk yet (e.g., never saved).
+
+### Where to find it
+- Right-click any sidebar note → "Reveal note file in OS".
+- Palette → "Reveal current note file in OS".
+
+### Auto-update
+- Pushing v0.55.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.54.0-beta.1 - Tag autocomplete
 
 beta.54 brings the same `[[wiki-link]]`-style autocomplete to `#tags` so you stop reinventing tag spellings.

@@ -51,7 +51,7 @@ const els = {};
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
-  'view-orphans','outgoing-list',
+  'view-orphans','outgoing-list','suggested-list',
   'props-strip',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
@@ -681,12 +681,13 @@ async function refreshBacklinks() {
   if (!state.active) { els.backlinksPanel.classList.add('hidden'); return; }
   let backlinks = [];
   let outgoing = [];
+  let suggested = [];
   try {
     if (state.active.title) backlinks = await invoke('backlinks', { title: state.active.title });
     outgoing = await invoke('outgoing_links', { id: state.activeId });
+    suggested = await invoke('suggested_notes', { id: state.activeId, limit: 6 });
   } catch (e) { console.error(e); }
-  // Hide whole panel if both empty.
-  if (!backlinks.length && !outgoing.length) { els.backlinksPanel.classList.add('hidden'); return; }
+  if (!backlinks.length && !outgoing.length && !suggested.length) { els.backlinksPanel.classList.add('hidden'); return; }
   els.backlinksPanel.classList.remove('hidden');
   els.backlinksList.innerHTML = '';
   for (const b of backlinks) {
@@ -721,6 +722,22 @@ async function refreshBacklinks() {
   // Hide outgoing heading if list empty.
   const headOut = document.querySelector('.bl-h-out');
   if (headOut) headOut.style.display = outgoing.length ? '' : 'none';
+  // v0.21 — suggested
+  if (els.suggestedList) {
+    els.suggestedList.innerHTML = '';
+    for (const s of suggested) {
+      const li = document.createElement('li');
+      const a = document.createElement('a'); a.href = '#';
+      a.textContent = s.title || 'Untitled';
+      a.addEventListener('click', (e) => { e.preventDefault(); openNote(s.id); });
+      li.appendChild(a);
+      const t = document.createElement('span'); t.className = 'bl-time'; t.textContent = fmtDate(s.updated_at);
+      li.appendChild(t);
+      els.suggestedList.appendChild(li);
+    }
+  }
+  const headSug = document.querySelector('.bl-h-suggest');
+  if (headSug) headSug.style.display = suggested.length ? '' : 'none';
 }
 
 async function exportActiveMd() {

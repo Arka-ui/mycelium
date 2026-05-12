@@ -1096,6 +1096,96 @@ fn month_calendar(
     }))
 }
 
+/// Suggest related notes for `id`, ranked by shared tags, shared frontmatter values, and
+/// shared outgoing wiki-link targets. Returns at most `limit` (default 6) summaries, never
+/// including the source note itself.
+#[tauri::command]
+fn suggested_notes(
+    state: State<'_, AppState>,
+    id: String,
+    limit: Option<u32>,
+) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let limit = limit.unwrap_or(6).clamp(1, 50) as usize;
+    let store = state.store.lock().unwrap();
+    let me = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let all = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+
+    let my_tags: std::collections::HashSet<String> = extract_tags(&me.body).into_iter().collect();
+    let (my_props, _) = parse_frontmatter(&me.body);
+    let my_prop_kv: std::collections::HashSet<(String, String)> = my_props
+        .iter()
+        .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
+        .collect();
+    let mut my_outgoing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let finder = WikiLinkFinder;
+    for (a, b) in finder.find_iter(&me.body) {
+        let mut t = me.body[a + 2..b - 2].to_string();
+        if let Some((p, _)) = t.split_once('|') {
+            t = p.to_string();
+        }
+        if let Some((p, _)) = t.split_once('#') {
+            t = p.to_string();
+        }
+        let lc = t.trim().to_lowercase();
+        if !lc.is_empty() {
+            my_outgoing.insert(lc);
+        }
+    }
+
+    let mut scored: Vec<(u32, &Note)> = vec![];
+    for n in &all {
+        if n.id == me.id || n.trashed_at.is_some() {
+            continue;
+        }
+        let other_tags: std::collections::HashSet<String> =
+            extract_tags(&n.body).into_iter().collect();
+        let shared_tags = my_tags.intersection(&other_tags).count() as u32;
+        let (other_props, _) = parse_frontmatter(&n.body);
+        let other_prop_kv: std::collections::HashSet<(String, String)> = other_props
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
+            .collect();
+        let shared_props = my_prop_kv.intersection(&other_prop_kv).count() as u32;
+        let mut other_outgoing: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for (a, b) in finder.find_iter(&n.body) {
+            let mut t = n.body[a + 2..b - 2].to_string();
+            if let Some((p, _)) = t.split_once('|') {
+                t = p.to_string();
+            }
+            if let Some((p, _)) = t.split_once('#') {
+                t = p.to_string();
+            }
+            let lc = t.trim().to_lowercase();
+            if !lc.is_empty() {
+                other_outgoing.insert(lc);
+            }
+        }
+        let shared_links = my_outgoing.intersection(&other_outgoing).count() as u32;
+        let score = shared_tags * 2 + shared_props + shared_links;
+        if score > 0 {
+            scored.push((score, n));
+        }
+    }
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0).then_with(|| {
+            b.1.updated_at
+                .unwrap_or_default()
+                .cmp(&a.1.updated_at.unwrap_or_default())
+        })
+    });
+    Ok(scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, n)| Store::summarize(n))
+        .collect())
+}
+
 /// Resolve a wiki-link target to a note id, handling aliases and `Title#Heading` block refs.
 /// `target` is everything between `[[` and `]]` minus any `|display`. Returns
 /// `{ id?: String, title?: String, anchor?: String }` (anchor present iff `#` was used).
@@ -2631,6 +2721,7 @@ fn main() -> Result<()> {
             month_calendar,
             resolve_link,
             all_aliases,
+            suggested_notes,
             export_note_md,
             export_all_md,
             import_md,

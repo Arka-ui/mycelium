@@ -1,3 +1,27 @@
+# Mycelium v0.21.0-beta.1 - Suggested notes
+
+beta.21 surfaces hidden connections in the workspace by ranking notes "related to" the open one — without you having to wiki-link them yourself.
+
+## New in v0.21.0
+
+### Suggested panel
+- New **Suggested** section under Outgoing in the Backlinks panel.
+- Up to 6 related notes ranked by a combined similarity score:
+  - **Shared tags** × 2 (a tag co-occurrence is the strongest signal)
+  - **Shared frontmatter key+value** × 1
+  - **Shared outgoing wiki-link targets** × 1
+- Notes that don't share anything score 0 and are excluded.
+- Click a suggestion to open it.
+
+### Backend
+- New `suggested_notes(id, limit?)` command. Computes scores in one pass over all non-trashed notes, returns top-N.
+- All similarity computation happens locally — no embeddings, no network.
+
+### Auto-update
+- Pushing v0.21.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.20.0-beta.1 - Smarter wiki-links
 
 beta.20 brings three Obsidian-style upgrades to the wiki-link grammar — note aliases, block references, and display text — backed by a new `resolve_link` command.

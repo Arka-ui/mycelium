@@ -117,6 +117,8 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         <ul id="backlinks-list"></ul>
         <h4 class="bl-h-out">Outgoing links</h4>
         <ul id="outgoing-list"></ul>
+        <h4 class="bl-h-suggest">Suggested</h4>
+        <ul id="suggested-list"></ul>
       </aside>
 
       <footer class="ed-foot">
@@ -454,10 +456,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.20.0</strong></p>
+          <p>Version: <strong id="about-version">v0.21.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.20: smarter wiki-links — note aliases via frontmatter <code>alias:</code>, block references <code>[[Note#Heading]]</code>, and display text <code>[[Note|see here]]</code>. Autocomplete suggests aliases too.</p>
+          <p class="setting-help">Beta.21: suggested notes — a new "Suggested" section in the Backlinks panel ranks related notes by shared tags, frontmatter values, and outgoing wiki-link targets. Score = 2× shared tags + 1× shared properties + 1× shared links.</p>
         </div>
       </section>
 

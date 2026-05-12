@@ -25,10 +25,14 @@ struct Note {
     pinned: bool,
     #[serde(default)]
     trashed_at: Option<DateTime<Utc>>,
+    /// Manual ordering for pinned notes (1-based; 0 = no manual order).
+    /// Unpinned notes ignore this field.
+    #[serde(default)]
+    display_order: i32,
 }
 
 fn default_schema_ver() -> u32 {
-    2
+    3
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +46,8 @@ struct NoteSummary {
     tags: Vec<String>,
     #[serde(default)]
     trashed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    display_order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,6 +192,7 @@ impl Store {
             pinned: note.pinned,
             tags: extract_tags(&note.body),
             trashed_at: note.trashed_at,
+            display_order: note.display_order,
         }
     }
 
@@ -196,10 +203,24 @@ impl Store {
             .filter(|n| n.trashed_at.is_none())
             .map(Self::summarize)
             .collect();
-        out.sort_by(|a, b| {
-            b.pinned
-                .cmp(&a.pinned)
-                .then_with(|| b.updated_at.cmp(&a.updated_at))
+        // Pinned (with manual order > 0 first, asc; then 0 by updated desc) > unpinned by updated.
+        out.sort_by(|a, b| match (a.pinned, b.pinned) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (true, true) => {
+                let ao = if a.display_order > 0 {
+                    a.display_order
+                } else {
+                    i32::MAX
+                };
+                let bo = if b.display_order > 0 {
+                    b.display_order
+                } else {
+                    i32::MAX
+                };
+                ao.cmp(&bo).then_with(|| b.updated_at.cmp(&a.updated_at))
+            }
+            (false, false) => b.updated_at.cmp(&a.updated_at),
         });
         Ok(out)
     }
@@ -233,12 +254,22 @@ impl Store {
             body,
             created_at: Some(now),
             updated_at: Some(now),
-            schema_ver: 2,
+            schema_ver: 3,
             pinned: false,
             trashed_at: None,
+            display_order: 0,
         };
         self.write(&note)?;
         Ok(note)
+    }
+
+    fn set_display_order(&self, id: &str, order: i32) -> Result<()> {
+        let mut note = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
+        note.display_order = order;
+        self.write(&note)?;
+        Ok(())
     }
 
     fn update(&self, id: &str, title: Option<String>, body: Option<String>) -> Result<Note> {
@@ -672,6 +703,103 @@ fn set_pinned(state: State<'_, AppState>, id: String, pinned: bool) -> Result<No
         .unwrap()
         .set_pinned(&id, pinned)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_note_order(state: State<'_, AppState>, id: String, order: i32) -> Result<(), String> {
+    check_unlocked(&state)?;
+    state
+        .store
+        .lock()
+        .unwrap()
+        .set_display_order(&id, order)
+        .map_err(|e| e.to_string())
+}
+
+/// Renumber a list of pinned note ids to 1..N based on the order they appear.
+/// Any pinned note not in the list is kept (its previous order is left unchanged).
+#[tauri::command]
+fn reorder_pinned(state: State<'_, AppState>, ids: Vec<String>) -> Result<(), String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    for (i, id) in ids.iter().enumerate() {
+        store
+            .set_display_order(id, (i + 1) as i32)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn bulk_set_pinned(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    pinned: bool,
+) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut n = 0u32;
+    for id in ids {
+        if store.set_pinned(&id, pinned).is_ok() {
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+#[tauri::command]
+fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut n = 0u32;
+    for id in ids {
+        if store.trash(&id).is_ok() {
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+#[tauri::command]
+fn bulk_export_md(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<(String, String)>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut out = vec![];
+    for id in ids {
+        let note = match store.get(&id).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        let title = if note.title.is_empty() {
+            "Untitled".into()
+        } else {
+            note.title.clone()
+        };
+        let safe = title
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        let filename = format!("{}.md", safe.trim());
+        let mut content = format!("# {}\n\n", title);
+        if let Some(t) = note.updated_at {
+            content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
+        }
+        content.push_str(&note.body);
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        out.push((filename, content));
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -1435,6 +1563,12 @@ struct Settings {
     sort_by: String,
     #[serde(default)]
     lock: Option<LockConfig>,
+    #[serde(default = "default_locale")]
+    locale: String,
+}
+
+fn default_locale() -> String {
+    "en".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1467,6 +1601,7 @@ impl Default for Settings {
             spell_check: false,
             sort_by: "updated".to_string(),
             lock: None,
+            locale: "en".to_string(),
         }
     }
 }
@@ -1765,6 +1900,11 @@ fn main() -> Result<()> {
             purge_note,
             empty_trash,
             set_pinned,
+            set_note_order,
+            reorder_pinned,
+            bulk_set_pinned,
+            bulk_trash,
+            bulk_export_md,
             search_notes,
             all_tags,
             backlinks,

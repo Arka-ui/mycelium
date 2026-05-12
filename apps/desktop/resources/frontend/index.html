@@ -35,6 +35,17 @@
 
     <div id="tag-bar" class="tag-bar hidden"></div>
 
+    <div id="bulk-bar" class="bulk-bar hidden">
+      <span id="bulk-count" class="bulk-count">0 selected</span>
+      <div class="bulk-actions">
+        <button id="bulk-pin" class="bulk-btn" title="Pin all selected">★ Pin</button>
+        <button id="bulk-unpin" class="bulk-btn" title="Unpin all selected">☆ Unpin</button>
+        <button id="bulk-export" class="bulk-btn" title="Export selected as Markdown">⬇ Export</button>
+        <button id="bulk-trash" class="bulk-btn danger" title="Move all selected to trash">🗑 Trash</button>
+        <button id="bulk-clear" class="bulk-btn ghost" title="Clear selection (Esc)">×</button>
+      </div>
+    </div>
+
     <ul id="note-list" class="note-list"></ul>
 
     <footer class="side-foot">
@@ -75,6 +86,16 @@
         </div>
       </header>
       <div id="meta" class="meta"></div>
+
+      <div id="find-bar" class="find-bar hidden">
+        <input id="find-input" type="text" placeholder="Find" autocomplete="off" spellcheck="false">
+        <input id="replace-input" type="text" placeholder="Replace" autocomplete="off" spellcheck="false">
+        <button id="find-next-btn" class="ghost-btn" title="Find next (Enter)">Next</button>
+        <button id="find-replace-btn" class="ghost-btn" title="Replace current match">Replace</button>
+        <button id="find-replace-all-btn" class="ghost-btn" title="Replace all matches in this note">Replace all</button>
+        <span id="find-count" class="find-count">0 / 0</span>
+        <button id="find-close-btn" class="icon-btn" title="Close (Esc)">×</button>
+      </div>
 
       <div class="ed-body">
         <aside id="outline-panel" class="outline-panel hidden">
@@ -176,7 +197,23 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               </select>
             </label>
           </div>
-          <p class="setting-help">Pinned notes always come first within the chosen sort.</p>
+          <p class="setting-help">Pinned notes always come first within the chosen sort. You can drag pinned notes in the sidebar to reorder them manually.</p>
+        </div>
+        <div class="setting-group">
+          <h3>Language</h3>
+          <div class="setting-row">
+            <label>Locale
+              <select id="opt-locale" class="select">
+                <option value="en">English</option>
+                <option value="fr">Français (community)</option>
+                <option value="de">Deutsch (community)</option>
+                <option value="es">Español (community)</option>
+                <option value="ja">日本語 (community)</option>
+                <option value="zh">中文 (community)</option>
+              </select>
+            </label>
+          </div>
+          <p class="setting-help">Mycelium ships English baseline strings. Other locales are community-contributed; drop a <code>translations.json</code> in the data folder (override entries by key). Full string coverage rolls out in upcoming releases.</p>
         </div>
         <div class="setting-group">
           <h3>Privacy &amp; lock</h3>
@@ -328,10 +365,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.9.0</strong></p>
+          <p>Version: <strong id="about-version">v0.10.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.9: visualization — dashboard tab with at-a-glance stats, top tags, 12-week activity heatmap, and an interactive [[wiki-link]] note graph rendered in Canvas with force-directed layout.</p>
+          <p class="setting-help">Beta.10: quality of life — drag-reorder pinned notes, multi-select sidebar (Ctrl/Shift + click) with bulk pin / trash / export, in-editor find &amp; replace (Ctrl+H), and a locale + i18n stub ready for community translations.</p>
         </div>
       </section>
 
@@ -388,6 +425,11 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Wrap selection in <code>*italic*</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Wrap selection in <code>`code`</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Wrap selection in <code>[label](url)</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Open find &amp; replace bar</td></tr>
+          <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
+          <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
+          <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>
+          <tr><td>drag pinned notes</td><td>Reorder pinned notes</td></tr>
         </tbody>
       </table>
     </div>

@@ -724,3 +724,53 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   cursor: pointer;
 }
+
+/* --- v0.10 — multi-select bulk-action bar ----------------------------- */
+.bulk-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 0 12px 6px;
+  padding: 6px 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.bulk-count { color: var(--text-2); font-weight: 500; padding-left: 4px; }
+.bulk-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.bulk-btn {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 3px 8px; cursor: pointer; font-size: 11.5px; line-height: 1.4;
+}
+.bulk-btn:hover { background: var(--bg-2); }
+.bulk-btn.danger { color: var(--danger); }
+.bulk-btn.ghost { color: var(--text-3); border-color: transparent; }
+
+/* selected note in sidebar */
+.note-list li.selected {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-3));
+}
+
+/* drag indicator for pinned reorder */
+.note-list li.dragging { opacity: 0.4; }
+.note-list li.drop-above { box-shadow: inset 0 2px 0 0 var(--accent); }
+
+/* --- v0.10 — find/replace bar ----------------------------------------- */
+.find-bar {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin: 0 0 8px;
+  font-size: 12.5px;
+}
+.find-bar input[type="text"] {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  flex: 1; min-width: 80px;
+}
+.find-bar input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.find-bar .ghost-btn { padding: 4px 9px; font-size: 12px; }
+.find-count { color: var(--text-3); font-size: 11.5px; min-width: 50px; text-align: right; }

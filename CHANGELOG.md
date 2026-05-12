@@ -1,3 +1,38 @@
+# Mycelium v0.10.0-beta.1 - Quality of life
+
+beta.10 sands down four rough edges that the steady-state user hits every day: pinned notes have no manual order, bulk operations require touching one note at a time, finding-and-replacing inside a note isn't a thing, and every string in the app is hardcoded English. This release fixes all four.
+
+## New in v0.10.0
+
+### Drag-reorder pinned notes
+- Pinned notes now carry a `display_order` field. Drag any pinned `<li>` to reorder; the new order persists across restarts.
+- Unpinned notes still sort by the chosen sort key (Updated / Created / Title).
+- New backend commands: `set_note_order(id, order)`, `reorder_pinned(ids[])`.
+
+### Multi-select for bulk actions
+- **Ctrl/Cmd + click** a sidebar note: toggle it in the selection (does not open).
+- **Shift + click**: select range from the last clicked anchor to the current note.
+- When at least one note is selected, a bulk-action bar appears above the list: **Pin all**, **Unpin all**, **Move to trash**, **Export selected**, **Clear**.
+- Selection clears on view change or after a bulk action.
+- New backend commands: `bulk_set_pinned(ids[], pinned)`, `bulk_trash(ids[])`, `bulk_export_md(ids[])`.
+
+### Find and replace
+- **Ctrl + H** in the editor opens a slim Find / Replace bar above the body textarea.
+- **Find** highlights the next match (selects it in the textarea).
+- **Replace** swaps the current match and advances. **Replace all** swaps every match in the body.
+- **Esc** or the **Done** button closes the bar.
+- Pure client-side; no Rust round-trip per match.
+
+### Locale + i18n stub
+- New `locale` setting (default `"en"`) selectable in **Settings → General**.
+- A `t(key, fallback)` function in app.js looks up strings from `window.MYCELIUM_TRANSLATIONS[locale]`. The translation table is initially empty and ships only the English fallbacks inline; community contributors can drop a `translations.json` into the data folder to override.
+- The current build contains the wiring; full string coverage will land progressively in v0.11+ as locales arrive.
+
+### Auto-update
+- Pushing v0.10.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.9.0-beta.1 - Visualization
 
 beta.9 adds a Dashboard tab with at-a-glance stats, top tags, an activity heatmap, and an interactive note graph. Everything is computed locally, no third-party charting library.

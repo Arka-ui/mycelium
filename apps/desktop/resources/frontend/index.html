@@ -193,6 +193,20 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">Typing <code>(</code>, <code>[</code>, <code>{</code>, <code>"</code>, <code>'</code> or <code>`</code> auto-inserts the closing pair. With a selection, surrounds it.</div>
             </div>
           </label>
+          <label class="setting-row">
+            <input id="opt-smart-lists" type="checkbox">
+            <div>
+              <div class="setting-name">Smart list continuation &amp; indent</div>
+              <div class="setting-help">Enter on <code>- foo</code> starts a new <code>-</code> bullet (ditto for <code>1.</code> numbered lists). Enter on an empty bullet exits the list. <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> indent / outdent within lists. Auto-indent matches leading whitespace of the previous line.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-strip-trailing-ws" type="checkbox">
+            <div>
+              <div class="setting-name">Strip trailing whitespace on save</div>
+              <div class="setting-help">Removes trailing spaces and tabs from every line before persisting. Off by default; turn on for cleaner Markdown diffs in version control.</div>
+            </div>
+          </label>
         </div>
         <div class="setting-group">
           <h3>Note list</h3>
@@ -373,10 +387,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.12.0</strong></p>
+          <p>Version: <strong id="about-version">v0.13.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.12: reading &amp; navigation — reading mode (Ctrl+Shift+M), inline <code>:::toc:::</code> table of contents, recently-opened in the command palette, and "Open random note" for spaced review.</p>
+          <p class="setting-help">Beta.13: editor smarts — smart list continuation, auto-indent, Tab / Shift+Tab to indent within lists, smart paste-link (URL on selection becomes <code>[selection](url)</code>), and optional strip-trailing-whitespace on save.</p>
         </div>
       </section>
 
@@ -437,6 +451,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Wrap selection in <code>[label](url)</code></td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td>Open find &amp; replace bar</td></tr>
           <tr><td><kbd>[</kbd><kbd>[</kbd></td><td>Open wiki-link autocomplete (in editor)</td></tr>
+          <tr><td><kbd>Enter</kbd> on a list item</td><td>Continue the list (smart bullet / number)</td></tr>
+          <tr><td><kbd>Tab</kbd> in a list</td><td>Indent the current line</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> in a list</td><td>Outdent the current line</td></tr>
+          <tr><td>Paste URL on a selection</td><td>Wraps selection as <code>[selection](url)</code></td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

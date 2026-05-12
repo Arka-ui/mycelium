@@ -1567,6 +1567,10 @@ struct Settings {
     locale: String,
     #[serde(default = "default_true")]
     auto_pair: bool,
+    #[serde(default = "default_true")]
+    smart_lists: bool,
+    #[serde(default)]
+    strip_trailing_ws: bool,
 }
 
 fn default_locale() -> String {
@@ -1605,6 +1609,8 @@ impl Default for Settings {
             lock: None,
             locale: "en".to_string(),
             auto_pair: true,
+            smart_lists: true,
+            strip_trailing_ws: false,
         }
     }
 }

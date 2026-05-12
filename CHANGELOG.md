@@ -1,3 +1,33 @@
+# Mycelium v0.13.0-beta.1 - Editor smarts
+
+beta.13 fixes the silent papercuts that pile up in any Markdown editor: starting a new bullet on Enter, indenting a line with Tab, and turning pasted URLs into proper links when you have text selected.
+
+## New in v0.13.0
+
+### Smart list continuation
+- **Enter** on a `- bullet`, `* bullet`, `+ bullet`, or `1. numbered` line opens a new list item one level down. Numbered lists auto-increment.
+- **Enter** on an empty list item exits the list (deletes the marker, leaves the cursor on a blank line).
+- Task lists (`- [ ] task`) continue with a fresh `- [ ] ` prefix.
+- Toggleable in **Settings → General** ("Smart list continuation & indent"). On by default.
+
+### Smart Tab / Shift+Tab
+- **Tab** on a list line indents it by 2 spaces. **Shift+Tab** outdents.
+- **Tab** on a non-list line inserts 2 spaces (rather than moving focus).
+
+### Auto-indent
+- New lines preserve the leading whitespace of the previous line, so code-style indentation sticks.
+
+### Smart paste-link
+- Select some text, paste a URL (`https://…` / `http://…`) → the selection is wrapped as `[selection](url)`. Falls back to the OS default paste otherwise. Shares the auto-pair toggle.
+
+### Strip trailing whitespace on save
+- Optional setting (off by default). When on, every trailing space / tab on every line is removed before persisting. Cursor position is preserved.
+
+### Auto-update
+- Pushing v0.13.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.12.0-beta.1 - Reading & navigation
 
 beta.12 makes long notes navigable and pleasant to read. Switch to a sidebar-free reading mode, drop a `:::toc:::` block to inject a table of contents, jump back to whatever you opened recently from the palette, or hop to a random note for a spaced-review session.

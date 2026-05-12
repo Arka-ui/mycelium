@@ -50,7 +50,7 @@ const els = {};
   'import-md-btn','export-all-btn',
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
-  'opt-locale','opt-auto-pair','reading-btn',
+  'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','reading-btn',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -379,7 +379,19 @@ function cloneNote(n) { return { id: n.id, title: n.title, body: n.body, created
 async function flushSave() {
   if (!state.activeId) return;
   const id = state.activeId;
-  const title = els.title.value; const body = els.body.value;
+  const title = els.title.value;
+  let body = els.body.value;
+  // v0.13 — optional trailing whitespace strip on save.
+  if (state.settings.strip_trailing_ws) {
+    const stripped = stripTrailingWhitespace(body);
+    if (stripped !== body) {
+      // Preserve cursor if user is editing.
+      const ss = els.body.selectionStart, se = els.body.selectionEnd;
+      els.body.value = stripped;
+      els.body.setSelectionRange(Math.min(ss, stripped.length), Math.min(se, stripped.length));
+      body = stripped;
+    }
+  }
   els.saveState.textContent = 'saving...';
   try {
     const note = await invoke('update_note', { id, title, body });
@@ -722,6 +734,8 @@ async function loadSettings() {
     if (!state.settings.sort_by) state.settings.sort_by = 'updated';
     if (!state.settings.locale) state.settings.locale = 'en';
     if (state.settings.auto_pair === undefined) state.settings.auto_pair = true;
+    if (state.settings.smart_lists === undefined) state.settings.smart_lists = true;
+    if (state.settings.strip_trailing_ws === undefined) state.settings.strip_trailing_ws = false;
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
@@ -729,6 +743,8 @@ async function loadSettings() {
     els.optSort.value = state.settings.sort_by;
     if (els.optLocale) els.optLocale.value = state.settings.locale;
     if (els.optAutoPair) els.optAutoPair.checked = !!state.settings.auto_pair;
+    if (els.optSmartLists) els.optSmartLists.checked = !!state.settings.smart_lists;
+    if (els.optStripTrailingWs) els.optStripTrailingWs.checked = !!state.settings.strip_trailing_ws;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -926,6 +942,8 @@ async function saveSettings() {
   state.settings.sort_by = els.optSort.value || 'updated';
   if (els.optLocale) state.settings.locale = els.optLocale.value || 'en';
   if (els.optAutoPair) state.settings.auto_pair = !!els.optAutoPair.checked;
+  if (els.optSmartLists) state.settings.smart_lists = !!els.optSmartLists.checked;
+  if (els.optStripTrailingWs) state.settings.strip_trailing_ws = !!els.optStripTrailingWs.checked;
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
   applySpellCheck();
@@ -1434,6 +1452,144 @@ function moveWikiCursor(delta) {
   Array.from(pop.children).forEach((li, i) => li.classList.toggle('on', i === state.wikiAuto.cursor));
 }
 
+// --- v0.13 — smart editor (list continuation, indent, paste URL) ------
+function handleSmartEnter(e) {
+  if (!state.settings.smart_lists) return false;
+  if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+  const ta = els.body;
+  const pos = ta.selectionStart;
+  if (pos !== ta.selectionEnd) return false;
+  const value = ta.value;
+  const lineStart = value.lastIndexOf('\n', pos - 1) + 1;
+  const line = value.slice(lineStart, pos);
+  // Bullet list: "- ", "* ", "+ "
+  let m = line.match(/^(\s*)([-*+])\s+(\[[ xX]\]\s+)?(.*)$/);
+  if (m) {
+    const indent = m[1], marker = m[2], task = m[3] || '', content = m[4];
+    if (content.trim() === '' && !task) {
+      // Empty bullet — exit the list (replace bullet with blank line).
+      e.preventDefault();
+      const before = value.slice(0, lineStart);
+      const after = value.slice(pos);
+      ta.value = before + '\n' + after;
+      ta.setSelectionRange(before.length + 1, before.length + 1);
+      scheduleSave();
+      return true;
+    }
+    e.preventDefault();
+    const insert = '\n' + indent + marker + ' ' + (task ? '[ ] ' : '');
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    ta.value = before + insert + after;
+    const np = before.length + insert.length;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  // Numbered list: "1. "
+  m = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+  if (m) {
+    const indent = m[1], n = parseInt(m[2], 10), content = m[3];
+    if (content.trim() === '') {
+      e.preventDefault();
+      const before = value.slice(0, lineStart);
+      const after = value.slice(pos);
+      ta.value = before + '\n' + after;
+      ta.setSelectionRange(before.length + 1, before.length + 1);
+      scheduleSave();
+      return true;
+    }
+    e.preventDefault();
+    const insert = '\n' + indent + (n + 1) + '. ';
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    ta.value = before + insert + after;
+    const np = before.length + insert.length;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  // Plain auto-indent: continue leading whitespace.
+  const lead = line.match(/^(\s+)/);
+  if (lead) {
+    e.preventDefault();
+    const insert = '\n' + lead[1];
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    ta.value = before + insert + after;
+    const np = before.length + insert.length;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  return false;
+}
+
+function handleSmartTab(e) {
+  if (!state.settings.smart_lists) return false;
+  if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey) return false;
+  const ta = els.body;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const value = ta.value;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const line = value.slice(lineStart, value.indexOf('\n', start) === -1 ? value.length : value.indexOf('\n', start));
+  // Only act on list lines, otherwise let Tab move focus normally is bad — insert 2 spaces.
+  const isList = /^(\s*)([-*+]\s|\d+\.\s)/.test(line);
+  if (!isList && start === end) {
+    e.preventDefault();
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    ta.value = before + '  ' + after;
+    ta.setSelectionRange(start + 2, start + 2);
+    scheduleSave();
+    return true;
+  }
+  if (isList) {
+    e.preventDefault();
+    const before = value.slice(0, lineStart);
+    const after = value.slice(lineStart);
+    if (e.shiftKey) {
+      // Outdent: remove up to 2 leading spaces.
+      const stripped = after.replace(/^( {1,2})/, '');
+      ta.value = before + stripped;
+      const removed = after.length - stripped.length;
+      ta.setSelectionRange(Math.max(lineStart, start - removed), Math.max(lineStart, end - removed));
+    } else {
+      // Indent: prepend 2 spaces to the current line.
+      ta.value = before + '  ' + after;
+      ta.setSelectionRange(start + 2, end + 2);
+    }
+    scheduleSave();
+    return true;
+  }
+  return false;
+}
+
+function handleSmartPaste(e) {
+  if (!state.settings.auto_pair) return false; // share the toggle for predictability
+  const ta = els.body;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  if (start === end) return false;
+  const data = (e.clipboardData || window.clipboardData);
+  if (!data) return false;
+  const text = data.getData('text/plain');
+  if (!/^https?:\/\/\S+$/.test(text)) return false;
+  e.preventDefault();
+  const sel = ta.value.slice(start, end);
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + '[' + sel + '](' + text + ')' + after;
+  // Place cursor after the link.
+  const np = before.length + 1 + sel.length + 2 + text.length + 1;
+  ta.setSelectionRange(np, np);
+  scheduleSave();
+  return true;
+}
+
+function stripTrailingWhitespace(s) {
+  return s.split('\n').map(line => line.replace(/[ \t]+$/, '')).join('\n');
+}
+
 // --- v0.11 — auto-pair brackets ---------------------------------------
 const AUTO_PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
 function handleAutoPair(e) {
@@ -1856,8 +2012,11 @@ els.body.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commitWikiAutocomplete(state.wikiAuto.cursor); return; }
     if (e.key === 'Escape') { e.preventDefault(); closeWikiAutocomplete(); return; }
   }
+  if (handleSmartEnter(e)) return;
+  if (handleSmartTab(e)) return;
   handleAutoPair(e);
 });
+els.body.addEventListener('paste', (e) => { handleSmartPaste(e); }, { capture: true });
 els.search.addEventListener('input', () => {
   state.query = els.search.value;
   els.saveSearchBtn.hidden = !state.query.trim();
@@ -1973,6 +2132,8 @@ els.optSpellCheck.addEventListener('change', saveSettings);
 els.optSort.addEventListener('change', () => { saveSettings(); renderList(); });
 if (els.optLocale) els.optLocale.addEventListener('change', () => { saveSettings(); renderList(); refreshBulkBar(); });
 if (els.optAutoPair) els.optAutoPair.addEventListener('change', saveSettings);
+if (els.optSmartLists) els.optSmartLists.addEventListener('change', saveSettings);
+if (els.optStripTrailingWs) els.optStripTrailingWs.addEventListener('change', saveSettings);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));

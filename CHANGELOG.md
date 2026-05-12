@@ -1,3 +1,37 @@
+# Mycelium v0.5.0-beta.1 - Markdown power
+
+beta.5 turns the Markdown preview into a real reading surface. Math, code highlighting, footnotes, definition lists, auto-links — the kind of features that make a notes app good for technical writing instead of just sticky notes.
+
+## New in v0.5.0
+
+### Markdown rendering
+
+- **Math** with LaTeX-style syntax: `$E = mc^2$` inline, `$$ \int_0^\infty f(x)\,dx $$` block. Ships with ~50 common symbols (Greek, calculus, set theory, arrows, comparisons), `^{...}` superscripts, `_{...}` subscripts, and `\frac{a}{b}` fractions. No external KaTeX dependency — everything is a tiny Unicode-mapping render in `markdown.js`.
+- **Code-block syntax highlighting** for `js`, `ts`, `rust`, `py`/`python`, `sh`/`bash`, and `json`. Keywords / strings / comments / function calls / numbers each get a class; tokens are theme-aware and re-coloured by light / dark / high-contrast.
+- **Footnotes**: `Some claim[^1]` and `[^1]: the cited evidence`. Footnote definitions are collected from anywhere in the note and rendered as a numbered list at the bottom of the preview.
+- **Definition lists**:
+  ```
+  Term
+  : Definition line one
+  : Definition line two
+  ```
+- **Auto-link bare URLs**: typing `https://example.com` in a paragraph now becomes a clickable link in preview without needing `[label](url)`.
+- **Inline images via data URLs**: an attachment that's an image now renders as `<img>` (previously only `[label](data:...)` link syntax).
+
+### Backend
+
+No new commands — this release is pure frontend. Schema version unchanged.
+
+### Auto-update
+
+Pushing `v0.5.0-beta.1` triggers signed builds + manifest update. Installed `v0.4.0-beta.1` clients will detect the upgrade on next launch.
+
+## Upgrade
+
+Launch Mycelium → updater offers v0.5.0 → install. All your notes carry over (text-only changes; nothing in storage).
+
+---
+
 # Mycelium v0.4.0-beta.1 - capture + safety
 
 beta.4 closes the two biggest gaps that stop Mycelium from being a real daily driver: you can now drop screenshots and PDFs straight into a note, and the app keeps a snapshot of every save so a bad rewrite is never destructive.

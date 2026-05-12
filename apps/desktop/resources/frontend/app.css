@@ -593,3 +593,50 @@ code { background: var(--bg-3); padding: 1px 5px; border-radius: 4px; font-famil
   border-radius: var(--radius-sm);
   margin: 8px 0;
 }
+
+.preview .math {
+  font-family: "Cambria Math", "Latin Modern Math", "STIX Two Math", Georgia, serif;
+  font-style: italic;
+}
+.preview .math.math-inline { padding: 0 2px; }
+.preview .math.math-block,
+.preview .math.math-display {
+  display: block; padding: 10px 14px; margin: 12px 0;
+  background: var(--bg-3); border-left: 3px solid var(--accent);
+  border-radius: 4px; text-align: center; font-size: 16px;
+}
+.preview .math sup, .preview .math sub { font-size: 0.78em; font-style: italic; }
+.preview .math .frac {
+  display: inline-block; vertical-align: middle; text-align: center;
+  font-size: 0.92em; line-height: 1;
+}
+.preview .math .frac .num { display: block; border-bottom: 1px solid currentColor; padding: 0 4px; }
+.preview .math .frac .den { display: block; padding: 0 4px; }
+
+.preview pre code .hl-kw  { color: var(--accent); font-weight: 600; }
+.preview pre code .hl-str { color: #b5e48c; }
+.preview pre code .hl-com { color: var(--text-3); font-style: italic; }
+.preview pre code .hl-fn  { color: #ffd166; }
+.preview pre code .hl-num { color: #f4978e; }
+body.theme-light .preview pre code .hl-str { color: #2d6a4f; }
+body.theme-light .preview pre code .hl-fn  { color: #b5651d; }
+body.theme-light .preview pre code .hl-num { color: #c92a2a; }
+body.theme-hc .preview pre code .hl-str { color: #ffff00; }
+body.theme-hc .preview pre code .hl-fn  { color: #00ffff; }
+body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
+
+.preview .footnote-ref a {
+  text-decoration: none; color: var(--accent); font-weight: 600;
+}
+.preview ol.footnotes {
+  margin-top: 24px; padding-left: 20px;
+  font-size: 13px; color: var(--text-2);
+  border-top: 1px solid var(--border); padding-top: 16px;
+  list-style: none;
+}
+.preview ol.footnotes li { margin: 6px 0; }
+.preview ol.footnotes li strong { color: var(--accent); margin-right: 6px; }
+
+.preview dl.md-dl { margin: 10px 0; }
+.preview dl.md-dl dt { font-weight: 600; color: var(--text); margin-top: 6px; }
+.preview dl.md-dl dd { margin-left: 20px; color: var(--text-2); }

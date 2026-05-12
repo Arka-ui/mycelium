@@ -1,3 +1,34 @@
+# Mycelium v0.8.0-beta.1 - At-rest encryption
+
+beta.8 turns the workspace lock from a UI guard into real cryptographic protection. When the lock is enabled, every note JSON file on disk is encrypted with ChaCha20-Poly1305; the master key is derived from your passphrase via 50,000 BLAKE3 iterations and never persisted.
+
+## New in v0.8.0
+
+### Encryption
+- **At-rest encryption** of every note when the workspace lock is enabled. Files on disk look like `{"_enc1": "<base64-nonce-and-ciphertext>"}` instead of the raw JSON note.
+- **Cipher**: ChaCha20-Poly1305 AEAD with a fresh 12-byte nonce per write (`OsRng`).
+- **Key derivation**: `BLAKE3("mycelium-master-key-v1" || salt || passphrase)` iterated 50,000 times → 32-byte master key. Salt is the same 16-byte value already stored for the lock verifier.
+- **Migration**: enabling the lock with existing plaintext notes encrypts them all in place. Disabling decrypts them all. Changing passphrase decrypts with the old key, then re-encrypts with the new.
+- **Lock now** wipes the in-memory master key. Notes on disk remain encrypted; reads fail until next unlock.
+
+### Crypto
+- New deps: `chacha20poly1305 = "0.10"`, `base64 = "0.22"`.
+- All file IO inside `Store` goes through `read_file_bytes` / `write_file_bytes` helpers that auto-encrypt/decrypt when a key is set.
+
+### Honest disclaimer
+- **Without the lock enabled, notes remain plaintext.** Encryption only kicks in once you enable the workspace lock and only protects the on-disk files (RAM still holds plaintext while the app runs).
+- **Lose the passphrase = lose the data.** There is no recovery; a strong, memorable passphrase is essential.
+- The crypto library `chacha20poly1305` 0.10 is well-reviewed (RustCrypto). The construction here is conservative (random nonce, AEAD, BLAKE3 KDF), but no formal audit has been performed.
+
+### Backend
+- `Store` now carries an optional `[u8; 32]` master key.
+- `lock_set` / `lock_disable` / `lock_unlock` / `lock_now` all wire the key in/out and re-encrypt notes on transitions.
+
+### Auto-update
+- Pushing v0.8.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.7.0-beta.1 - Workspace lock
 
 beta.7 adds a passphrase lock around the whole workspace. When enabled, the app starts on a passphrase prompt and you can lock-now any time. (Note: this is an *access lock*, not at-rest encryption — the underlying note files are still plaintext on disk. At-rest encryption lands in beta.8.)

@@ -181,7 +181,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <h3>Privacy &amp; lock</h3>
           <p class="setting-help" id="lock-state-text">Loading...</p>
           <div class="setting-row" id="lock-controls"></div>
-          <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and you can <strong>Lock now</strong> at any time to require re-entry. Note: this is an <em>access lock</em> &mdash; notes themselves are not encrypted at rest yet (that arrives in beta.8).</p>
+          <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and every note is encrypted at rest with ChaCha20-Poly1305 (key derived from your passphrase via 50,000 iterations of BLAKE3). With a strong passphrase, even disk-level access cannot read your notes without it. Lose the passphrase = lose the data.</p>
         </div>
       </section>
 
@@ -303,10 +303,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.7.0</strong></p>
+          <p>Version: <strong id="about-version">v0.8.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.7: workspace lock with passphrase (50k-iteration BLAKE3 verifier). At-rest encryption of note files lands in beta.8.</p>
+          <p class="setting-help">Beta.8: at-rest encryption of every note when workspace lock is enabled (ChaCha20-Poly1305, BLAKE3-derived master key). Files on disk are no longer plaintext when locked.</p>
         </div>
       </section>
 

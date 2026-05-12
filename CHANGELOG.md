@@ -1,3 +1,27 @@
+# Mycelium v0.33.0-beta.1 - Editor power
+
+beta.33 ships four editor moves that every IDE user expects to find on day one.
+
+## New in v0.33.0
+
+### Multi-line block indent
+- Select multiple lines, press **Tab** → every line in the selection is indented by 2 spaces. **Shift + Tab** outdents.
+- Single-line behavior unchanged (still smart for lists / non-lists).
+
+### Toggle HTML comment
+- **Ctrl + /** in the editor wraps the selection (or current line) in `<!-- … -->`. Press again to unwrap. Useful for stashing parts of a draft without deleting them.
+
+### Delete current line
+- **Ctrl + Shift + K** deletes the line(s) under the caret/selection without touching the clipboard.
+
+### Duplicate current line
+- **Ctrl + Shift + D** copies the line(s) under the caret/selection and inserts the copy directly below.
+
+### Auto-update
+- Pushing v0.33.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.32.0-beta.1 - Writing goals & scroll memory
 
 beta.32 helps long-form writing in two ways: a frontmatter writing-goal chip in the editor footer, and per-note scroll position memory.

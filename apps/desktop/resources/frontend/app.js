@@ -2397,9 +2397,27 @@ function handleSmartTab(e) {
   const ta = els.body;
   const start = ta.selectionStart, end = ta.selectionEnd;
   const value = ta.value;
+  // v0.33 — multi-line selection: indent/outdent every line in the range.
+  if (start !== end && value.slice(start, end).includes('\n')) {
+    e.preventDefault();
+    const blockStart = value.lastIndexOf('\n', start - 1) + 1;
+    const blockEnd = value.indexOf('\n', end - 1);
+    const realEnd = blockEnd === -1 ? value.length : blockEnd;
+    const block = value.slice(blockStart, realEnd);
+    let newBlock;
+    if (e.shiftKey) {
+      newBlock = block.split('\n').map(l => l.replace(/^( {1,2}|\t)/, '')).join('\n');
+    } else {
+      newBlock = block.split('\n').map(l => '  ' + l).join('\n');
+    }
+    ta.value = value.slice(0, blockStart) + newBlock + value.slice(realEnd);
+    const delta = newBlock.length - block.length;
+    ta.setSelectionRange(start + (e.shiftKey ? Math.min(0, delta) : 2), end + delta);
+    scheduleSave();
+    return true;
+  }
   const lineStart = value.lastIndexOf('\n', start - 1) + 1;
   const line = value.slice(lineStart, value.indexOf('\n', start) === -1 ? value.length : value.indexOf('\n', start));
-  // Only act on list lines, otherwise let Tab move focus normally is bad — insert 2 spaces.
   const isList = /^(\s*)([-*+]\s|\d+\.\s)/.test(line);
   if (!isList && start === end) {
     e.preventDefault();
@@ -2415,13 +2433,11 @@ function handleSmartTab(e) {
     const before = value.slice(0, lineStart);
     const after = value.slice(lineStart);
     if (e.shiftKey) {
-      // Outdent: remove up to 2 leading spaces.
       const stripped = after.replace(/^( {1,2})/, '');
       ta.value = before + stripped;
       const removed = after.length - stripped.length;
       ta.setSelectionRange(Math.max(lineStart, start - removed), Math.max(lineStart, end - removed));
     } else {
-      // Indent: prepend 2 spaces to the current line.
       ta.value = before + '  ' + after;
       ta.setSelectionRange(start + 2, end + 2);
     }
@@ -2429,6 +2445,62 @@ function handleSmartTab(e) {
     return true;
   }
   return false;
+}
+
+// v0.33 — Delete current line(s) with Ctrl+Shift+K
+function deleteCurrentLine() {
+  const ta = els.body;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const value = ta.value;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = value.indexOf('\n', end);
+  if (lineEnd === -1) lineEnd = value.length;
+  else lineEnd += 1; // include the newline
+  ta.value = value.slice(0, lineStart) + value.slice(lineEnd);
+  const np = Math.min(lineStart, ta.value.length);
+  ta.setSelectionRange(np, np);
+  scheduleSave();
+}
+
+// v0.33 — Duplicate current line(s) with Ctrl+Shift+D
+function duplicateCurrentLine() {
+  const ta = els.body;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const value = ta.value;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = value.indexOf('\n', end);
+  if (lineEnd === -1) lineEnd = value.length;
+  const block = value.slice(lineStart, lineEnd);
+  ta.value = value.slice(0, lineEnd) + '\n' + block + value.slice(lineEnd);
+  ta.setSelectionRange(start + block.length + 1, end + block.length + 1);
+  scheduleSave();
+}
+
+// v0.33 — Toggle HTML comment around selection (or current line) with Ctrl+/
+function toggleComment() {
+  const ta = els.body;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const value = ta.value;
+  let from, to, sel;
+  if (start === end) {
+    from = value.lastIndexOf('\n', start - 1) + 1;
+    to = value.indexOf('\n', start);
+    if (to === -1) to = value.length;
+    sel = value.slice(from, to);
+  } else {
+    from = start; to = end; sel = value.slice(start, end);
+  }
+  const trimmed = sel.trim();
+  let next;
+  if (trimmed.startsWith('<!--') && trimmed.endsWith('-->')) {
+    next = sel.replace(/^(\s*)<!--\s?/, '$1').replace(/\s?-->(\s*)$/, '$1');
+  } else {
+    next = '<!-- ' + sel + ' -->';
+  }
+  ta.value = value.slice(0, from) + next + value.slice(to);
+  const delta = next.length - sel.length;
+  ta.setSelectionRange(start, end + delta);
+  scheduleSave();
 }
 
 function handleSmartPaste(e) {
@@ -2719,6 +2791,9 @@ const PALETTE_COMMANDS = [
   { name: 'Tabs: close current', shortcut: 'Ctrl+W', run: () => state.activeId && closeTab(state.activeId) },
   { name: 'Tabs: close all', shortcut: '', run: () => { state.tabs = []; saveTabs(); showEmpty(); renderTabs(); } },
   { name: 'Search every note...', shortcut: 'Ctrl+Shift+F', run: openSearchModal },
+  { name: 'Editor: delete current line', shortcut: 'Ctrl+Shift+K', run: () => { if (els.body) { els.body.focus(); deleteCurrentLine(); } } },
+  { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
+  { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
   { name: 'Duplicate current note as...', shortcut: '', run: async () => {
     if (!state.activeId) return;
     const newTitle = prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
@@ -2879,7 +2954,11 @@ document.addEventListener('keydown', (e) => {
   if (e.altKey && e.key === 'ArrowUp' && target === els.body) { e.preventDefault(); moveLine(-1); return; }
   if (e.altKey && e.key === 'ArrowDown' && target === els.body) { e.preventDefault(); moveLine(1); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
+  // v0.33 — Ctrl+/ toggles comment in editor; falls back to cheatsheet elsewhere.
+  if (e.ctrlKey && e.key === '/' && target === els.body) { e.preventDefault(); toggleComment(); return; }
   if (e.ctrlKey && e.key === '/')               { e.preventDefault(); openCheatsheet(); return; }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'k' && target === els.body) { e.preventDefault(); deleteCurrentLine(); return; }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd' && target === els.body) { e.preventDefault(); duplicateCurrentLine(); return; }
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('bold'); return; }
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'i') { e.preventDefault(); applyFormat('italic'); return; }
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); applyFormat('code'); return; }

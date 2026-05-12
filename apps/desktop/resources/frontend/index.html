@@ -494,10 +494,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.32.0</strong></p>
+          <p>Version: <strong id="about-version">v0.33.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.32: writing goals &amp; scroll memory — frontmatter <code>goal: 1000</code> (or <code>goal: 500 chars</code>) shows a progress chip in the editor footer. Per-note scroll position is remembered so opening a long note returns to where you left off.</p>
+          <p class="setting-help">Beta.33: editor power — Tab/Shift+Tab on a multi-line selection block-indents, Ctrl+/ toggles HTML comment around selection, Ctrl+Shift+K deletes the current line, Ctrl+Shift+D duplicates it.</p>
         </div>
       </section>
 
@@ -572,6 +572,11 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td>Middle-click sidebar note</td><td>Open in background tab</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle through open tabs</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close current tab</td></tr>
+          <tr><td><kbd>Tab</kbd> on multi-line selection</td><td>Indent every selected line by 2 spaces</td></tr>
+          <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> on selection</td><td>Outdent every selected line</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd> in editor</td><td>Toggle <code>&lt;!-- comment --&gt;</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td><td>Delete current line</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></td><td>Duplicate current line</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

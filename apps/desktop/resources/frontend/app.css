@@ -964,3 +964,26 @@ textarea.body-input { tab-size: 2; }
 .board-card.pinned { border-left: 3px solid var(--accent); }
 .board-card-title { font-weight: 500; color: var(--text); margin-bottom: 3px; }
 .board-card-preview { color: var(--text-3); font-size: 11.5px; line-height: 1.3; }
+
+/* --- v0.18 — inline queries ----------------------------------------- */
+.md-query {
+  background: var(--bg-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.md-query-h {
+  display: block; font-size: 11px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px;
+  font-family: ui-monospace, monospace;
+}
+.md-query-results { list-style: none; margin: 0; padding: 0; }
+.md-query-results li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; font-size: 13px;
+}
+.md-query-results a { color: var(--text); text-decoration: none; }
+.md-query-results a:hover { color: var(--accent); text-decoration: underline; }
+.md-query-time { font-size: 11.5px; color: var(--text-3); }
+.md-query-loading, .md-query-empty { color: var(--text-3); font-style: italic; }
+.md-query-error { color: var(--danger); font-style: italic; }

@@ -512,6 +512,35 @@ function renderPreview() {
       }
     });
   });
+  // v0.18 — inline queries: hydrate each `<div class="md-query">` with results.
+  els.preview.querySelectorAll('div.md-query').forEach(async (box) => {
+    const expr = box.getAttribute('data-query') || '';
+    const ul = box.querySelector('ul.md-query-results');
+    if (!ul) return;
+    try {
+      const results = await invoke('query_notes', { query: expr });
+      ul.innerHTML = '';
+      if (!results.length) {
+        const li = document.createElement('li');
+        li.className = 'md-query-empty'; li.textContent = 'No matches.';
+        ul.appendChild(li);
+        return;
+      }
+      for (const r of results) {
+        const li = document.createElement('li');
+        const a = document.createElement('a'); a.href = '#';
+        a.textContent = r.title || 'Untitled';
+        a.addEventListener('click', (e) => { e.preventDefault(); openNote(r.id); });
+        li.appendChild(a);
+        const t = document.createElement('span'); t.className = 'md-query-time';
+        t.textContent = fmtDate(r.updated_at);
+        li.appendChild(t);
+        ul.appendChild(li);
+      }
+    } catch (e) {
+      ul.innerHTML = '<li class="md-query-error">' + escapeHtml(String(e)) + '</li>';
+    }
+  });
   // v0.11 — copy buttons on code blocks.
   els.preview.querySelectorAll('button.code-copy').forEach(btn => {
     btn.addEventListener('click', async (e) => {

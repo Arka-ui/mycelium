@@ -1,3 +1,29 @@
+# Mycelium v0.18.0-beta.1 - Inline queries
+
+beta.18 ships a tiny query DSL that turns any note into a live dashboard.
+
+## New in v0.18.0
+
+### `!query:` syntax
+- Drop a line of `!query: <expression>` (case-insensitive prefix) anywhere in a note. In preview, the line becomes a styled, clickable list of matching notes.
+- Hydrated asynchronously after render; sorted by `updated_at` desc.
+
+### Supported expressions
+- `tag=NAME`        — notes that contain `#NAME`
+- `KEY=VALUE`       — notes with frontmatter `KEY: VALUE` (case-insensitive on key + value)
+- `KEY`             — notes that have any value for frontmatter `KEY`
+- `orphan` / `orphans` — notes with zero in/out wiki-links
+- `pinned`          — pinned notes
+- `untitled`        — notes whose title is empty
+
+### Backend
+- New `query_notes(query)` command. Internally reuses the existing helpers (`extract_tags`, `parse_frontmatter`, `orphan_notes`).
+
+### Auto-update
+- Pushing v0.18.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.17.0-beta.1 - Kanban board
 
 beta.17 turns the brand-new frontmatter properties into a workflow surface: a Settings → Board tab groups every note by any property and lets you drag cards between columns to rewrite the underlying note's frontmatter automatically.

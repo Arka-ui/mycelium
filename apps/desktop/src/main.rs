@@ -1023,6 +1023,100 @@ fn rewrite_property(body: &str, key: &str, value: Option<&str>) -> String {
     out
 }
 
+/// Run a tiny query DSL across the workspace. Supported forms:
+/// - `tag=NAME`  → notes carrying #NAME
+/// - `KEY=VALUE` → notes with frontmatter `KEY: VALUE`
+/// - `KEY`       → notes that have any value for frontmatter KEY
+/// - `orphan`    → notes with zero in/out wiki-links
+/// - `pinned`    → pinned notes
+/// - `untitled`  → notes with empty title
+/// All matches are case-insensitive on keys/values; values are exact matches.
+#[tauri::command]
+fn query_notes(state: State<'_, AppState>, query: String) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let q = query.trim().to_string();
+    if q.is_empty() {
+        return Ok(vec![]);
+    }
+    let lc = q.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    if lc == "orphan" || lc == "orphans" {
+        return orphan_notes(state);
+    }
+    if lc == "pinned" {
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && n.pinned)
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+    if lc == "untitled" {
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && n.title.trim().is_empty())
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+    // Parse `[key]=[value]` or `key`.
+    let (key_raw, value_opt) = match q.split_once('=') {
+        Some((k, v)) => (k.trim().to_string(), Some(v.trim().to_string())),
+        None => (q.clone(), None),
+    };
+    let key = key_raw.to_lowercase();
+
+    if key == "tag" {
+        let want = value_opt.unwrap_or_default().to_lowercase();
+        if want.is_empty() {
+            return Err("tag query requires a value (tag=name)".into());
+        }
+        let mut out: Vec<NoteSummary> = notes
+            .iter()
+            .filter(|n| n.trashed_at.is_none() && extract_tags(&n.body).iter().any(|t| t == &want))
+            .map(Store::summarize)
+            .collect();
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        return Ok(out);
+    }
+
+    let want_value = value_opt.map(|v| v.to_lowercase());
+    let mut out: Vec<NoteSummary> = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut hit = false;
+        for (k, v) in &props {
+            if k.to_lowercase() != key {
+                continue;
+            }
+            match &want_value {
+                None => {
+                    hit = true;
+                    break;
+                }
+                Some(want) => {
+                    if &v.to_lowercase() == want {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if hit {
+            out.push(Store::summarize(n));
+        }
+    }
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
 /// Group notes into columns by frontmatter property `key`. Notes lacking that property go into
 /// the synthetic "(none)" column. Columns are returned in the order their values were first seen.
 #[tauri::command]
@@ -2365,6 +2459,7 @@ fn main() -> Result<()> {
             all_property_keys,
             set_property,
             board_data,
+            query_notes,
             export_note_md,
             export_all_md,
             import_md,

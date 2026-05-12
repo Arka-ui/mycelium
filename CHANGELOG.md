@@ -1,3 +1,29 @@
+# Mycelium v0.45.0-beta.1 - In-note bookmarks
+
+beta.45 introduces in-note named anchors — like a heading link, but pointable to any spot in the body.
+
+## New in v0.45.0
+
+### Syntax
+- Drop `^bookmark-name` anywhere in a note's body. In preview it renders as a tiny ⚓ glyph carrying `id="bm-bookmark-name"`. The source text is unchanged in the saved file.
+- Names: `[A-Za-z0-9_-]{2,40}` and must be word-boundary'd (so `f^a^b` doesn't accidentally make anchors).
+
+### Wiki-link to a bookmark
+- `[[Note^bookmark-name]]` (mirroring `[[Note#Heading]]`) opens the target note and scrolls preview to the bookmark.
+- Combine with display text: `[[Note^bookmark-name|see this]]`.
+
+### Backend
+- `resolve_link` now accepts whichever of `#` or `^` appears first as the anchor separator and tags the resolved anchor with the leading character so the frontend picks the right scroll behavior.
+
+### Frontend
+- `markdown.js` parses both `#` and `^` anchor separators in `[[…]]`.
+- `scrollPreviewToHeading()` recognises `^name` anchors via `id="bm-<name>"` lookup.
+
+### Auto-update
+- Pushing v0.45.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.44.0-beta.1 - Compare & goal bar
 
 beta.44 reuses the v0.39 snapshot-diff infrastructure to compare any two notes side-by-side, and dresses up the writing-goal chip with a filled progress bar.

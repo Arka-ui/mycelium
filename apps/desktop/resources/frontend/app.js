@@ -2501,11 +2501,18 @@ function finishPomodoro() {
 }
 
 // v0.20 — scroll preview to a heading whose text matches `anchor` (case-insensitive).
+// v0.45 — also recognise `^bookmark` anchors (resolved against `id="bm-<name>"` spans).
 function scrollPreviewToHeading(anchor) {
   if (!anchor || !els.preview) return;
-  // Wait one frame for renderPreview to finish (in case openNote just ran).
   requestAnimationFrame(() => {
-    const want = anchor.trim().toLowerCase();
+    const raw = String(anchor).trim();
+    if (raw.startsWith('^')) {
+      const name = raw.slice(1).toLowerCase();
+      const el = els.preview.querySelector('#bm-' + CSS.escape(name));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const want = raw.toLowerCase();
     const heads = els.preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
     for (const h of heads) {
       const txt = (h.textContent || '').replace(/^▾\s*/, '').trim().toLowerCase();

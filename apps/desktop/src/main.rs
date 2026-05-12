@@ -1638,8 +1638,23 @@ fn resolve_link(state: State<'_, AppState>, target: String) -> Result<serde_json
     if raw.is_empty() {
         return Ok(serde_json::json!({}));
     }
-    let (link_part, anchor) = match raw.split_once('#') {
-        Some((l, a)) => (l.trim().to_string(), Some(a.trim().to_string())),
+    // v0.45 — accept either `#heading-text` or `^bookmark-name` as the anchor separator.
+    // Whichever appears first wins; the other is treated as part of the value.
+    let split_at = match (raw.find('#'), raw.find('^')) {
+        (Some(h), Some(b)) => Some(h.min(b)),
+        (Some(h), None) => Some(h),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    let (link_part, anchor) = match split_at {
+        Some(i) => {
+            let l = raw[..i].trim().to_string();
+            let a = raw[i + 1..].trim().to_string();
+            let kind = &raw[i..i + 1];
+            // Tag the anchor type so the frontend can pick the right scroll behavior.
+            let tagged = if kind == "^" { format!("^{}", a) } else { a };
+            (l, Some(tagged))
+        }
         None => (raw.clone(), None),
     };
     if link_part.is_empty() {

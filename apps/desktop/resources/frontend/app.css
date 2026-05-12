@@ -1094,6 +1094,13 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 .diff-body .ctx { color: var(--text-3); display: block; }
 .diff-body .cut { color: var(--text-3); display: block; font-style: italic; padding: 4px 0; }
 
+/* --- v0.45 — in-note bookmark anchor glyph ----------------------- */
+.bookmark-anchor {
+  color: var(--accent); opacity: 0.8;
+  font-size: 0.85em; padding: 0 2px;
+  cursor: help;
+}
+
 /* --- v0.37 — auto-wiki-link visual cue ----------------------------- */
 .preview a.wiki-link.auto {
   text-decoration: underline dotted;

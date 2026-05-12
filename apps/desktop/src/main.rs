@@ -1019,6 +1019,14 @@ struct Settings {
     show_backlinks: bool,
     #[serde(default)]
     saved_searches: Vec<SavedSearch>,
+    #[serde(default)]
+    spell_check: bool,
+    #[serde(default = "default_sort_by")]
+    sort_by: String,
+}
+
+fn default_sort_by() -> String {
+    "updated".to_string()
 }
 
 fn default_true() -> bool {
@@ -1038,6 +1046,8 @@ impl Default for Settings {
             default_preview: false,
             show_backlinks: true,
             saved_searches: vec![],
+            spell_check: false,
+            sort_by: "updated".to_string(),
         }
     }
 }

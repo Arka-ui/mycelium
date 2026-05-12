@@ -55,6 +55,7 @@ const els = {};
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'filter-pill','filter-pill-text','filter-pill-count','filter-pill-clear',
+  'today-section','today-toggle','today-caret','today-count','today-list',
   'opt-auto-wiki-link','opt-pomodoro','pomodoro','opt-auto-lock-idle','opt-sync-scroll',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
@@ -387,7 +388,75 @@ async function loadNotes() {
     renderTagBar();
     refreshTrashBadge();
     refreshFilterPill(); // v0.46
+    refreshTodaySection(); // v0.48
   } catch (e) { setStatus('error: ' + e); console.error(e); }
+}
+
+// v0.48 — "Today" section in the sidebar showing every note touched today (local TZ).
+const TODAY_COLLAPSED_KEY = 'mycelium.today_collapsed.v1';
+function isTodayCollapsed() {
+  try { return localStorage.getItem(TODAY_COLLAPSED_KEY) === '1'; } catch (_) { return false; }
+}
+function setTodayCollapsed(v) {
+  try { localStorage.setItem(TODAY_COLLAPSED_KEY, v ? '1' : '0'); } catch (_) {}
+}
+function refreshTodaySection() {
+  if (!els.todaySection) return;
+  // Use today's local-date as YYYY-MM-DD; compare against the prefix of n.updated_at (UTC ISO).
+  // To avoid a timezone mismatch we compare the local-date prefix of `Date(updated_at)`.
+  const todayLocal = new Date();
+  const y = todayLocal.getFullYear();
+  const m = String(todayLocal.getMonth() + 1).padStart(2, '0');
+  const d = String(todayLocal.getDate()).padStart(2, '0');
+  const key = `${y}-${m}-${d}`;
+  const pool = (state._allNotesCache && state._allNotesCache.length ? state._allNotesCache : state.notes) || [];
+  const today = pool.filter(n => {
+    if (n.trashed_at) return false;
+    if (!n.updated_at) return false;
+    const dt = new Date(n.updated_at);
+    if (isNaN(dt.getTime())) return false;
+    const ly = dt.getFullYear();
+    const lm = String(dt.getMonth() + 1).padStart(2, '0');
+    const ld = String(dt.getDate()).padStart(2, '0');
+    return `${ly}-${lm}-${ld}` === key;
+  }).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  if (!today.length) {
+    els.todaySection.classList.add('hidden');
+    return;
+  }
+  els.todaySection.classList.remove('hidden');
+  els.todayCount.textContent = today.length;
+  const collapsed = isTodayCollapsed();
+  els.todayCaret.textContent = collapsed ? '▸' : '▾';
+  els.todayList.classList.toggle('hidden', collapsed);
+  if (!collapsed) {
+    els.todayList.innerHTML = '';
+    for (const n of today.slice(0, 10)) {
+      const li = document.createElement('li');
+      li.className = 'today-item' + (n.id === state.activeId ? ' active' : '');
+      const title = n.title && n.title.trim() ? n.title : 'Untitled';
+      const t = document.createElement('span'); t.className = 'today-item-title';
+      t.textContent = (n.icon && n.icon.length <= 4 ? n.icon + ' ' : '') + title;
+      li.appendChild(t);
+      const ts = document.createElement('span'); ts.className = 'today-item-time';
+      ts.textContent = fmtDate(n.updated_at);
+      li.appendChild(ts);
+      li.addEventListener('click', () => openNote(n.id));
+      els.todayList.appendChild(li);
+    }
+    if (today.length > 10) {
+      const more = document.createElement('li');
+      more.className = 'today-item today-more';
+      more.textContent = `+${today.length - 10} more in the main list below`;
+      els.todayList.appendChild(more);
+    }
+  }
+}
+if (els.todayToggle) {
+  els.todayToggle.addEventListener('click', () => {
+    setTodayCollapsed(!isTodayCollapsed());
+    refreshTodaySection();
+  });
 }
 
 // v0.46 — sticky pill above the note list summarising the active filter.

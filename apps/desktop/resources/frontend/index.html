@@ -48,6 +48,15 @@
       <button id="filter-pill-clear" title="Clear filter (Esc)" aria-label="Clear filter">×</button>
     </div>
 
+    <div id="today-section" class="today-section hidden">
+      <button id="today-toggle" class="today-toggle" title="Collapse / expand">
+        <span id="today-caret" class="today-caret">▾</span>
+        <span>Today</span>
+        <span id="today-count" class="today-count"></span>
+      </button>
+      <ul id="today-list" class="today-list"></ul>
+    </div>
+
     <div id="bulk-bar" class="bulk-bar hidden">
       <span id="bulk-count" class="bulk-count">0 selected</span>
       <div class="bulk-actions">
@@ -565,10 +574,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.47.0</strong></p>
+          <p>Version: <strong id="about-version">v0.48.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.47: editor color band + per-note word frequency — the editor pane shows a 3 px top border in the note's frontmatter <code>color:</code>, and a new palette command lists this note's top 30 words.</p>
+          <p class="setting-help">Beta.48: "Today" sidebar section — a collapsible quick-access row above the regular note list shows every note touched today (uses the local timezone). Empty days are hidden.</p>
         </div>
       </section>
 

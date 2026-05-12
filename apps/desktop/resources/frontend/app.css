@@ -1059,6 +1059,37 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 .goal-bar-fill { display: block; height: 100%; background: var(--accent); transition: width 0.3s ease; }
 .goal-text { vertical-align: middle; }
 
+/* --- v0.48 — "Today" sidebar section -------------------------------- */
+.today-section {
+  margin: 0 8px 6px;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-2));
+}
+.today-toggle {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  background: transparent; border: none;
+  padding: 5px 10px; font-size: 11.5px; color: var(--text-2);
+  cursor: pointer; text-align: left;
+}
+.today-toggle:hover { color: var(--text); }
+.today-caret { width: 10px; display: inline-block; }
+.today-count {
+  margin-left: auto; background: var(--bg-3); color: var(--text-3);
+  border-radius: 999px; padding: 0 7px; font-size: 11px;
+}
+.today-list { list-style: none; padding: 0 4px 6px; margin: 0; }
+.today-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; color: var(--text-2); gap: 8px;
+}
+.today-item:hover { background: var(--bg-3); color: var(--text); }
+.today-item.active { background: var(--bg-3); color: var(--text); }
+.today-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-item-time { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.today-more { font-style: italic; cursor: default; color: var(--text-3); }
+.today-more:hover { background: transparent; color: var(--text-3); }
+
 /* --- v0.46 — sticky active-filter pill -------------------------------- */
 .filter-pill {
   display: flex; align-items: center; gap: 6px;

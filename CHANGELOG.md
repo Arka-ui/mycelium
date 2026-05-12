@@ -1,3 +1,20 @@
+# Mycelium v0.48.0-beta.1 - "Today" sidebar section
+
+beta.48 surfaces the notes you actually touched today right at the top of the sidebar.
+
+## New in v0.48.0
+
+### Today section
+- A collapsible accent-tinted section appears above the regular note list when at least one note was updated today (compared in the user's local timezone).
+- Header shows the count chip (e.g. `Today  5`); click to collapse/expand.
+- Up to 10 entries listed with title (optional icon prefix) and "X min ago" timestamp; overflow → `+N more in the main list below`.
+- Collapsed state persisted in `localStorage` (`mycelium.today_collapsed.v1`).
+
+### Auto-update
+- Pushing v0.48.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.47.0-beta.1 - Editor color band + per-note word frequency
 
 beta.47 leans further into the v0.28 visual-metadata story and adds a per-note lexical command.

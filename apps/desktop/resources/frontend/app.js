@@ -3253,21 +3253,52 @@ function handleSmartPaste(e) {
   if (!state.settings.auto_pair) return false; // share the toggle for predictability
   const ta = els.body;
   const start = ta.selectionStart, end = ta.selectionEnd;
-  if (start === end) return false;
   const data = (e.clipboardData || window.clipboardData);
   if (!data) return false;
   const text = data.getData('text/plain');
-  if (!/^https?:\/\/\S+$/.test(text)) return false;
-  e.preventDefault();
-  const sel = ta.value.slice(start, end);
-  const before = ta.value.slice(0, start);
-  const after = ta.value.slice(end);
-  ta.value = before + '[' + sel + '](' + text + ')' + after;
-  // Place cursor after the link.
-  const np = before.length + 1 + sel.length + 2 + text.length + 1;
-  ta.setSelectionRange(np, np);
-  scheduleSave();
-  return true;
+  if (!text) return false;
+  // 1) URL-on-selection → wraps as [sel](url)
+  if (start !== end && /^https?:\/\/\S+$/.test(text)) {
+    e.preventDefault();
+    const sel = ta.value.slice(start, end);
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + '[' + sel + '](' + text + ')' + after;
+    const np = before.length + 1 + sel.length + 2 + text.length + 1;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  // 2) v0.58 — TSV (tab-separated, ≥2 cols, ≥2 rows) → render as Markdown table
+  const md = tsvToMarkdownTable(text);
+  if (md) {
+    e.preventDefault();
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + md + after;
+    const np = before.length + md.length;
+    ta.setSelectionRange(np, np);
+    scheduleSave();
+    return true;
+  }
+  return false;
+}
+
+// v0.58 — minimal TSV → Markdown table converter. Returns null if the text doesn't
+// look like a table (≥2 rows, ≥2 columns, all rows have the same column count).
+function tsvToMarkdownTable(text) {
+  if (!text || text.length > 50000) return null;
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.length > 0);
+  if (lines.length < 2) return null;
+  const rows = lines.map(l => l.split('\t'));
+  const cols = rows[0].length;
+  if (cols < 2) return null;
+  if (!rows.every(r => r.length === cols)) return null;
+  const escCell = (c) => String(c).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  const head = '| ' + rows[0].map(escCell).join(' | ') + ' |';
+  const sep = '| ' + Array(cols).fill('---').join(' | ') + ' |';
+  const body = rows.slice(1).map(r => '| ' + r.map(escCell).join(' | ') + ' |').join('\n');
+  return '\n' + head + '\n' + sep + '\n' + body + '\n';
 }
 
 function stripTrailingWhitespace(s) {

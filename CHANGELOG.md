@@ -1,3 +1,26 @@
+# Mycelium v0.58.0-beta.1 - Smart paste TSV → Markdown table
+
+beta.58 turns clipboard contents from spreadsheets and database rows into proper Markdown tables.
+
+## New in v0.58.0
+
+### Auto-detect TSV
+- When you paste tab-separated text with at least 2 rows and 2 columns of consistent shape, it's converted to a Markdown table:
+  - First row becomes the header.
+  - A `| --- |` separator row is inserted.
+  - Pipes inside cells are escaped (`\|`).
+  - Newlines inside cells are flattened to spaces.
+- Uses the same auto-pair setting toggle as URL-on-selection paste so users can disable both at once.
+
+### Existing paste rules preserved
+- URL pasted onto a selection still wraps as `[selection](url)`.
+- File paste (image / attachment) still attaches as before.
+
+### Auto-update
+- Pushing v0.58.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.57.0-beta.1 - Back / forward navigation
 
 beta.57 brings browser-style navigation history to the editor. Hop through your reading trail without losing context.

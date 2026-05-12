@@ -1,3 +1,35 @@
+# Mycelium v0.6.0-beta.1 - Power user
+
+beta.6 piles on the small features that make Mycelium feel fast under your fingers. Selection toolbar, format shortcuts, sort options, spell-check toggle, keyboard cheatsheet.
+
+## New in v0.6.0
+
+### Editor
+- **Floating selection toolbar**: select any text in the body and a small toolbar appears (B / I / `code` / strike / link / H1 / H2 / quote). One click wraps your selection.
+- **Format shortcuts** in the body textarea:
+  - `Ctrl+B` → wrap in `**bold**`
+  - `Ctrl+I` → wrap in `*italic*`
+  - `Ctrl+E` → wrap in `` `code` ``
+  - `Ctrl+L` → wrap in `[selection](url)` (prompts for URL)
+- **Spell check toggle** in Settings → General. Off by default to keep code/data text underline-free.
+
+### Navigation
+- **Note sort**: Settings → General offers Updated (newest), Created (newest), or Title (A-Z). Pinned notes always come first within the chosen sort.
+- **Keyboard cheatsheet** modal (`Ctrl+/` from anywhere) lists every shortcut with its action.
+
+### Backend
+- `Settings` struct gains `spell_check: bool` and `sort_by: String` (back-compat defaults).
+- No new commands.
+
+### Auto-update
+- Pushing v0.6.0-beta.1 triggers signed builds + manifest update. Installed v0.5.0 detects the upgrade on next launch.
+
+## Upgrade
+
+Launch Mycelium → updater offers v0.6.0 → install. Notes, themes, plugins, settings all carry over.
+
+---
+
 # Mycelium v0.5.0-beta.1 - Markdown power
 
 beta.5 turns the Markdown preview into a real reading surface. Math, code highlighting, footnotes, definition lists, auto-links — the kind of features that make a notes app good for technical writing instead of just sticky notes.

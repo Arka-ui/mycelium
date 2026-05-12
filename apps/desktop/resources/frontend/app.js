@@ -39,6 +39,7 @@ const els = {};
   'history-btn','history-modal','hm-close','history-list','hm-purge-btn',
   'attach-btn','attach-input','export-workspace-btn','import-workspace-btn',
   'saved-searches','save-search-btn',
+  'opt-spell-check','opt-sort','sel-toolbar','cheatsheet-modal','cs-close',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -104,6 +105,7 @@ function renderList() {
   if (state.activeTag) {
     items = items.filter(n => (n.tags || []).includes(state.activeTag));
   }
+  if (!state.query.trim()) items = sortNotes(items);
   els.noteList.innerHTML = '';
   if (!items.length) {
     const li = document.createElement('li');
@@ -482,11 +484,34 @@ async function loadSettings() {
     if (state.settings.default_preview === undefined) state.settings.default_preview = false;
     if (state.settings.show_backlinks === undefined) state.settings.show_backlinks = true;
     if (!state.settings.saved_searches) state.settings.saved_searches = [];
+    if (state.settings.spell_check === undefined) state.settings.spell_check = false;
+    if (!state.settings.sort_by) state.settings.sort_by = 'updated';
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
+    els.optSpellCheck.checked = !!state.settings.spell_check;
+    els.optSort.value = state.settings.sort_by;
+    applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
+}
+
+function applySpellCheck() {
+  const on = !!state.settings.spell_check;
+  els.title.spellcheck = on;
+  els.body.spellcheck = on;
+}
+
+function sortNotes(notes) {
+  const by = state.settings.sort_by || 'updated';
+  const arr = notes.slice();
+  arr.sort((a, b) => {
+    if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+    if (by === 'title') return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+    if (by === 'created') return (b.created_at || b.updated_at || '').localeCompare(a.created_at || a.updated_at || '');
+    return (b.updated_at || '').localeCompare(a.updated_at || '');
+  });
+  return arr;
 }
 
 function renderSavedSearches() {
@@ -659,8 +684,11 @@ async function saveSettings() {
   state.settings.auto_check_updates = !!els.optAutoUpdate.checked;
   state.settings.default_preview = !!els.optDefaultPreview.checked;
   state.settings.show_backlinks = !!els.optShowBacklinks.checked;
+  state.settings.spell_check = !!els.optSpellCheck.checked;
+  state.settings.sort_by = els.optSort.value || 'updated';
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
+  applySpellCheck();
 }
 
 async function loadThemes() {
@@ -998,6 +1026,77 @@ function hideMenus() {
   els.templateMenu.classList.add('hidden');
 }
 
+function wrapSelection(textarea, before, after, placeholder) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const value = textarea.value;
+  const sel = value.slice(start, end);
+  const inner = sel || (placeholder || '');
+  const prefix = value.slice(0, start);
+  const suffix = value.slice(end);
+  const updated = prefix + before + inner + after + suffix;
+  textarea.value = updated;
+  if (sel) {
+    textarea.selectionStart = start + before.length;
+    textarea.selectionEnd = start + before.length + inner.length;
+  } else {
+    textarea.selectionStart = textarea.selectionEnd = start + before.length;
+  }
+  textarea.focus();
+  scheduleSave();
+}
+
+function applyFormat(fmt) {
+  if (!state.activeId) return;
+  const ta = els.body;
+  switch (fmt) {
+    case 'bold':   wrapSelection(ta, '**', '**', 'bold text'); break;
+    case 'italic': wrapSelection(ta, '*', '*', 'italic text'); break;
+    case 'code':   wrapSelection(ta, '`', '`', 'code'); break;
+    case 'strike': wrapSelection(ta, '~~', '~~', 'struck text'); break;
+    case 'link': {
+      const url = prompt('URL:', 'https://');
+      if (!url) return;
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+      wrapSelection(ta, '[', `](${url})`, sel || 'link text');
+      break;
+    }
+    case 'h1':    wrapLineStart(ta, '# '); break;
+    case 'h2':    wrapLineStart(ta, '## '); break;
+    case 'quote': wrapLineStart(ta, '> '); break;
+  }
+}
+
+function wrapLineStart(textarea, prefix) {
+  const start = textarea.selectionStart;
+  const value = textarea.value;
+  let lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const before = value.slice(0, lineStart);
+  const after = value.slice(lineStart);
+  textarea.value = before + prefix + after;
+  textarea.selectionStart = textarea.selectionEnd = start + prefix.length;
+  textarea.focus();
+  scheduleSave();
+}
+
+function showSelToolbar() {
+  if (!state.activeId || state.preview) { hideSelToolbar(); return; }
+  const ta = els.body;
+  if (ta.selectionStart === ta.selectionEnd) { hideSelToolbar(); return; }
+  const taRect = ta.getBoundingClientRect();
+  const tb = els.selToolbar;
+  tb.classList.remove('hidden');
+  const tbRect = tb.getBoundingClientRect();
+  const left = Math.min(taRect.left + 30, window.innerWidth - tbRect.width - 12);
+  const top = Math.max(taRect.top - tbRect.height - 6, 6);
+  tb.style.left = left + 'px';
+  tb.style.top = top + 'px';
+}
+function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
+
+function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
+function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
+
 const PALETTE_COMMANDS = [
   { name: 'New note', shortcut: 'Ctrl+N', run: newNote },
   { name: 'New daily note', shortcut: 'Ctrl+D', run: newDailyNote },
@@ -1015,6 +1114,11 @@ const PALETTE_COMMANDS = [
   { name: 'Save current as template', shortcut: '', run: saveActiveAsTemplate },
   { name: 'Duplicate current note', shortcut: '', run: async () => { if (state.activeId) { const dup = await invoke('duplicate_note', { id: state.activeId }); await loadNotes(); openNote(dup.id); } } },
   { name: 'Pin / unpin current', shortcut: '', run: togglePin },
+  { name: 'Show keyboard cheatsheet', shortcut: 'Ctrl+/', run: openCheatsheet },
+  { name: 'Bold selection', shortcut: 'Ctrl+B', run: () => applyFormat('bold') },
+  { name: 'Italic selection', shortcut: 'Ctrl+I', run: () => applyFormat('italic') },
+  { name: 'Code selection', shortcut: 'Ctrl+E', run: () => applyFormat('code') },
+  { name: 'Link selection', shortcut: 'Ctrl+L', run: () => applyFormat('link') },
 ];
 
 function fuzzyScore(text, q) {
@@ -1129,10 +1233,18 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && inField && target === els.title) { e.preventDefault(); newDailyNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
+  if (e.ctrlKey && e.key === '/')               { e.preventDefault(); openCheatsheet(); return; }
+  if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('bold'); return; }
+  if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'i') { e.preventDefault(); applyFormat('italic'); return; }
+  if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); applyFormat('code'); return; }
+  if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'l') { e.preventDefault(); applyFormat('link'); return; }
   if (e.ctrlKey && e.key === ',')               { e.preventDefault(); cycleTheme(); return; }
   if (e.key === '/' && !inField)                { e.preventDefault(); els.search.focus(); return; }
   if (e.key === 'Escape') {
+    if (!els.cheatsheetModal.classList.contains('hidden')) { closeCheatsheet(); return; }
+    if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
+    if (!els.selToolbar.classList.contains('hidden')) { hideSelToolbar(); return; }
     if (target === els.search) { els.search.value = ''; state.query = ''; loadNotes(); els.search.blur(); }
   }
 });
@@ -1234,6 +1346,31 @@ els.body.addEventListener('drop', async (e) => {
   const files = Array.from(e.dataTransfer.files || []);
   for (const f of files) await attachFile(f);
 });
+
+document.addEventListener('selectionchange', () => {
+  if (document.activeElement === els.body) {
+    if (els.body.selectionStart !== els.body.selectionEnd) {
+      requestAnimationFrame(showSelToolbar);
+    } else {
+      hideSelToolbar();
+    }
+  }
+});
+els.body.addEventListener('blur', (e) => {
+  setTimeout(() => {
+    if (!els.selToolbar.contains(document.activeElement)) hideSelToolbar();
+  }, 100);
+});
+els.selToolbar.querySelectorAll('button[data-fmt]').forEach(b => {
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  b.addEventListener('click', () => { applyFormat(b.dataset.fmt); requestAnimationFrame(showSelToolbar); });
+});
+
+els.csClose.addEventListener('click', closeCheatsheet);
+els.cheatsheetModal.addEventListener('click', (e) => { if (e.target === els.cheatsheetModal) closeCheatsheet(); });
+
+els.optSpellCheck.addEventListener('change', saveSettings);
+els.optSort.addEventListener('change', () => { saveSettings(); renderList(); });
 
 window.addEventListener('beforeunload', () => {
   if (state.pendingTimer) { clearTimeout(state.pendingTimer); flushSave(); }

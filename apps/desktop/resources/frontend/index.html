@@ -63,7 +63,7 @@
 
     <article id="editor" class="editor hidden">
       <header class="ed-head">
-        <input id="title" class="title-input" placeholder="Untitled" autocomplete="off" spellcheck="false">
+        <input id="title" class="title-input" placeholder="Untitled" autocomplete="off">
         <div class="ed-toolbar">
           <button id="outline-btn" class="icon-btn" title="Toggle outline">&#9776;</button>
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
@@ -156,6 +156,26 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">Lists every note that references the current one via <code>[[wiki-link]]</code>.</div>
             </div>
           </label>
+          <label class="setting-row">
+            <input id="opt-spell-check" type="checkbox">
+            <div>
+              <div class="setting-name">Browser spell-check in title and body</div>
+              <div class="setting-help">Underlines misspelled words. Right-click for suggestions. Off by default to keep code-text clean.</div>
+            </div>
+          </label>
+        </div>
+        <div class="setting-group">
+          <h3>Note list</h3>
+          <div class="setting-row">
+            <label>Sort by
+              <select id="opt-sort" class="select">
+                <option value="updated">Updated (newest first)</option>
+                <option value="created">Created (newest first)</option>
+                <option value="title">Title (A-Z)</option>
+              </select>
+            </label>
+          </div>
+          <p class="setting-help">Pinned notes always come first within the chosen sort.</p>
         </div>
       </section>
 
@@ -277,10 +297,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.5.0</strong></p>
+          <p>Version: <strong id="about-version">v0.6.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.5: math (LaTeX-style $...$ and $$...$$), code-block syntax highlighting (js/ts/rust/py/sh/json), footnotes, definition lists, auto-link bare URLs.</p>
+          <p class="setting-help">Beta.6: floating selection toolbar, format shortcuts (Ctrl+B/I/E/L), spell-check toggle, configurable note sort, keyboard cheatsheet (Ctrl+/).</p>
         </div>
       </section>
 
@@ -290,6 +310,47 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
 
 <ul id="ctx-menu" class="ctx-menu hidden" role="menu"></ul>
 <ul id="template-menu" class="ctx-menu hidden" role="menu"></ul>
+
+<div id="sel-toolbar" class="sel-toolbar hidden" role="toolbar">
+  <button data-fmt="bold"   title="Bold (Ctrl+B)"><strong>B</strong></button>
+  <button data-fmt="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+  <button data-fmt="code"   title="Inline code (Ctrl+E)"><code>&lt;&gt;</code></button>
+  <button data-fmt="strike" title="Strikethrough"><del>S</del></button>
+  <button data-fmt="link"   title="Link (Ctrl+L)">&#128279;</button>
+  <button data-fmt="h1"     title="Heading 1">H1</button>
+  <button data-fmt="h2"     title="Heading 2">H2</button>
+  <button data-fmt="quote"  title="Blockquote">&ldquo;</button>
+</div>
+
+<div id="cheatsheet-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-labelledby="cs-title">
+    <header class="modal-head">
+      <h2 id="cs-title">Keyboard shortcuts</h2>
+      <button id="cs-close" class="icon-btn" title="Close (Esc)">&times;</button>
+    </header>
+    <div class="modal-body">
+      <table class="cs-table">
+        <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New note</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Daily note (today)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Command palette</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Force save</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>Toggle preview</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Cycle theme</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td>Show this cheatsheet</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close modal / clear search / hide selection toolbar</td></tr>
+          <tr><th colspan="2" class="cs-section">In the editor</th></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Wrap selection in <code>**bold**</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Wrap selection in <code>*italic*</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Wrap selection in <code>`code`</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Wrap selection in <code>[label](url)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <div id="cmd-palette" class="cmd-palette hidden">
   <div class="cmd-inner">

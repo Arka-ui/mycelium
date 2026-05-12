@@ -1,3 +1,23 @@
+# Mycelium v0.73.0-beta.1 - Workspace overview
+
+beta.73 adds a one-shot dialog that summarises every dashboard stat at the press of a palette command — no need to open Settings → Dashboard.
+
+## New in v0.73.0
+
+### Palette command "Show workspace overview"
+- Calls the existing `dashboard_stats` and renders a fixed-width report in an alert dialog:
+  - Total notes / pinned
+  - Total words / characters
+  - Wiki-links count and distinct tag count
+  - Streak (days), active days, avg words per active day
+  - Total writing time (formatted as `Nh Mm`)
+  - Earliest and latest note timestamps
+
+### Auto-update
+- Pushing v0.73.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.72.0-beta.1 - LaTeX expansion
 
 beta.72 enriches inline math rendering with substantially more symbols and a handful of accent / decoration macros.

@@ -4121,6 +4121,30 @@ const PALETTE_COMMANDS = [
       const lines = top.map(([w, c], i) => `${(i+1).toString().padStart(2,' ')}. ${w}  (${c})`);
       alert('Top words in this note:\n\n' + lines.join('\n'));
   } },
+  // v0.73 — workspace overview as a single dialog (no UI dependencies; reuses dashboard_stats).
+  { name: 'Show workspace overview', shortcut: '', run: async () => {
+      try {
+        const s = await invoke('dashboard_stats');
+        const fmt = (n) => (typeof n === 'number') ? n.toLocaleString() : (n || '0');
+        const lines = [
+          'WORKSPACE OVERVIEW',
+          '',
+          `Notes:           ${fmt(s.total_notes)}    Pinned:  ${fmt(s.pinned)}`,
+          `Words:           ${fmt(s.total_words)}`,
+          `Characters:      ${fmt(s.total_chars)}`,
+          `Wiki-links:      ${fmt(s.links)}`,
+          `Distinct tags:   ${fmt(s.distinct_tags != null ? s.distinct_tags : (s.top_tags || []).length)}`,
+          '',
+          `Streak (days):   ${fmt(s.streak_days)}    Active days: ${fmt(s.active_days)}`,
+          `Avg words/day:   ${fmt(s.avg_words_per_active_day)}`,
+          `Total writing:   ${fmtMinutes(s.writing_minutes || 0)}`,
+          '',
+          (s.earliest ? `Earliest note:   ${new Date(s.earliest).toLocaleString()}` : ''),
+          (s.latest   ? `Latest note:     ${new Date(s.latest).toLocaleString()}` : ''),
+        ].filter(Boolean);
+        alert(lines.join('\n'));
+      } catch (e) { alert('Overview failed: ' + e); }
+  } },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });

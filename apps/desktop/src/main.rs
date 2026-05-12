@@ -809,6 +809,59 @@ fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, Strin
     Ok(n)
 }
 
+/// v0.50 — Walk every non-trashed note's body for `- [ ]` / `- [x]` task list items.
+/// Returns a flat list of `{note_id, note_title, line, text, done}` so the frontend can
+/// build a global TODO view. Default `done_filter`: false-only (open tasks).
+#[tauri::command]
+fn all_tasks(
+    state: State<'_, AppState>,
+    include_done: Option<bool>,
+) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let include_done = include_done.unwrap_or(false);
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let mut line_no: u32 = 0;
+        for line in n.body.lines() {
+            line_no += 1;
+            // Match `- [ ] text`, `- [x] text`, `- [X] text` (and * / +).
+            let trimmed = line.trim_start();
+            if let Some(rest) = trimmed
+                .strip_prefix("- [")
+                .or_else(|| trimmed.strip_prefix("* ["))
+                .or_else(|| trimmed.strip_prefix("+ ["))
+            {
+                if rest.len() < 3 {
+                    continue;
+                }
+                let mark = &rest[..1];
+                let after = &rest[1..];
+                if !after.starts_with("] ") && after != "]" {
+                    continue;
+                }
+                let done = mark == "x" || mark == "X";
+                if !include_done && done {
+                    continue;
+                }
+                let text = after.strip_prefix("] ").unwrap_or("");
+                out.push(serde_json::json!({
+                    "note_id": n.id,
+                    "note_title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+                    "line": line_no,
+                    "text": text.trim(),
+                    "done": done,
+                }));
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// v0.37 — Top-N words across every non-trashed note's body. Stop-words excluded.
 /// Used by the "Show top words" palette command.
 #[tauri::command]
@@ -3343,6 +3396,7 @@ fn main() -> Result<()> {
             bulk_export_md,
             merge_notes,
             top_words,
+            all_tasks,
             search_notes,
             all_tags,
             backlinks,

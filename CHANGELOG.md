@@ -1,3 +1,23 @@
+# Mycelium v0.50.0-beta.1 - Global Tasks view
+
+beta.50 surfaces every `- [ ]` task across the workspace as a single global TODO list.
+
+## New in v0.50.0
+
+### Tasks sidebar nav
+- New **Tasks** nav button between **Orphans** and **Trash**, with an open-task count badge.
+- Recognises `- [ ]`, `* [ ]`, `+ [ ]` (and `[x]` / `[X]` when "show completed" is on).
+- Tasks are grouped by their source note. Each group header is a clickable link to the note; each task is a clickable row that opens the note and jumps to the source line.
+- "Show completed" checkbox toggles inclusion of done items; "Refresh" button reruns the scan.
+
+### Backend
+- New `all_tasks(include_done?)` Tauri command. Walks every non-trashed note's body for task list items, returns a flat list of `{note_id, note_title, line, text, done}`.
+
+### Auto-update
+- Pushing v0.50.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.49.0-beta.1 - Dashboard depth
 
 beta.49 expands the at-a-glance dashboard with four new productivity-focused cards.

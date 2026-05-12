@@ -51,7 +51,8 @@ const els = {};
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
-  'view-orphans','outgoing-list','suggested-list','mentions-list',
+  'view-orphans','view-tasks','tasks-badge','tasks-pane','tasks-list','tasks-include-done','tasks-refresh-btn',
+  'outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'filter-pill','filter-pill-text','filter-pill-count','filter-pill-clear',
@@ -401,6 +402,10 @@ async function loadNotes() {
     refreshTrashBadge();
     refreshFilterPill(); // v0.46
     refreshTodaySection(); // v0.48
+    // v0.50 — open task count chip in sidebar Tasks button (best-effort).
+    invoke('all_tasks', { includeDone: false })
+      .then(t => refreshTasksBadge(t.length))
+      .catch(() => {});
   } catch (e) { setStatus('error: ' + e); console.error(e); }
 }
 
@@ -834,9 +839,11 @@ function showView(name) {
   const showEditor = name === 'editor';
   const showTrash = name === 'trash';
   const showEmpty = name === 'empty';
+  const showTasks = name === 'tasks';
   els.editor.classList.toggle('hidden', !showEditor);
   els.trashPane.classList.toggle('hidden', !showTrash);
   els.emptyState.classList.toggle('hidden', !showEmpty);
+  if (els.tasksPane) els.tasksPane.classList.toggle('hidden', !showTasks);
 }
 function showEmpty() {
   state.activeId = null; state.active = null;
@@ -1369,6 +1376,79 @@ async function openAllNotes() {
   document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'all'));
   if (state.activeId) showView('editor'); else showView('empty');
   await loadNotes();
+}
+
+// v0.50 — Tasks (global TODO list) view
+async function openTasks() {
+  state.view = 'tasks';
+  clearSelection(false);
+  document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'tasks'));
+  showView('tasks');
+  await refreshTasksView();
+}
+async function refreshTasksView() {
+  const includeDone = !!(els.tasksIncludeDone && els.tasksIncludeDone.checked);
+  let tasks = [];
+  try { tasks = await invoke('all_tasks', { includeDone }); }
+  catch (e) { setStatus('tasks load failed: ' + e); return; }
+  if (!els.tasksList) return;
+  els.tasksList.innerHTML = '';
+  if (!tasks.length) {
+    const li = document.createElement('li');
+    li.className = 'empty-row';
+    li.textContent = includeDone ? 'No tasks anywhere — nice.' : 'No open tasks. Toggle "show completed" to see done items.';
+    els.tasksList.appendChild(li);
+    refreshTasksBadge(0);
+    return;
+  }
+  // Group by note for readability.
+  const byNote = new Map();
+  for (const t of tasks) {
+    if (!byNote.has(t.note_id)) byNote.set(t.note_id, { title: t.note_title, items: [] });
+    byNote.get(t.note_id).items.push(t);
+  }
+  for (const [noteId, group] of byNote) {
+    const head = document.createElement('li');
+    head.className = 'task-group-head';
+    const a = document.createElement('a'); a.href = '#'; a.textContent = group.title;
+    a.addEventListener('click', (e) => { e.preventDefault(); openNote(noteId); });
+    head.appendChild(a);
+    const count = document.createElement('span'); count.className = 'task-group-count';
+    count.textContent = group.items.length + (group.items.length === 1 ? ' task' : ' tasks');
+    head.appendChild(count);
+    els.tasksList.appendChild(head);
+    for (const t of group.items) {
+      const li = document.createElement('li');
+      li.className = 'task-row' + (t.done ? ' done' : '');
+      const cb = document.createElement('span'); cb.className = 'task-cb';
+      cb.textContent = t.done ? '☑' : '☐';
+      const text = document.createElement('span'); text.className = 'task-text'; text.textContent = t.text;
+      const where = document.createElement('span'); where.className = 'task-where';
+      where.textContent = 'L' + t.line;
+      li.appendChild(cb); li.appendChild(text); li.appendChild(where);
+      li.addEventListener('click', async () => {
+        await openNote(noteId);
+        // Jump to the line.
+        if (els.body) {
+          const lines = els.body.value.split('\n');
+          let pos = 0;
+          for (let i = 0; i < Math.min(t.line - 1, lines.length); i++) pos += lines[i].length + 1;
+          els.body.focus();
+          els.body.setSelectionRange(pos, pos);
+          els.body.scrollTop = (t.line - 1) * 24;
+        }
+      });
+      els.tasksList.appendChild(li);
+    }
+  }
+  // Badge counts only OPEN tasks.
+  const openCount = tasks.filter(t => !t.done).length;
+  refreshTasksBadge(openCount);
+}
+function refreshTasksBadge(n) {
+  if (!els.tasksBadge) return;
+  if (n > 0) { els.tasksBadge.classList.remove('hidden'); els.tasksBadge.textContent = String(n); }
+  else { els.tasksBadge.classList.add('hidden'); els.tasksBadge.textContent = ''; }
 }
 
 // v0.15 — Orphans filter view
@@ -3596,6 +3676,9 @@ els.exportAllBtn.addEventListener('click', exportAllMd);
 els.viewAll.addEventListener('click', openAllNotes);
 els.viewTrash.addEventListener('click', openTrash);
 if (els.viewOrphans) els.viewOrphans.addEventListener('click', openOrphans);
+if (els.viewTasks) els.viewTasks.addEventListener('click', openTasks);
+if (els.tasksRefreshBtn) els.tasksRefreshBtn.addEventListener('click', refreshTasksView);
+if (els.tasksIncludeDone) els.tasksIncludeDone.addEventListener('change', refreshTasksView);
 els.emptyTrashBtn.addEventListener('click', emptyTrash);
 
 els.cmdInput.addEventListener('input', () => refreshPalette(els.cmdInput.value));

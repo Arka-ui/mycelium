@@ -35,6 +35,7 @@
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
       <button id="view-orphans" class="side-nav-btn" data-view="orphans">Orphans</button>
+      <button id="view-tasks" class="side-nav-btn" data-view="tasks">Tasks<span id="tasks-badge" class="side-nav-badge hidden"></span></button>
       <button id="view-trash" class="side-nav-btn" data-view="trash">Trash<span id="trash-badge" class="side-nav-badge hidden"></span></button>
     </nav>
 
@@ -158,6 +159,18 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <span id="save-state">saved</span>
       </footer>
+    </article>
+
+    <article id="tasks-pane" class="trash-pane hidden">
+      <header class="trash-head">
+        <h2>Tasks across the workspace</h2>
+        <div class="trash-actions">
+          <label style="font-size:12.5px;color:var(--text-2);"><input id="tasks-include-done" type="checkbox"> show completed</label>
+          <button id="tasks-refresh-btn" class="ghost-btn">Refresh</button>
+        </div>
+      </header>
+      <p class="setting-help">Every <code>- [ ]</code> task across all your notes. Click an item to open the source note at that line. Toggle "show completed" to see <code>- [x]</code> items too.</p>
+      <ul id="tasks-list" class="note-list"></ul>
     </article>
 
     <article id="trash-pane" class="trash-pane hidden">
@@ -574,10 +587,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.49.0</strong></p>
+          <p>Version: <strong id="about-version">v0.50.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.49: dashboard depth — adds 4 new "at a glance" cards: current save streak (days), total active days, average words per active day, and total estimated writing time at 220 wpm.</p>
+          <p class="setting-help">Beta.50: global tasks view — a new <strong>Tasks</strong> sidebar nav button surfaces every <code>- [ ]</code> item across the workspace. Click any task to jump to that line in its source note; toggle "show completed" to include <code>- [x]</code>.</p>
         </div>
       </section>
 

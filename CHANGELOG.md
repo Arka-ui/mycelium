@@ -1,3 +1,25 @@
+# Mycelium v0.17.0-beta.1 - Kanban board
+
+beta.17 turns the brand-new frontmatter properties into a workflow surface: a Settings → Board tab groups every note by any property and lets you drag cards between columns to rewrite the underlying note's frontmatter automatically.
+
+## New in v0.17.0
+
+### Kanban board
+- **Settings → Board** tab. Choose a property (default: `status`), get one column per distinct value plus an `(none)` column for notes that lack the property.
+- Each card shows the note title, a 80-char preview, and a star marker for pinned notes.
+- **Click a card** opens the note (settings modal closes).
+- **Drag a card** between columns → backend rewrites the source note's `key:` frontmatter to the new column value. Dropping into `(none)` removes the property entirely.
+- Configurable property persists in settings (`board_property`, default `"status"`).
+
+### Backend
+- `set_property(id, key, value?)` rewrites or removes one frontmatter property; creates the `---` block if missing.
+- `board_data(key)` returns columns with cards.
+
+### Auto-update
+- Pushing v0.17.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.16.0-beta.1 - Note properties
 
 beta.16 introduces lightweight YAML-ish frontmatter on every note. Drop a `--- key: value ---` block at the top, get a clickable properties strip below the title, and filter the whole workspace by any key/value combination.

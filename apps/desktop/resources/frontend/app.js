@@ -53,6 +53,7 @@ const els = {};
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
   'view-orphans','outgoing-list',
   'props-strip',
+  'board-property-input','board-refresh-btn','board-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -819,6 +820,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
   if (name === 'dashboard') refreshDashboard();
+  if (name === 'board') refreshBoard();
 }
 
 async function loadSettings() {
@@ -851,6 +853,8 @@ async function loadSettings() {
     if (els.optEditorFontSize) els.optEditorFontSize.value = String(state.settings.editor_font_size);
     applyEditorFontSize();
     applyWordWrap();
+    if (!state.settings.board_property) state.settings.board_property = 'status';
+    if (els.boardPropertyInput) els.boardPropertyInput.value = state.settings.board_property;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -2600,6 +2604,79 @@ els.dashGraph && els.dashGraph.addEventListener('click', (e) => {
   }
 });
 els.dashRefreshBtn && els.dashRefreshBtn.addEventListener('click', refreshDashboard);
+
+// --- v0.17 — Kanban board --------------------------------------------
+async function refreshBoard() {
+  if (!els.boardGrid) return;
+  const key = (els.boardPropertyInput && els.boardPropertyInput.value.trim()) || (state.settings.board_property || 'status');
+  if (els.boardPropertyInput && !els.boardPropertyInput.value) els.boardPropertyInput.value = key;
+  let data;
+  try { data = await invoke('board_data', { key }); }
+  catch (e) { els.boardGrid.innerHTML = '<div class="board-empty">' + e + '</div>'; return; }
+  els.boardGrid.innerHTML = '';
+  if (!data.columns || !data.columns.length) {
+    els.boardGrid.innerHTML = '<div class="board-empty">No notes have a frontmatter property to group by.</div>';
+    return;
+  }
+  for (const col of data.columns) {
+    const colEl = document.createElement('div');
+    colEl.className = 'board-col';
+    colEl.dataset.value = col.value;
+    const head = document.createElement('div');
+    head.className = 'board-col-head';
+    head.innerHTML = '<span>' + escapeHtml(col.value) + '</span><span class="board-col-count">' + col.count + '</span>';
+    colEl.appendChild(head);
+    const body = document.createElement('div');
+    body.className = 'board-col-body';
+    for (const card of col.cards) {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'board-card' + (card.pinned ? ' pinned' : '');
+      cardEl.draggable = true;
+      cardEl.dataset.id = card.id;
+      cardEl.innerHTML = '<div class="board-card-title">' + (card.pinned ? '★ ' : '') + escapeHtml(card.title) + '</div>'
+        + '<div class="board-card-preview">' + escapeHtml((card.preview || '').replace(/\n/g, ' ').slice(0, 80)) + '</div>';
+      cardEl.addEventListener('click', () => { closeSettings(); openNote(card.id); });
+      cardEl.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-mycelium-card-id', card.id);
+        cardEl.classList.add('dragging');
+      });
+      cardEl.addEventListener('dragend', () => cardEl.classList.remove('dragging'));
+      body.appendChild(cardEl);
+    }
+    colEl.appendChild(body);
+    colEl.addEventListener('dragover', (e) => {
+      if (e.dataTransfer.types.includes('text/x-mycelium-card-id')) {
+        e.preventDefault();
+        colEl.classList.add('drop-target');
+      }
+    });
+    colEl.addEventListener('dragleave', () => colEl.classList.remove('drop-target'));
+    colEl.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      colEl.classList.remove('drop-target');
+      const cardId = e.dataTransfer.getData('text/x-mycelium-card-id');
+      if (!cardId) return;
+      const newValue = col.value === '(none)' ? null : col.value;
+      try {
+        await invoke('set_property', { id: cardId, key, value: newValue });
+        await refreshBoard();
+        if (state.activeId === cardId) await openNote(cardId);
+        await loadNotes();
+      } catch (e2) { alert('Failed: ' + e2); }
+    });
+    els.boardGrid.appendChild(colEl);
+  }
+}
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+if (els.boardRefreshBtn) els.boardRefreshBtn.addEventListener('click', () => {
+  state.settings.board_property = (els.boardPropertyInput.value || 'status').trim();
+  invoke('set_settings', { settings: state.settings }).catch(()=>{});
+  refreshBoard();
+});
+if (els.boardPropertyInput) els.boardPropertyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); els.boardRefreshBtn.click(); }
+});
 
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }

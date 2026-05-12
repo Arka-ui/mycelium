@@ -925,3 +925,42 @@ textarea.body-input { tab-size: 2; }
 }
 .prop-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .prop-chip strong { font-weight: 600; }
+
+/* --- v0.17 — Kanban board ------------------------------------------- */
+.board-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px; margin-top: 12px;
+}
+.board-empty { color: var(--text-3); padding: 16px; font-style: italic; }
+.board-col {
+  background: var(--bg-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  display: flex; flex-direction: column;
+  min-height: 200px;
+  transition: outline-color 0.15s ease;
+}
+.board-col.drop-target { outline: 2px solid var(--accent); }
+.board-col-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-2);
+}
+.board-col-count {
+  background: var(--bg-2); color: var(--text-3);
+  padding: 1px 8px; border-radius: 999px; font-size: 11px;
+}
+.board-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 80px; }
+.board-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 9px;
+  cursor: grab; font-size: 12.5px;
+  transition: transform 0.05s ease, box-shadow 0.15s ease;
+}
+.board-card:hover { box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+.board-card.dragging { opacity: 0.4; }
+.board-card.pinned { border-left: 3px solid var(--accent); }
+.board-card-title { font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.board-card-preview { color: var(--text-3); font-size: 11.5px; line-height: 1.3; }

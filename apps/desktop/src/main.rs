@@ -953,6 +953,127 @@ fn notes_by_property(
     Ok(out)
 }
 
+/// Set / replace / delete one frontmatter property. If `value` is None, the property is removed.
+/// If the note has no frontmatter block yet, one is created.
+#[tauri::command]
+fn set_property(
+    state: State<'_, AppState>,
+    id: String,
+    key: String,
+    value: Option<String>,
+) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let note = store
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let new_body = rewrite_property(&note.body, &key, value.as_deref());
+    drop(store);
+    state
+        .store
+        .lock()
+        .unwrap()
+        .update(&id, None, Some(new_body))
+        .map_err(|e| e.to_string())
+}
+
+fn rewrite_property(body: &str, key: &str, value: Option<&str>) -> String {
+    let (mut props, rest) = parse_frontmatter(body);
+    let key_lc = key.to_lowercase();
+    let mut found = false;
+    props.retain_mut(|(k, v)| {
+        if k.to_lowercase() == key_lc {
+            if let Some(new_value) = value {
+                *v = new_value.to_string();
+                found = true;
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        }
+    });
+    if !found {
+        if let Some(new_value) = value {
+            props.push((key.to_string(), new_value.to_string()));
+        }
+    }
+    if props.is_empty() {
+        return rest.to_string();
+    }
+    let mut out = String::with_capacity(rest.len() + 64);
+    out.push_str("---\n");
+    for (k, v) in props {
+        out.push_str(&k);
+        out.push_str(": ");
+        out.push_str(&v);
+        out.push('\n');
+    }
+    out.push_str("---\n");
+    if !rest.is_empty() {
+        out.push('\n');
+        out.push_str(rest);
+    }
+    out
+}
+
+/// Group notes into columns by frontmatter property `key`. Notes lacking that property go into
+/// the synthetic "(none)" column. Columns are returned in the order their values were first seen.
+#[tauri::command]
+fn board_data(state: State<'_, AppState>, key: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let key_lc = key.trim().to_lowercase();
+    if key_lc.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut order: Vec<String> = vec![];
+    let mut groups: std::collections::HashMap<String, Vec<serde_json::Value>> =
+        std::collections::HashMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let val = props
+            .into_iter()
+            .find(|(k, _)| k.to_lowercase() == key_lc)
+            .map(|(_, v)| v)
+            .unwrap_or_else(|| "(none)".to_string());
+        if !order.contains(&val) {
+            order.push(val.clone());
+        }
+        let preview: String = n.body.chars().take(120).collect();
+        groups.entry(val).or_default().push(serde_json::json!({
+            "id": n.id,
+            "title": if n.title.trim().is_empty() { "Untitled" } else { &n.title },
+            "preview": preview,
+            "pinned": n.pinned,
+            "updated_at": n.updated_at,
+        }));
+    }
+    let mut columns = vec![];
+    for val in order {
+        let cards = groups.remove(&val).unwrap_or_default();
+        columns.push(serde_json::json!({
+            "value": val,
+            "count": cards.len(),
+            "cards": cards,
+        }));
+    }
+    Ok(serde_json::json!({
+        "property": key,
+        "columns": columns,
+    }))
+}
+
 #[tauri::command]
 fn all_property_keys(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
     check_unlocked(&state)?;
@@ -1876,6 +1997,12 @@ struct Settings {
     word_wrap: bool,
     #[serde(default)]
     smart_typography: bool,
+    #[serde(default = "default_board_property")]
+    board_property: String,
+}
+
+fn default_board_property() -> String {
+    "status".to_string()
 }
 
 fn default_editor_font_size() -> u32 {
@@ -1923,6 +2050,7 @@ impl Default for Settings {
             editor_font_size: 15,
             word_wrap: true,
             smart_typography: false,
+            board_property: "status".to_string(),
         }
     }
 }
@@ -2235,6 +2363,8 @@ fn main() -> Result<()> {
             note_properties,
             notes_by_property,
             all_property_keys,
+            set_property,
+            board_data,
             export_note_md,
             export_all_md,
             import_md,

@@ -154,6 +154,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="plugins">Plugins</button>
       <button class="tab-btn" data-tab="data">Data</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="board">Board</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -385,6 +386,20 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
       </section>
 
+      <section class="tab-pane" data-pane="board">
+        <div class="setting-group">
+          <h3>Kanban board</h3>
+          <p class="setting-help">Group every note by a frontmatter property (e.g. <code>status: doing</code>). Drag a card between columns to rewrite that note's frontmatter. Notes without the chosen property go to <code>(none)</code>.</p>
+          <div class="setting-row">
+            <label>Property to group by
+              <input id="board-property-input" class="text-input" placeholder="status">
+            </label>
+            <button id="board-refresh-btn" class="primary-btn small">Refresh</button>
+          </div>
+        </div>
+        <div id="board-grid" class="board-grid"></div>
+      </section>
+
       <section class="tab-pane" data-pane="updates">
         <div class="setting-group">
           <h3>Auto-update</h3>
@@ -421,10 +436,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.16.0</strong></p>
+          <p>Version: <strong id="about-version">v0.17.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.16: note properties — YAML-ish frontmatter (<code>--- key: value ---</code> at the top of a note) is parsed, hidden in preview, displayed as a properties strip below the title, and filterable from the palette.</p>
+          <p class="setting-help">Beta.17: Kanban board — Settings → Board groups every note by any frontmatter property. Drag a card between columns to rewrite the note's frontmatter automatically. Default property is <code>status</code>.</p>
         </div>
       </section>
 

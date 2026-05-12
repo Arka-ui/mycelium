@@ -616,10 +616,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.69.0</strong></p>
+          <p>Version: <strong id="about-version">v0.70.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.69: cursor position memory — alongside scroll position (v0.32), Mycelium now remembers the editor caret position per note and restores it when you reopen the note.</p>
+          <p class="setting-help">Beta.70: reset settings — a "Reset settings to defaults" button in the About tab restores every setting field to its built-in default. Notes / themes / templates / plugins / snippets are untouched.</p>
+          <div class="setting-row">
+            <button id="reset-settings-btn" class="danger-btn">Reset settings to defaults</button>
+          </div>
         </div>
       </section>
 

@@ -64,7 +64,7 @@ const els = {};
   'diff-modal','diff-close','diff-meta','diff-body',
   'props-modal','props-close','props-rows','props-add-btn','props-save-btn','props-btn',
   'nav-back-btn','nav-fwd-btn',
-  'shortcuts-rows',
+  'shortcuts-rows','reset-settings-btn',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'export-workspace-enc-btn','opt-backup-reminder','last-backup-text',
@@ -4490,6 +4490,15 @@ els.attachBtn.addEventListener('click', pickAttachment);
 els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
+if (els.resetSettingsBtn) els.resetSettingsBtn.addEventListener('click', async () => {
+  if (!confirm('Reset every setting to its default? Notes / themes / templates / plugins / snippets are not touched.')) return;
+  try {
+    const fresh = await invoke('reset_settings');
+    state.settings = fresh;
+    await loadSettings();
+    setStatus('Settings reset to defaults.');
+  } catch (e) { alert('Reset failed: ' + e); }
+});
 if (els.optBackupReminder) els.optBackupReminder.addEventListener('change', saveSettings);
 if (els.navBackBtn) els.navBackBtn.addEventListener('click', navBack);
 if (els.navFwdBtn) els.navFwdBtn.addEventListener('click', navForward);

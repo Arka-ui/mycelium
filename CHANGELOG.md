@@ -1,3 +1,22 @@
+# Mycelium v0.70.0-beta.1 - Reset settings to defaults
+
+beta.70 adds an undo button for the entire Settings panel.
+
+## New in v0.70.0
+
+### Reset settings
+- New "Reset settings to defaults" button at the bottom of **Settings → About**.
+- Confirms first; on OK calls a new `reset_settings` Tauri command which writes `Settings::default()` to disk and returns the fresh values, then re-renders the Settings UI.
+- **Notes, themes, templates, plugins, snippets, history, and locks are NOT touched.** Only the `settings.json` file is replaced.
+
+### Backend
+- New `reset_settings()` Tauri command. Reuses `set_settings(Settings::default())` then returns the result.
+
+### Auto-update
+- Pushing v0.70.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.69.0-beta.1 - Cursor position memory
 
 beta.69 extends v0.32's scroll memory with caret memory: when you reopen a note, you land back where you were typing.

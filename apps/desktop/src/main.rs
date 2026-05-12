@@ -3301,6 +3301,14 @@ fn get_settings() -> Settings {
         .unwrap_or_default()
 }
 
+/// v0.70 — Replace persisted settings with defaults. Notes / themes / templates are unaffected.
+#[tauri::command]
+fn reset_settings() -> Result<Settings, String> {
+    let defaults = Settings::default();
+    set_settings(defaults.clone())?;
+    Ok(defaults)
+}
+
 #[tauri::command]
 fn set_settings(settings: Settings) -> Result<(), String> {
     let p = settings_path();
@@ -3691,6 +3699,7 @@ fn main() -> Result<()> {
             app_info,
             get_settings,
             set_settings,
+            reset_settings,
             list_themes,
             save_theme,
             delete_theme,

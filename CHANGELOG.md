@@ -1,3 +1,32 @@
+# Mycelium v0.7.0-beta.1 - Workspace lock
+
+beta.7 adds a passphrase lock around the whole workspace. When enabled, the app starts on a passphrase prompt and you can lock-now any time. (Note: this is an *access lock*, not at-rest encryption — the underlying note files are still plaintext on disk. At-rest encryption lands in beta.8.)
+
+## New in v0.7.0
+
+### Workspace lock
+- **Enable lock** in Settings → General → Privacy & lock. Pick a passphrase ≥ 6 chars.
+- **Lock screen** at startup when enabled: full-screen passphrase prompt; correct entry reveals the workspace, wrong entry shows an error.
+- **Lock now** button + palette command — re-locks immediately, useful when stepping away.
+- **Change passphrase** + **Disable lock** flows in Settings.
+- All note CRUD commands check the lock state and refuse if locked.
+
+### Crypto
+- Salt: 16 random bytes from the OS (`OsRng`).
+- Verifier: BLAKE3 keyed-hash of `"mycelium-lock-v1" || salt || passphrase`, then 50,000 iterations of BLAKE3 chaining. Salt + verifier hex are stored in `settings.json` under `lock`. The passphrase itself is never persisted.
+
+### Honest disclaimer
+- This is a UI-level access lock, not encryption. Anyone with disk access can still read `%APPDATA%\Mycelium\notes\*.json`. At-rest age-encryption ships in beta.8.
+
+### Backend
+- 5 new commands: `lock_status`, `lock_set`, `lock_disable`, `lock_unlock`, `lock_now`.
+- New deps: `blake3 = "1"`, `rand = "0.8"`.
+
+### Auto-update
+- Pushing v0.7.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.6.0-beta.1 - Power user
 
 beta.6 piles on the small features that make Mycelium feel fast under your fingers. Selection toolbar, format shortcuts, sort options, spell-check toggle, keyboard cheatsheet.

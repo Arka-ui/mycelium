@@ -40,6 +40,7 @@ const els = {};
   'attach-btn','attach-input','export-workspace-btn','import-workspace-btn',
   'saved-searches','save-search-btn',
   'opt-spell-check','opt-sort','sel-toolbar','cheatsheet-modal','cs-close',
+  'lock-screen','lock-pass','lock-unlock-btn','lock-error','lock-state-text','lock-controls',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -470,7 +471,7 @@ function cycleTheme() {
   renderActiveThemeSelect();
 }
 
-function openSettings(tab) { els.modalBackdrop.classList.remove('hidden'); if (tab) switchTab(tab); }
+function openSettings(tab) { els.modalBackdrop.classList.remove('hidden'); if (tab) switchTab(tab); refreshLockUi(); }
 function closeSettings() { els.modalBackdrop.classList.add('hidden'); }
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -1097,6 +1098,98 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+async function refreshLockUi() {
+  try {
+    const s = await invoke('lock_status');
+    state.lockEnabled = !!s.enabled;
+    state.locked = !!s.locked;
+    if (state.locked) showLockScreen(); else hideLockScreen();
+    if (els.lockStateText && els.lockControls) {
+      els.lockStateText.textContent = s.enabled
+        ? 'Workspace lock is enabled. The app starts on a passphrase prompt; you can lock now any time.'
+        : 'Workspace lock is disabled. Anyone with access to this machine can read your notes.';
+      els.lockControls.innerHTML = '';
+      if (!s.enabled) {
+        els.lockControls.appendChild(btn('primary-btn small', 'Enable workspace lock', enableLockFlow));
+      } else {
+        els.lockControls.appendChild(btn('primary-btn small', 'Lock now', lockNowFlow));
+        els.lockControls.appendChild(btn('ghost-btn', 'Change passphrase', changePassphraseFlow));
+        els.lockControls.appendChild(btn('danger-btn', 'Disable lock', disableLockFlow));
+      }
+    }
+  } catch (e) { console.error('lock status error', e); }
+}
+
+function showLockScreen() {
+  els.lockScreen.classList.remove('hidden');
+  els.lockPass.value = '';
+  els.lockError.textContent = '';
+  setTimeout(() => els.lockPass.focus(), 50);
+}
+function hideLockScreen() { els.lockScreen.classList.add('hidden'); }
+
+async function attemptUnlock() {
+  const p = els.lockPass.value;
+  if (!p) return;
+  try {
+    const ok = await invoke('lock_unlock', { passphrase: p });
+    if (ok) {
+      state.locked = false;
+      hideLockScreen();
+      els.lockPass.value = '';
+      await loadNotes();
+      await loadTemplates();
+    } else {
+      els.lockError.textContent = 'Incorrect passphrase.';
+      els.lockPass.select();
+    }
+  } catch (e) {
+    els.lockError.textContent = 'Unlock error: ' + e;
+  }
+}
+
+async function enableLockFlow() {
+  const p = prompt('New passphrase (at least 6 characters):');
+  if (!p) return;
+  if (p.length < 6) { alert('Passphrase must be at least 6 characters.'); return; }
+  const confirm2 = prompt('Confirm passphrase:');
+  if (p !== confirm2) { alert('Passphrases do not match.'); return; }
+  try {
+    await invoke('lock_set', { oldPassphrase: null, newPassphrase: p });
+    alert('Workspace lock enabled. You will be prompted on next launch.');
+    refreshLockUi();
+  } catch (e) { alert('Failed to enable: ' + e); }
+}
+
+async function changePassphraseFlow() {
+  const oldP = prompt('Current passphrase:');
+  if (!oldP) return;
+  const newP = prompt('New passphrase (at least 6 characters):');
+  if (!newP) return;
+  if (newP.length < 6) { alert('Passphrase must be at least 6 characters.'); return; }
+  const confirm2 = prompt('Confirm new passphrase:');
+  if (newP !== confirm2) { alert('Passphrases do not match.'); return; }
+  try {
+    await invoke('lock_set', { oldPassphrase: oldP, newPassphrase: newP });
+    alert('Passphrase changed.');
+  } catch (e) { alert('Failed: ' + e); }
+}
+
+async function disableLockFlow() {
+  const p = prompt('Current passphrase to disable lock:');
+  if (!p) return;
+  try {
+    await invoke('lock_disable', { passphrase: p });
+    alert('Workspace lock disabled.');
+    refreshLockUi();
+  } catch (e) { alert('Failed: ' + e); }
+}
+
+async function lockNowFlow() {
+  try { await invoke('lock_now'); state.locked = true; closeSettings(); showLockScreen(); }
+  catch (e) { alert('Lock failed: ' + e); }
+}
+
 const PALETTE_COMMANDS = [
   { name: 'New note', shortcut: 'Ctrl+N', run: newNote },
   { name: 'New daily note', shortcut: 'Ctrl+D', run: newDailyNote },
@@ -1115,6 +1208,7 @@ const PALETTE_COMMANDS = [
   { name: 'Duplicate current note', shortcut: '', run: async () => { if (state.activeId) { const dup = await invoke('duplicate_note', { id: state.activeId }); await loadNotes(); openNote(dup.id); } } },
   { name: 'Pin / unpin current', shortcut: '', run: togglePin },
   { name: 'Show keyboard cheatsheet', shortcut: 'Ctrl+/', run: openCheatsheet },
+  { name: 'Lock workspace now', shortcut: '', run: lockNowFlow },
   { name: 'Bold selection', shortcut: 'Ctrl+B', run: () => applyFormat('bold') },
   { name: 'Italic selection', shortcut: 'Ctrl+I', run: () => applyFormat('italic') },
   { name: 'Code selection', shortcut: 'Ctrl+E', run: () => applyFormat('code') },
@@ -1377,15 +1471,21 @@ window.addEventListener('beforeunload', () => {
   for (const w of state.pluginWorkers.values()) { try { w.terminate(); } catch (e) {} }
 });
 
+els.lockUnlockBtn.addEventListener('click', attemptUnlock);
+els.lockPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptUnlock(); });
+
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }
   await loadSettings();
   await loadThemes();
   applyTheme(state.settings.theme || 'dark');
   await loadPlugins();
-  await loadTemplates();
   try { const info = await invoke('app_info'); els.version.textContent = 'v' + info.version; els.aboutVersion.textContent = 'v' + info.version; } catch (e) {}
-  await loadNotes();
+  await refreshLockUi();
+  if (!state.locked) {
+    await loadTemplates();
+    await loadNotes();
+  }
   showView('empty');
   setStatus('ready');
   if (state.settings.auto_check_updates) setTimeout(() => checkForUpdates(true), 2500);

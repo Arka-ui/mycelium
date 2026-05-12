@@ -327,10 +327,128 @@ impl Store {
 
 struct AppState {
     store: Mutex<Store>,
+    unlocked: Mutex<bool>,
+}
+
+fn compute_verifier(salt_hex: &str, passphrase: &str) -> String {
+    let salt = hex_decode(salt_hex).unwrap_or_default();
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"mycelium-lock-v1");
+    hasher.update(&salt);
+    hasher.update(passphrase.as_bytes());
+    let mut acc = hasher.finalize();
+    for _ in 0..50_000 {
+        acc = blake3::hash(acc.as_bytes());
+    }
+    hex_encode(acc.as_bytes())
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{:02x}", b));
+    }
+    s
+}
+
+fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        let byte = u8::from_str_radix(&s[i..i + 2], 16).ok()?;
+        out.push(byte);
+    }
+    Some(out)
+}
+
+fn check_unlocked(state: &State<'_, AppState>) -> Result<(), String> {
+    let settings = get_settings();
+    if settings.lock.is_some() && !*state.unlocked.lock().unwrap() {
+        return Err("workspace is locked".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn lock_status(state: State<'_, AppState>) -> serde_json::Value {
+    let settings = get_settings();
+    let enabled = settings.lock.is_some();
+    let locked = enabled && !*state.unlocked.lock().unwrap();
+    serde_json::json!({ "enabled": enabled, "locked": locked })
+}
+
+#[tauri::command]
+fn lock_set(
+    state: State<'_, AppState>,
+    old_passphrase: Option<String>,
+    new_passphrase: String,
+) -> Result<(), String> {
+    if new_passphrase.len() < 6 {
+        return Err("passphrase must be at least 6 characters".into());
+    }
+    let mut settings = get_settings();
+    if let Some(existing) = &settings.lock {
+        let provided = old_passphrase.unwrap_or_default();
+        if compute_verifier(&existing.salt, &provided) != existing.verifier {
+            return Err("current passphrase is incorrect".into());
+        }
+    }
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    let salt_hex = hex_encode(&salt);
+    let verifier = compute_verifier(&salt_hex, &new_passphrase);
+    settings.lock = Some(LockConfig {
+        salt: salt_hex,
+        verifier,
+    });
+    set_settings(settings)?;
+    *state.unlocked.lock().unwrap() = true;
+    Ok(())
+}
+
+#[tauri::command]
+fn lock_disable(state: State<'_, AppState>, passphrase: String) -> Result<(), String> {
+    let mut settings = get_settings();
+    let existing = settings
+        .lock
+        .clone()
+        .ok_or_else(|| "lock not enabled".to_string())?;
+    if compute_verifier(&existing.salt, &passphrase) != existing.verifier {
+        return Err("passphrase incorrect".into());
+    }
+    settings.lock = None;
+    set_settings(settings)?;
+    *state.unlocked.lock().unwrap() = true;
+    Ok(())
+}
+
+#[tauri::command]
+fn lock_unlock(state: State<'_, AppState>, passphrase: String) -> Result<bool, String> {
+    let settings = get_settings();
+    let existing = settings
+        .lock
+        .clone()
+        .ok_or_else(|| "lock not enabled".to_string())?;
+    if compute_verifier(&existing.salt, &passphrase) == existing.verifier {
+        *state.unlocked.lock().unwrap() = true;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+fn lock_now(state: State<'_, AppState>) -> Result<(), String> {
+    *state.unlocked.lock().unwrap() = false;
+    Ok(())
 }
 
 #[tauri::command]
 fn list_notes(state: State<'_, AppState>) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
     state
         .store
         .lock()
@@ -341,6 +459,7 @@ fn list_notes(state: State<'_, AppState>) -> Result<Vec<NoteSummary>, String> {
 
 #[tauri::command]
 fn get_note(state: State<'_, AppState>, id: String) -> Result<Option<Note>, String> {
+    check_unlocked(&state)?;
     state
         .store
         .lock()
@@ -351,6 +470,7 @@ fn get_note(state: State<'_, AppState>, id: String) -> Result<Option<Note>, Stri
 
 #[tauri::command]
 fn create_note(state: State<'_, AppState>, title: String, body: String) -> Result<Note, String> {
+    check_unlocked(&state)?;
     state
         .store
         .lock()
@@ -1023,6 +1143,14 @@ struct Settings {
     spell_check: bool,
     #[serde(default = "default_sort_by")]
     sort_by: String,
+    #[serde(default)]
+    lock: Option<LockConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LockConfig {
+    salt: String,
+    verifier: String,
 }
 
 fn default_sort_by() -> String {
@@ -1048,6 +1176,7 @@ impl Default for Settings {
             saved_searches: vec![],
             spell_check: false,
             sort_by: "updated".to_string(),
+            lock: None,
         }
     }
 }
@@ -1326,8 +1455,10 @@ fn main() -> Result<()> {
     let store = Store::new(notes_dir.clone()).context("init store")?;
     info!(?notes_dir, "notes store ready");
 
+    let initial_unlocked = get_settings().lock.is_none();
     let state = AppState {
         store: Mutex::new(store),
+        unlocked: Mutex::new(initial_unlocked),
     };
 
     tauri::Builder::default()
@@ -1365,6 +1496,11 @@ fn main() -> Result<()> {
             export_workspace,
             import_workspace,
             attachment_data_url,
+            lock_status,
+            lock_set,
+            lock_disable,
+            lock_unlock,
+            lock_now,
             app_info,
             get_settings,
             set_settings,

@@ -1276,6 +1276,8 @@ function renderPreview() {
       try { resolved = await invoke('resolve_link', { target: title + (anchor ? '#' + anchor : '') }); }
       catch (_) { resolved = null; }
       if (resolved && resolved.id) {
+        // v0.65 — Ctrl/Cmd+click opens in a new tab and focuses; plain click navigates in place.
+        if (e.ctrlKey || e.metaKey) { addTab(resolved.id); }
         await openNote(resolved.id);
         if (resolved.anchor) scrollPreviewToHeading(resolved.anchor);
         return;
@@ -1284,6 +1286,15 @@ function renderPreview() {
         const note = await invoke('create_note', { title, body: '' });
         await loadNotes(); openNote(note.id);
       }
+    });
+    // v0.65 — middle-click opens in a background tab (no focus change), like browsers.
+    a.addEventListener('mousedown', async (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      let resolved;
+      try { resolved = await invoke('resolve_link', { target: title + (anchor ? '#' + anchor : '') }); }
+      catch (_) { resolved = null; }
+      if (resolved && resolved.id) addTab(resolved.id);
     });
   });
   els.preview.querySelectorAll('a.tag-link').forEach(a => {

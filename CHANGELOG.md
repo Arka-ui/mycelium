@@ -1,3 +1,20 @@
+# Mycelium v0.65.0-beta.1 - Wiki-link tab opens
+
+beta.65 mirrors browser-style tab opens for `[[wiki-links]]` in preview.
+
+## New in v0.65.0
+
+### `Ctrl` / `Cmd` + click → focused tab
+- Hold Ctrl (or Cmd on macOS) while clicking any wiki-link in preview → registers the target in the tab strip AND focuses it. Plain click still navigates in place.
+
+### Middle-click → background tab
+- Middle-click any wiki-link in preview → adds the target to the tab strip without changing focus (silent open). Mirrors the existing sidebar middle-click behavior.
+
+### Auto-update
+- Pushing v0.65.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.64.0-beta.1 - Tag colors
 
 beta.64 lets you tag-by-color: assign a CSS color to a tag and the tag bar + inline sidebar tag chips both pick it up.

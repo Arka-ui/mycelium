@@ -1,3 +1,19 @@
+# Mycelium v0.69.0-beta.1 - Cursor position memory
+
+beta.69 extends v0.32's scroll memory with caret memory: when you reopen a note, you land back where you were typing.
+
+## New in v0.69.0
+
+### Per-note caret memory
+- Persisted in `localStorage` under `mycelium.caret.v1` (separate from scroll memory).
+- Updated on every key release (250 ms debounce) and on click in the body (100 ms debounce).
+- Restored on `openNote` (clamped to current body length to avoid OOB if the body shrank).
+
+### Auto-update
+- Pushing v0.69.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.68.0-beta.1 - Drop-to-create
 
 beta.68 lets you spawn notes by dropping files or text on the sidebar.

@@ -1119,6 +1119,7 @@ async function openNote(id) {
   renderList();
   renderTabs(); // v0.29
   restoreScroll(id); // v0.32
+  restoreCaret(id);  // v0.69
   emitToPlugins('note:opened', cloneNote(note));
 }
 
@@ -1498,6 +1499,32 @@ function restoreScroll(id) {
   const pos = loadScrollMap()[id];
   if (typeof pos === 'number') {
     requestAnimationFrame(() => { els.body.scrollTop = pos; });
+  }
+}
+
+// v0.69 — per-note cursor (selectionStart) memory
+const CARET_KEY = 'mycelium.caret.v1';
+function loadCaretMap() {
+  try { return JSON.parse(localStorage.getItem(CARET_KEY) || '{}') || {}; }
+  catch (_) { return {}; }
+}
+function saveCaretMap(map) {
+  try { localStorage.setItem(CARET_KEY, JSON.stringify(map)); } catch (_) {}
+}
+function rememberCaret(id, pos) {
+  if (!id) return;
+  const map = loadCaretMap();
+  map[id] = pos;
+  saveCaretMap(map);
+}
+function restoreCaret(id) {
+  if (!id || !els.body) return;
+  const pos = loadCaretMap()[id];
+  if (typeof pos === 'number') {
+    requestAnimationFrame(() => {
+      const safe = Math.min(Math.max(0, pos), (els.body.value || '').length);
+      els.body.setSelectionRange(safe, safe);
+    });
   }
 }
 
@@ -4320,6 +4347,19 @@ els.body.addEventListener('scroll', () => {
   els._scrollTimer = setTimeout(() => rememberScroll(state.activeId, els.body.scrollTop), 200);
   // v0.42 — synced scroll into preview when split view is active.
   syncScrollFrom('body');
+});
+// v0.69 — remember caret position per note (debounced).
+function rememberCaretNow() {
+  if (!state.activeId || !els.body) return;
+  rememberCaret(state.activeId, els.body.selectionStart);
+}
+els.body.addEventListener('keyup', () => {
+  clearTimeout(els._caretTimer);
+  els._caretTimer = setTimeout(rememberCaretNow, 250);
+});
+els.body.addEventListener('click', () => {
+  clearTimeout(els._caretTimer);
+  els._caretTimer = setTimeout(rememberCaretNow, 100);
 });
 els.preview.addEventListener('scroll', () => syncScrollFrom('preview'));
 state._syncScrolling = false;

@@ -954,6 +954,18 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
 }
 .sidebar-toggle:hover { background: var(--bg-3); color: var(--text); }
 
+/* --- v0.25 — snippets editor table ---------------------------------- */
+.snip-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.snip-table th, .snip-table td {
+  padding: 6px 4px; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.snip-table th { color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10.5px; }
+.snip-key { width: 100%; min-width: 80px; }
+.snip-body { width: 100%; min-width: 160px; font-family: ui-monospace, monospace; font-size: 12px; }
+.snip-desc { width: 100%; min-width: 120px; }
+.snip-table .danger-btn { padding: 2px 8px; line-height: 1; }
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

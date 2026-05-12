@@ -55,6 +55,7 @@ const els = {};
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
+  'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
@@ -916,6 +917,7 @@ function switchTab(name) {
   if (name === 'dashboard') refreshDashboard();
   if (name === 'board') refreshBoard();
   if (name === 'calendar') refreshCalendar();
+  if (name === 'snippets') snippetsSetup();
 }
 
 async function loadSettings() {
@@ -1715,6 +1717,87 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
+
+// v0.25 — text snippets
+state.snippets = [];
+async function loadSnippets() {
+  try { state.snippets = await invoke('list_snippets'); }
+  catch (e) { state.snippets = []; }
+}
+async function snippetsSetup() {
+  await loadSnippets();
+  renderSnippetsTable();
+}
+function renderSnippetsTable() {
+  if (!els.snipRows) return;
+  els.snipRows.innerHTML = '';
+  for (let i = 0; i < state.snippets.length; i++) {
+    const s = state.snippets[i];
+    const tr = document.createElement('tr');
+    const tdKey = document.createElement('td');
+    const inKey = document.createElement('input'); inKey.type = 'text'; inKey.className = 'text-input snip-key';
+    inKey.value = s.key;
+    inKey.addEventListener('input', () => { s.key = inKey.value; });
+    tdKey.appendChild(inKey);
+    const tdBody = document.createElement('td');
+    const taBody = document.createElement('textarea'); taBody.className = 'text-input snip-body'; taBody.rows = 2;
+    taBody.value = s.body;
+    taBody.addEventListener('input', () => { s.body = taBody.value; });
+    tdBody.appendChild(taBody);
+    const tdDesc = document.createElement('td');
+    const inDesc = document.createElement('input'); inDesc.type = 'text'; inDesc.className = 'text-input snip-desc';
+    inDesc.value = s.description || '';
+    inDesc.addEventListener('input', () => { s.description = inDesc.value; });
+    tdDesc.appendChild(inDesc);
+    const tdAct = document.createElement('td');
+    const del = document.createElement('button'); del.className = 'danger-btn'; del.textContent = '×';
+    del.addEventListener('click', () => { state.snippets.splice(i, 1); renderSnippetsTable(); });
+    tdAct.appendChild(del);
+    tr.appendChild(tdKey); tr.appendChild(tdBody); tr.appendChild(tdDesc); tr.appendChild(tdAct);
+    els.snipRows.appendChild(tr);
+  }
+}
+function addSnippetRow() {
+  state.snippets.push({ key: '', body: '', description: '' });
+  renderSnippetsTable();
+}
+async function saveSnippetsFromTable() {
+  try {
+    await invoke('save_snippets', { snippets: state.snippets });
+    setStatus('Saved ' + state.snippets.length + ' snippet' + (state.snippets.length === 1 ? '' : 's') + '.');
+  } catch (e) { alert('Save failed: ' + e); }
+}
+async function resetSnippetsToDefaults() {
+  if (!confirm('Reset to default snippets? Your custom snippets will be lost.')) return;
+  // Send an empty array — backend default kicks in on next list_snippets call when file is missing.
+  // We instead delete the file by saving empty and re-loading.
+  try { await invoke('save_snippets', { snippets: [] }); } catch (_) {}
+  await loadSnippets();
+  // If still empty, reload defaults manually by re-calling list_snippets after a tiny tweak.
+  if (!state.snippets.length) {
+    state.snippets = await invoke('list_snippets');
+  }
+  renderSnippetsTable();
+}
+
+function tryExpandSnippet() {
+  const ta = els.body;
+  const caret = ta.selectionStart;
+  if (caret !== ta.selectionEnd) return false;
+  const upto = ta.value.slice(0, caret);
+  const m = upto.match(/;([A-Za-z0-9_-]+)$/);
+  if (!m) return false;
+  const key = m[1].toLowerCase();
+  const snip = (state.snippets || []).find(x => (x.key || '').toLowerCase() === key);
+  if (!snip) return false;
+  const before = ta.value.slice(0, caret - m[0].length);
+  const after = ta.value.slice(caret);
+  ta.value = before + snip.body + after;
+  const np = before.length + snip.body.length;
+  ta.setSelectionRange(np, np);
+  scheduleSave();
+  return true;
+}
 
 // v0.24 — sidebar collapse + drag-to-resize.
 function applySidebarLayout() {
@@ -2518,6 +2601,10 @@ els.body.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); closeWikiAutocomplete(); return; }
   }
   if (handleSmartEnter(e)) return;
+  // v0.25 — try snippet expansion before smartTab so ;name+Tab wins.
+  if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (tryExpandSnippet()) { e.preventDefault(); return; }
+  }
   if (handleSmartTab(e)) return;
   handleAutoPair(e);
 });
@@ -2650,6 +2737,9 @@ if (els.optQuickCapture) els.optQuickCapture.addEventListener('change', saveSett
 if (els.sidebarHideBtn) els.sidebarHideBtn.addEventListener('click', toggleSidebar);
 if (els.sidebarToggle) els.sidebarToggle.addEventListener('click', toggleSidebar);
 if (els.sidebarDivider) els.sidebarDivider.addEventListener('mousedown', startSidebarResize);
+if (els.snipAddBtn) els.snipAddBtn.addEventListener('click', addSnippetRow);
+if (els.snipSaveBtn) els.snipSaveBtn.addEventListener('click', saveSnippetsFromTable);
+if (els.snipResetBtn) els.snipResetBtn.addEventListener('click', resetSnippetsToDefaults);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));
@@ -3019,6 +3109,7 @@ if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) =
   await refreshLockUi();
   if (!state.locked) {
     await loadTemplates();
+    await loadSnippets();
     await loadNotes();
   }
   showView('empty');

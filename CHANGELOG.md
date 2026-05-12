@@ -1,3 +1,33 @@
+# Mycelium v0.25.0-beta.1 - Text snippets
+
+beta.25 ships a tiny snippet expansion engine: type `;name` followed by Tab in the editor body and the snippet at the caret expands. Six defaults ship; managing your own is a click away.
+
+## New in v0.25.0
+
+### Built-in shortcuts
+- `;todo` → `- [ ] ` (task checkbox)
+- `;today` → today's date as `YYYY-MM-DD`
+- `;now` → current time as `HH:MM`
+- `;hr` → newline + `---` + newline (horizontal rule)
+- `;code` → empty fenced code block
+- `;fm` → frontmatter scaffold (`status:` + `type:` between `---` markers)
+
+### Settings → Snippets
+- A new tab. Edit trigger / body / description per row, add or remove rows, **Save snippets** persists.
+- **Reset to defaults** restores the bundled set.
+- Trigger validation: alphanumeric / `-` / `_`. No duplicates.
+- Persisted as `~/.local/share/Mycelium/snippets.json` (or platform equivalent).
+
+### Backend
+- New `Snippet { key, body, description? }` struct.
+- `list_snippets()` returns either the saved list or the built-in defaults.
+- `save_snippets(snippets)` validates and writes atomically.
+
+### Auto-update
+- Pushing v0.25.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.24.0-beta.1 - Sidebar polish
 
 beta.24 makes the sidebar feel like a proper IDE panel: drag to resize, click to collapse, and the new state sticks across restarts.

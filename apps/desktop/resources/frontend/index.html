@@ -168,6 +168,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="board">Board</button>
       <button class="tab-btn" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" data-tab="snippets">Snippets</button>
       <button class="tab-btn" data-tab="updates">Updates</button>
       <button class="tab-btn" data-tab="about">About</button>
     </nav>
@@ -438,6 +439,22 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         <div id="cal-grid" class="cal-month-grid"></div>
       </section>
 
+      <section class="tab-pane" data-pane="snippets">
+        <div class="setting-group">
+          <h3>Text snippets</h3>
+          <p class="setting-help">In the editor body, type <code>;name</code> followed by <kbd>Tab</kbd> to expand the snippet at the caret. Keys must be alphanumeric / <code>-</code> / <code>_</code>.</p>
+          <table class="snip-table">
+            <thead><tr><th>Trigger</th><th>Body</th><th>Description</th><th></th></tr></thead>
+            <tbody id="snip-rows"></tbody>
+          </table>
+          <div class="setting-row">
+            <button id="snip-add-btn" class="primary-btn small">+ Add snippet</button>
+            <button id="snip-save-btn" class="ghost-btn">Save snippets</button>
+            <button id="snip-reset-btn" class="ghost-btn">Reset to defaults</button>
+          </div>
+        </div>
+      </section>
+
       <section class="tab-pane" data-pane="updates">
         <div class="setting-group">
           <h3>Auto-update</h3>
@@ -474,10 +491,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.24.0</strong></p>
+          <p>Version: <strong id="about-version">v0.25.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.24: sidebar polish — drag the sidebar/editor divider to resize, click « (or Ctrl+\) to hide the sidebar entirely, ☰ to bring it back. Width and visibility persist across restarts.</p>
+          <p class="setting-help">Beta.25: text snippets — type <code>;todo</code> + Tab in the editor body to expand. Six defaults ship; manage your own in Settings → Snippets.</p>
         </div>
       </section>
 
@@ -546,6 +563,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Increase / decrease / reset editor font size</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print (or save as PDF)</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>\</kbd></td><td>Toggle sidebar visibility</td></tr>
+          <tr><td><kbd>;name</kbd>+<kbd>Tab</kbd></td><td>Expand a snippet (Settings → Snippets)</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

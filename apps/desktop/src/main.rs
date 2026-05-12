@@ -1096,6 +1096,96 @@ fn month_calendar(
     }))
 }
 
+// --- v0.25 — text snippets (typed shortcuts that expand in the editor) ---
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Snippet {
+    key: String,
+    body: String,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+fn snippets_path() -> PathBuf {
+    data_root().join("snippets.json")
+}
+
+#[tauri::command]
+fn list_snippets() -> Vec<Snippet> {
+    let p = snippets_path();
+    let raw = match fs::read(&p) {
+        Ok(b) => b,
+        Err(_) => return default_snippets(),
+    };
+    serde_json::from_slice::<Vec<Snippet>>(&raw).unwrap_or_else(|_| default_snippets())
+}
+
+fn default_snippets() -> Vec<Snippet> {
+    vec![
+        Snippet {
+            key: "todo".to_string(),
+            body: "- [ ] ".to_string(),
+            description: Some("New task checkbox".to_string()),
+        },
+        Snippet {
+            key: "today".to_string(),
+            body: Utc::now().format("%Y-%m-%d").to_string(),
+            description: Some("Today's date (YYYY-MM-DD)".to_string()),
+        },
+        Snippet {
+            key: "now".to_string(),
+            body: Utc::now().format("%H:%M").to_string(),
+            description: Some("Current time (HH:MM)".to_string()),
+        },
+        Snippet {
+            key: "hr".to_string(),
+            body: "\n---\n".to_string(),
+            description: Some("Horizontal rule on its own line".to_string()),
+        },
+        Snippet {
+            key: "code".to_string(),
+            body: "```\n\n```".to_string(),
+            description: Some("Empty fenced code block".to_string()),
+        },
+        Snippet {
+            key: "fm".to_string(),
+            body: "---\nstatus: \ntype: \n---\n\n".to_string(),
+            description: Some("Frontmatter scaffold".to_string()),
+        },
+    ]
+}
+
+#[tauri::command]
+fn save_snippets(snippets: Vec<Snippet>) -> Result<(), String> {
+    let mut seen = std::collections::HashSet::new();
+    for s in &snippets {
+        if s.key.trim().is_empty() {
+            return Err("snippet key empty".into());
+        }
+        if !s
+            .key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(format!(
+                "snippet key '{}' must be alphanumeric / - / _",
+                s.key
+            ));
+        }
+        let lc = s.key.to_lowercase();
+        if !seen.insert(lc) {
+            return Err(format!("duplicate snippet key '{}'", s.key));
+        }
+    }
+    let p = snippets_path();
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let tmp = p.with_extension("json.tmp");
+    let bytes = serde_json::to_vec_pretty(&snippets).map_err(|e| e.to_string())?;
+    fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p).map_err(|e| e.to_string())
+}
+
 /// Same as `backlinks` but each result carries the line containing `[[Title]]` as `snippet`.
 #[tauri::command]
 fn backlinks_with_context(
@@ -2890,6 +2980,8 @@ fn main() -> Result<()> {
             quick_capture_append,
             backlinks_with_context,
             mentions,
+            list_snippets,
+            save_snippets,
             export_note_md,
             export_all_md,
             import_md,

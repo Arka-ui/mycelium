@@ -1002,6 +1002,176 @@ fn outline(state: State<'_, AppState>, id: String) -> Result<Vec<serde_json::Val
 }
 
 #[tauri::command]
+fn graph_data(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut nodes = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let title = if n.title.trim().is_empty() {
+            "Untitled".into()
+        } else {
+            n.title.clone()
+        };
+        title_to_id.insert(title.to_lowercase(), n.id.clone());
+        let body_len = n.body.len();
+        nodes.push(serde_json::json!({
+            "id": n.id,
+            "title": title,
+            "size": (body_len.min(20000) as f64 / 200.0).clamp(4.0, 20.0),
+            "pinned": n.pinned,
+            "tags": extract_tags(&n.body),
+        }));
+    }
+    let mut edges = vec![];
+    let re = regex_lite();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        for cap in re.find_iter(&n.body) {
+            let target_title = &n.body[cap.0 + 2..cap.1 - 2];
+            let target = target_title.trim().to_lowercase();
+            if let Some(target_id) = title_to_id.get(&target) {
+                if &n.id != target_id {
+                    edges.push(serde_json::json!({
+                        "source": n.id,
+                        "target": target_id,
+                    }));
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "nodes": nodes,
+        "edges": edges,
+    }))
+}
+
+fn regex_lite() -> WikiLinkFinder {
+    WikiLinkFinder
+}
+
+struct WikiLinkFinder;
+impl WikiLinkFinder {
+    fn find_iter<'a>(&self, s: &'a str) -> WikiLinkIter<'a> {
+        WikiLinkIter { s, pos: 0 }
+    }
+}
+struct WikiLinkIter<'a> {
+    s: &'a str,
+    pos: usize,
+}
+impl<'a> Iterator for WikiLinkIter<'a> {
+    type Item = (usize, usize);
+    fn next(&mut self) -> Option<(usize, usize)> {
+        let bytes = self.s.as_bytes();
+        while self.pos + 4 < bytes.len() {
+            if bytes[self.pos] == b'[' && bytes[self.pos + 1] == b'[' {
+                let start = self.pos;
+                let mut end = self.pos + 2;
+                while end + 1 < bytes.len() && !(bytes[end] == b']' && bytes[end + 1] == b']') {
+                    if bytes[end] == b'\n' {
+                        break;
+                    }
+                    end += 1;
+                }
+                if end + 1 < bytes.len() && bytes[end] == b']' && bytes[end + 1] == b']' {
+                    self.pos = end + 2;
+                    return Some((start, end + 2));
+                }
+            }
+            self.pos += 1;
+        }
+        None
+    }
+}
+
+#[tauri::command]
+fn calendar_data(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut counts: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if let Some(t) = n.updated_at {
+            let day = t.format("%Y-%m-%d").to_string();
+            *counts.entry(day).or_insert(0) += 1;
+        }
+    }
+    Ok(counts.into_iter().collect())
+}
+
+#[tauri::command]
+fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut total_notes = 0u32;
+    let mut total_words = 0u64;
+    let mut total_chars = 0u64;
+    let mut pinned_count = 0u32;
+    let mut tag_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut links = 0u32;
+    let mut earliest: Option<DateTime<Utc>> = None;
+    let mut latest: Option<DateTime<Utc>> = None;
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        total_notes += 1;
+        if n.pinned {
+            pinned_count += 1;
+        }
+        let words = n.body.split_whitespace().filter(|w| !w.is_empty()).count();
+        total_words += words as u64;
+        total_chars += n.body.chars().count() as u64;
+        for t in extract_tags(&n.body) {
+            *tag_counts.entry(t).or_insert(0) += 1;
+        }
+        let finder = WikiLinkFinder;
+        links += finder.find_iter(&n.body).count() as u32;
+        if let Some(t) = n.created_at {
+            earliest = Some(earliest.map(|e| e.min(t)).unwrap_or(t));
+            latest = Some(latest.map(|e| e.max(t)).unwrap_or(t));
+        }
+    }
+    let mut top_tags: Vec<(String, u32)> = tag_counts.into_iter().collect();
+    top_tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    top_tags.truncate(10);
+    Ok(serde_json::json!({
+        "total_notes": total_notes,
+        "total_words": total_words,
+        "total_chars": total_chars,
+        "pinned": pinned_count,
+        "links": links,
+        "top_tags": top_tags,
+        "earliest": earliest,
+        "latest": latest,
+    }))
+}
+
+#[tauri::command]
 fn note_stats(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
     let note = state
         .store
@@ -1621,6 +1791,9 @@ fn main() -> Result<()> {
             lock_disable,
             lock_unlock,
             lock_now,
+            graph_data,
+            calendar_data,
+            dashboard_stats,
             app_info,
             get_settings,
             set_settings,

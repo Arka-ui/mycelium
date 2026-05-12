@@ -41,6 +41,7 @@ const els = {};
   'saved-searches','save-search-btn',
   'opt-spell-check','opt-sort','sel-toolbar','cheatsheet-modal','cs-close',
   'lock-screen','lock-pass','lock-unlock-btn','lock-error','lock-state-text','lock-controls',
+  'dash-grid','dash-tags','dash-cal','dash-graph','dash-refresh-btn',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -476,6 +477,7 @@ function closeSettings() { els.modalBackdrop.classList.add('hidden'); }
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+  if (name === 'dashboard') refreshDashboard();
 }
 
 async function loadSettings() {
@@ -1473,6 +1475,171 @@ window.addEventListener('beforeunload', () => {
 
 els.lockUnlockBtn.addEventListener('click', attemptUnlock);
 els.lockPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptUnlock(); });
+
+async function refreshDashboard() {
+  if (!els.dashGrid) return;
+  try {
+    const stats = await invoke('dashboard_stats');
+    const cells = [
+      { label: 'Notes', value: stats.total_notes },
+      { label: 'Words', value: (stats.total_words || 0).toLocaleString() },
+      { label: 'Characters', value: (stats.total_chars || 0).toLocaleString() },
+      { label: 'Pinned', value: stats.pinned },
+      { label: 'Wiki-links', value: stats.links },
+      { label: 'Tags', value: (stats.top_tags || []).length },
+    ];
+    els.dashGrid.innerHTML = '';
+    for (const c of cells) {
+      const card = document.createElement('div');
+      card.className = 'dash-card';
+      const v = document.createElement('div'); v.className = 'dash-val'; v.textContent = c.value;
+      const l = document.createElement('div'); l.className = 'dash-lbl'; l.textContent = c.label;
+      card.appendChild(v); card.appendChild(l);
+      els.dashGrid.appendChild(card);
+    }
+    els.dashTags.innerHTML = '';
+    if (!stats.top_tags || !stats.top_tags.length) {
+      const li = document.createElement('li');
+      li.style.background = 'transparent'; li.style.color = 'var(--text-3)'; li.style.fontSize = '12.5px';
+      li.textContent = 'No tags yet. Add #tag in any note body.';
+      els.dashTags.appendChild(li);
+    } else {
+      for (const [tag, count] of stats.top_tags) {
+        const li = document.createElement('li');
+        const main = document.createElement('div'); main.className = 'row-main';
+        const name = document.createElement('div'); name.className = 'row-name'; name.textContent = '#' + tag;
+        const sub = document.createElement('div'); sub.className = 'row-sub'; sub.textContent = count + ' note' + (count === 1 ? '' : 's');
+        main.appendChild(name); main.appendChild(sub);
+        li.appendChild(main);
+        const actions = document.createElement('div'); actions.className = 'row-actions';
+        actions.appendChild(btn('ghost-btn', 'Filter', () => { state.activeTag = tag; closeSettings(); renderTagBar(); renderList(); }));
+        li.appendChild(actions);
+        els.dashTags.appendChild(li);
+      }
+    }
+  } catch (e) { console.error('dashboard stats:', e); }
+
+  try {
+    const cal = await invoke('calendar_data');
+    drawHeatmap(els.dashCal, cal);
+  } catch (e) { console.error('calendar:', e); }
+
+  try {
+    const g = await invoke('graph_data');
+    drawGraph(els.dashGraph, g);
+  } catch (e) { console.error('graph:', e); }
+}
+
+function drawHeatmap(container, data) {
+  container.innerHTML = '';
+  const map = new Map(data.map(([k, v]) => [k, v]));
+  const today = new Date();
+  const weeks = 12;
+  const days = weeks * 7;
+  let max = 0;
+  for (const [, v] of data) if (v > max) max = v;
+  const grid = document.createElement('div'); grid.className = 'cal-grid';
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const v = map.get(key) || 0;
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    const intensity = max > 0 ? (v / max) : 0;
+    cell.style.background = v === 0 ? 'var(--bg-3)' : `color-mix(in srgb, var(--accent) ${Math.round(20 + intensity * 80)}%, var(--bg-3))`;
+    cell.title = `${key}: ${v} note${v === 1 ? '' : 's'}`;
+    grid.appendChild(cell);
+  }
+  container.appendChild(grid);
+}
+
+function drawGraph(canvas, data) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!data.nodes || !data.nodes.length) {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-3');
+    ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No notes with [[wiki-links]] yet.', W / 2, H / 2);
+    return;
+  }
+  const nodes = data.nodes.map((n, i) => ({
+    ...n,
+    x: W / 2 + Math.cos(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    y: H / 2 + Math.sin(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    vx: 0, vy: 0,
+  }));
+  const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
+  const edges = data.edges.map(e => ({ source: idIdx.get(e.source), target: idIdx.get(e.target) }))
+    .filter(e => e.source !== undefined && e.target !== undefined);
+
+  for (let iter = 0; iter < 250; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      let fx = 0, fy = 0;
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue;
+        const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        const d2 = dx * dx + dy * dy + 1;
+        const f = 1500 / d2;
+        fx += dx * f; fy += dy * f;
+      }
+      const cx = W / 2 - nodes[i].x, cy = H / 2 - nodes[i].y;
+      fx += cx * 0.005; fy += cy * 0.005;
+      nodes[i].vx = (nodes[i].vx + fx) * 0.5;
+      nodes[i].vy = (nodes[i].vy + fy) * 0.5;
+    }
+    for (const e of edges) {
+      const a = nodes[e.source], b = nodes[e.target];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const target = 80;
+      const f = (d - target) * 0.05;
+      a.vx += dx / d * f; a.vy += dy / d * f;
+      b.vx -= dx / d * f; b.vy -= dy / d * f;
+    }
+    for (const n of nodes) {
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(20, Math.min(W - 20, n.x));
+      n.y = Math.max(20, Math.min(H - 20, n.y));
+    }
+  }
+
+  const styles = getComputedStyle(document.body);
+  const accent = styles.getPropertyValue('--accent') || '#7aa6ff';
+  const text = styles.getPropertyValue('--text') || '#e6e6e6';
+  const text3 = styles.getPropertyValue('--text-3') || '#6f7177';
+
+  ctx.strokeStyle = text3.trim(); ctx.lineWidth = 0.5;
+  for (const e of edges) {
+    const a = nodes[e.source], b = nodes[e.target];
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  for (const n of nodes) {
+    ctx.fillStyle = n.pinned ? accent.trim() : text.trim();
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.size || 5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = text.trim(); ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  for (const n of nodes) {
+    ctx.fillText(n.title.slice(0, 18), n.x, n.y - (n.size || 5) - 4);
+  }
+
+  canvas._nodes = nodes;
+}
+
+els.dashGraph && els.dashGraph.addEventListener('click', (e) => {
+  const r = els.dashGraph.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (els.dashGraph.width / r.width);
+  const y = (e.clientY - r.top) * (els.dashGraph.height / r.height);
+  const nodes = els.dashGraph._nodes || [];
+  for (const n of nodes) {
+    const dx = x - n.x, dy = y - n.y;
+    if (dx * dx + dy * dy < (n.size || 5) * (n.size || 5) * 4) {
+      closeSettings(); openNote(n.id); return;
+    }
+  }
+});
+els.dashRefreshBtn && els.dashRefreshBtn.addEventListener('click', refreshDashboard);
 
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }

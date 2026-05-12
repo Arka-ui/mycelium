@@ -1,3 +1,28 @@
+# Mycelium v0.9.0-beta.1 - Visualization
+
+beta.9 adds a Dashboard tab with at-a-glance stats, top tags, an activity heatmap, and an interactive note graph. Everything is computed locally, no third-party charting library.
+
+## New in v0.9.0
+
+### Dashboard tab in Settings
+- **At-a-glance** cards: total notes, total words, total characters, pinned count, wiki-link count, distinct-tag count.
+- **Top tags** list (top 10 by note-count) with one-click filter — clicking "Filter" closes Settings and applies the tag filter to the sidebar.
+- **12-week activity heatmap** — a GitHub-style grid where each cell is one day, intensity scales with the number of notes touched that day.
+- **Note graph** — a Canvas-based force-directed render of every note connected by `[[wiki-link]]`. Nodes scale by note size, pinned nodes are accent-coloured. Click a node to open the note.
+
+### Backend
+- 3 new commands: `graph_data`, `calendar_data`, `dashboard_stats`.
+- A small in-house `WikiLinkFinder` (no `regex` crate) walks note bodies for `[[link]]` syntax.
+
+### Frontend
+- ~150 LOC of vanilla-JS dashboard rendering. Force-directed layout runs 250 iterations on tab open, then renders. No external charting library.
+- Theme-aware colors (uses CSS custom properties via `getComputedStyle`).
+
+### Auto-update
+- Pushing v0.9.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.8.0-beta.1 - At-rest encryption
 
 beta.8 turns the workspace lock from a UI guard into real cryptographic protection. When the lock is enabled, every note JSON file on disk is encrypted with ChaCha20-Poly1305; the master key is derived from your passphrase via 50,000 BLAKE3 iterations and never persisted.

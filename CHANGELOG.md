@@ -1,3 +1,30 @@
+# Mycelium v0.20.0-beta.1 - Smarter wiki-links
+
+beta.20 brings three Obsidian-style upgrades to the wiki-link grammar — note aliases, block references, and display text — backed by a new `resolve_link` command.
+
+## New in v0.20.0
+
+### Note aliases via frontmatter
+- Add `alias: foo, bar` (or `aliases: foo, bar`) to a note's frontmatter to declare alternate names.
+- `[[foo]]` and `[[bar]]` then both resolve to that note. Case-insensitive, comma-separated.
+- Wiki-link autocomplete now also suggests aliases, with a `→ Real Title` hint to disambiguate.
+
+### Block references
+- `[[Note#Heading]]` resolves to the note and scrolls preview to the matching heading after open. Heading match is text-based, case-insensitive, prefix-matched.
+- Combine: `[[Note#Heading|see here]]` works too.
+
+### Display text
+- `[[Real Title|click here]]` renders the link as `click here` while still pointing at "Real Title". Common Obsidian convention.
+
+### Backend
+- `resolve_link(target)` returns `{ id, title, anchor }` (anchor only if `#` was used). Falls back to alias lookup before declaring a link broken.
+- `all_aliases()` returns every note that publishes one or more aliases (used by autocomplete).
+
+### Auto-update
+- Pushing v0.20.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.19.0-beta.1 - Calendar view
 
 beta.19 closes the loop on frontmatter properties: deadlines, schedules, agendas now have a month-grid view that pins notes to dates.

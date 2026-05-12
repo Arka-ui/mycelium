@@ -1096,6 +1096,95 @@ fn month_calendar(
     }))
 }
 
+/// Resolve a wiki-link target to a note id, handling aliases and `Title#Heading` block refs.
+/// `target` is everything between `[[` and `]]` minus any `|display`. Returns
+/// `{ id?: String, title?: String, anchor?: String }` (anchor present iff `#` was used).
+#[tauri::command]
+fn resolve_link(state: State<'_, AppState>, target: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let raw = target.trim().to_string();
+    if raw.is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    let (link_part, anchor) = match raw.split_once('#') {
+        Some((l, a)) => (l.trim().to_string(), Some(a.trim().to_string())),
+        None => (raw.clone(), None),
+    };
+    if link_part.is_empty() {
+        return Ok(serde_json::json!({"anchor": anchor}));
+    }
+    let want = link_part.to_lowercase();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    drop(store);
+    // Exact title match first.
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if n.title.to_lowercase() == want {
+            return Ok(serde_json::json!({
+                "id": n.id, "title": n.title, "anchor": anchor
+            }));
+        }
+    }
+    // Then alias match in frontmatter (`alias: foo, bar` or `aliases:`).
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in &props {
+            let lc = k.to_lowercase();
+            if lc != "alias" && lc != "aliases" {
+                continue;
+            }
+            for piece in v.split(',') {
+                if piece.trim().to_lowercase() == want {
+                    return Ok(serde_json::json!({
+                        "id": n.id, "title": n.title, "anchor": anchor
+                    }));
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({"anchor": anchor}))
+}
+
+/// Every note that publishes one or more aliases via frontmatter.
+#[tauri::command]
+fn all_aliases(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out = vec![];
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        for (k, v) in props {
+            let lc = k.to_lowercase();
+            if lc == "alias" || lc == "aliases" {
+                let aliases: Vec<String> = v
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                if !aliases.is_empty() {
+                    out.push(serde_json::json!({
+                        "id": n.id,
+                        "title": n.title,
+                        "aliases": aliases,
+                    }));
+                }
+                break;
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Run a tiny query DSL across the workspace. Supported forms:
 /// - `tag=NAME`  → notes carrying #NAME
 /// - `KEY=VALUE` → notes with frontmatter `KEY: VALUE`
@@ -2540,6 +2629,8 @@ fn main() -> Result<()> {
             board_data,
             query_notes,
             month_calendar,
+            resolve_link,
+            all_aliases,
             export_note_md,
             export_all_md,
             import_md,

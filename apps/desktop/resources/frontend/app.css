@@ -813,6 +813,7 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
 }
 .wiki-pop-item { padding: 5px 12px; cursor: pointer; color: var(--text-2); }
 .wiki-pop-item:hover, .wiki-pop-item.on { background: var(--bg-3); color: var(--text); }
+.wiki-pop-hint { color: var(--text-3); font-size: 11px; margin-left: 8px; }
 
 /* --- v0.12 — reading mode (zen) -------------------------------------- */
 body.reading-mode #sidebar { display: none; }

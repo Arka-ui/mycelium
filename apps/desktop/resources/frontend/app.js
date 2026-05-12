@@ -474,13 +474,26 @@ function renderPreview() {
   els.preview.innerHTML = html;
   els.preview.querySelectorAll('a.wiki-link').forEach(a => {
     const title = a.dataset.wiki;
+    const anchor = a.dataset.anchor || '';
+    // v0.15 + v0.20 — first try sync match by title; for misses, the click handler
+    // calls resolve_link which also checks frontmatter aliases.
     const found = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase());
-    // v0.15 — broken-wiki-link visual cue
-    if (!found) { a.classList.add('dead'); a.title = 'No note titled "' + title + '" — click to create.'; }
+    if (!found && !anchor) {
+      // We'll mark dead provisionally; resolve_link is async and may still find an alias on click.
+      a.classList.add('dead');
+      a.title = 'No note titled "' + title + '" — click to resolve via alias or create.';
+    }
     a.addEventListener('click', async (e) => {
       e.preventDefault();
-      if (found) { openNote(found.id); return; }
-      if (confirm(`No note titled "${title}". Create one?`)) {
+      let resolved;
+      try { resolved = await invoke('resolve_link', { target: title + (anchor ? '#' + anchor : '') }); }
+      catch (_) { resolved = null; }
+      if (resolved && resolved.id) {
+        await openNote(resolved.id);
+        if (resolved.anchor) scrollPreviewToHeading(resolved.anchor);
+        return;
+      }
+      if (confirm(`No note resolves to "${title}". Create one?`)) {
         const note = await invoke('create_note', { title, body: '' });
         await loadNotes(); openNote(note.id);
       }
@@ -1644,6 +1657,20 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+// v0.20 — scroll preview to a heading whose text matches `anchor` (case-insensitive).
+function scrollPreviewToHeading(anchor) {
+  if (!anchor || !els.preview) return;
+  // Wait one frame for renderPreview to finish (in case openNote just ran).
+  requestAnimationFrame(() => {
+    const want = anchor.trim().toLowerCase();
+    const heads = els.preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    for (const h of heads) {
+      const txt = (h.textContent || '').replace(/^▾\s*/, '').trim().toLowerCase();
+      if (txt === want || txt.startsWith(want)) { h.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    }
+  });
+}
+
 // --- v0.12 — reading mode --------------------------------------------
 function toggleReadingMode() {
   if (!state.activeId) return;
@@ -1680,11 +1707,10 @@ function closeWikiAutocomplete() {
   if (pop) pop.classList.add('hidden');
   state.wikiAuto = null;
 }
-function maybeOpenWikiAutocomplete() {
+async function maybeOpenWikiAutocomplete() {
   if (!state.activeId) return;
   const ta = els.body;
   const caret = ta.selectionStart;
-  // Look back for the last `[[` not yet closed by `]]` on this line.
   const upto = ta.value.slice(0, caret);
   const lineStart = upto.lastIndexOf('\n') + 1;
   const lineUpto = upto.slice(lineStart);
@@ -1694,9 +1720,30 @@ function maybeOpenWikiAutocomplete() {
   if (after.includes(']]')) { closeWikiAutocomplete(); return; }
   if (/[\n]/.test(after)) { closeWikiAutocomplete(); return; }
   const query = after.toLowerCase();
-  const matches = state.notes
-    .filter(n => n.title && (!query || n.title.toLowerCase().includes(query)))
-    .slice(0, 8);
+  // v0.20 — also suggest aliases.
+  const seen = new Set();
+  const matches = [];
+  for (const n of state.notes) {
+    if (n.title && (!query || n.title.toLowerCase().includes(query))) {
+      const k = 'title:' + n.title;
+      if (!seen.has(k)) { seen.add(k); matches.push({ title: n.title, hint: '' }); }
+    }
+    if (matches.length >= 8) break;
+  }
+  if (matches.length < 8) {
+    let aliasInfo = [];
+    try { aliasInfo = await invoke('all_aliases'); } catch (_) { aliasInfo = []; }
+    for (const ai of aliasInfo) {
+      for (const al of (ai.aliases || [])) {
+        if (!query || al.toLowerCase().includes(query)) {
+          const k = 'alias:' + al;
+          if (!seen.has(k)) { seen.add(k); matches.push({ title: al, hint: '→ ' + ai.title }); }
+          if (matches.length >= 8) break;
+        }
+      }
+      if (matches.length >= 8) break;
+    }
+  }
   if (!matches.length) { closeWikiAutocomplete(); return; }
   const pop = ensureWikiPopover();
   pop.innerHTML = '';
@@ -1704,7 +1751,9 @@ function maybeOpenWikiAutocomplete() {
   matches.forEach((n, idx) => {
     const li = document.createElement('li');
     li.className = 'wiki-pop-item' + (idx === 0 ? ' on' : '');
-    li.textContent = n.title || 'Untitled';
+    const lab = document.createElement('span'); lab.textContent = n.title || 'Untitled';
+    li.appendChild(lab);
+    if (n.hint) { const h = document.createElement('span'); h.className = 'wiki-pop-hint'; h.textContent = ' ' + n.hint; li.appendChild(h); }
     li.addEventListener('mousedown', (e) => { e.preventDefault(); commitWikiAutocomplete(idx); });
     pop.appendChild(li);
   });

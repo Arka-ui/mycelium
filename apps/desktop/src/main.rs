@@ -25,10 +25,14 @@ struct Note {
     pinned: bool,
     #[serde(default)]
     trashed_at: Option<DateTime<Utc>>,
+    /// Manual ordering for pinned notes (1-based; 0 = no manual order).
+    /// Unpinned notes ignore this field.
+    #[serde(default)]
+    display_order: i32,
 }
 
 fn default_schema_ver() -> u32 {
-    2
+    3
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +46,8 @@ struct NoteSummary {
     tags: Vec<String>,
     #[serde(default)]
     trashed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    display_order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,6 +192,7 @@ impl Store {
             pinned: note.pinned,
             tags: extract_tags(&note.body),
             trashed_at: note.trashed_at,
+            display_order: note.display_order,
         }
     }
 
@@ -196,10 +203,24 @@ impl Store {
             .filter(|n| n.trashed_at.is_none())
             .map(Self::summarize)
             .collect();
-        out.sort_by(|a, b| {
-            b.pinned
-                .cmp(&a.pinned)
-                .then_with(|| b.updated_at.cmp(&a.updated_at))
+        // Pinned (with manual order > 0 first, asc; then 0 by updated desc) > unpinned by updated.
+        out.sort_by(|a, b| match (a.pinned, b.pinned) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (true, true) => {
+                let ao = if a.display_order > 0 {
+                    a.display_order
+                } else {
+                    i32::MAX
+                };
+                let bo = if b.display_order > 0 {
+                    b.display_order
+                } else {
+                    i32::MAX
+                };
+                ao.cmp(&bo).then_with(|| b.updated_at.cmp(&a.updated_at))
+            }
+            (false, false) => b.updated_at.cmp(&a.updated_at),
         });
         Ok(out)
     }
@@ -233,12 +254,22 @@ impl Store {
             body,
             created_at: Some(now),
             updated_at: Some(now),
-            schema_ver: 2,
+            schema_ver: 3,
             pinned: false,
             trashed_at: None,
+            display_order: 0,
         };
         self.write(&note)?;
         Ok(note)
+    }
+
+    fn set_display_order(&self, id: &str, order: i32) -> Result<()> {
+        let mut note = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
+        note.display_order = order;
+        self.write(&note)?;
+        Ok(())
     }
 
     fn update(&self, id: &str, title: Option<String>, body: Option<String>) -> Result<Note> {
@@ -675,6 +706,103 @@ fn set_pinned(state: State<'_, AppState>, id: String, pinned: bool) -> Result<No
 }
 
 #[tauri::command]
+fn set_note_order(state: State<'_, AppState>, id: String, order: i32) -> Result<(), String> {
+    check_unlocked(&state)?;
+    state
+        .store
+        .lock()
+        .unwrap()
+        .set_display_order(&id, order)
+        .map_err(|e| e.to_string())
+}
+
+/// Renumber a list of pinned note ids to 1..N based on the order they appear.
+/// Any pinned note not in the list is kept (its previous order is left unchanged).
+#[tauri::command]
+fn reorder_pinned(state: State<'_, AppState>, ids: Vec<String>) -> Result<(), String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    for (i, id) in ids.iter().enumerate() {
+        store
+            .set_display_order(id, (i + 1) as i32)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn bulk_set_pinned(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    pinned: bool,
+) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut n = 0u32;
+    for id in ids {
+        if store.set_pinned(&id, pinned).is_ok() {
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+#[tauri::command]
+fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut n = 0u32;
+    for id in ids {
+        if store.trash(&id).is_ok() {
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
+#[tauri::command]
+fn bulk_export_md(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<(String, String)>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let mut out = vec![];
+    for id in ids {
+        let note = match store.get(&id).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        let title = if note.title.is_empty() {
+            "Untitled".into()
+        } else {
+            note.title.clone()
+        };
+        let safe = title
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        let filename = format!("{}.md", safe.trim());
+        let mut content = format!("# {}\n\n", title);
+        if let Some(t) = note.updated_at {
+            content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
+        }
+        content.push_str(&note.body);
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        out.push((filename, content));
+    }
+    Ok(out)
+}
+
+#[tauri::command]
 fn search_notes(state: State<'_, AppState>, query: String) -> Result<Vec<SearchHit>, String> {
     state
         .store
@@ -1002,6 +1130,176 @@ fn outline(state: State<'_, AppState>, id: String) -> Result<Vec<serde_json::Val
 }
 
 #[tauri::command]
+fn graph_data(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut title_to_id: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut nodes = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let title = if n.title.trim().is_empty() {
+            "Untitled".into()
+        } else {
+            n.title.clone()
+        };
+        title_to_id.insert(title.to_lowercase(), n.id.clone());
+        let body_len = n.body.len();
+        nodes.push(serde_json::json!({
+            "id": n.id,
+            "title": title,
+            "size": (body_len.min(20000) as f64 / 200.0).clamp(4.0, 20.0),
+            "pinned": n.pinned,
+            "tags": extract_tags(&n.body),
+        }));
+    }
+    let mut edges = vec![];
+    let re = regex_lite();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        for cap in re.find_iter(&n.body) {
+            let target_title = &n.body[cap.0 + 2..cap.1 - 2];
+            let target = target_title.trim().to_lowercase();
+            if let Some(target_id) = title_to_id.get(&target) {
+                if &n.id != target_id {
+                    edges.push(serde_json::json!({
+                        "source": n.id,
+                        "target": target_id,
+                    }));
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "nodes": nodes,
+        "edges": edges,
+    }))
+}
+
+fn regex_lite() -> WikiLinkFinder {
+    WikiLinkFinder
+}
+
+struct WikiLinkFinder;
+impl WikiLinkFinder {
+    fn find_iter<'a>(&self, s: &'a str) -> WikiLinkIter<'a> {
+        WikiLinkIter { s, pos: 0 }
+    }
+}
+struct WikiLinkIter<'a> {
+    s: &'a str,
+    pos: usize,
+}
+impl<'a> Iterator for WikiLinkIter<'a> {
+    type Item = (usize, usize);
+    fn next(&mut self) -> Option<(usize, usize)> {
+        let bytes = self.s.as_bytes();
+        while self.pos + 4 < bytes.len() {
+            if bytes[self.pos] == b'[' && bytes[self.pos + 1] == b'[' {
+                let start = self.pos;
+                let mut end = self.pos + 2;
+                while end + 1 < bytes.len() && !(bytes[end] == b']' && bytes[end + 1] == b']') {
+                    if bytes[end] == b'\n' {
+                        break;
+                    }
+                    end += 1;
+                }
+                if end + 1 < bytes.len() && bytes[end] == b']' && bytes[end + 1] == b']' {
+                    self.pos = end + 2;
+                    return Some((start, end + 2));
+                }
+            }
+            self.pos += 1;
+        }
+        None
+    }
+}
+
+#[tauri::command]
+fn calendar_data(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut counts: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for n in notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        if let Some(t) = n.updated_at {
+            let day = t.format("%Y-%m-%d").to_string();
+            *counts.entry(day).or_insert(0) += 1;
+        }
+    }
+    Ok(counts.into_iter().collect())
+}
+
+#[tauri::command]
+fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let notes = state
+        .store
+        .lock()
+        .unwrap()
+        .all_notes()
+        .map_err(|e| e.to_string())?;
+    let mut total_notes = 0u32;
+    let mut total_words = 0u64;
+    let mut total_chars = 0u64;
+    let mut pinned_count = 0u32;
+    let mut tag_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut links = 0u32;
+    let mut earliest: Option<DateTime<Utc>> = None;
+    let mut latest: Option<DateTime<Utc>> = None;
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        total_notes += 1;
+        if n.pinned {
+            pinned_count += 1;
+        }
+        let words = n.body.split_whitespace().filter(|w| !w.is_empty()).count();
+        total_words += words as u64;
+        total_chars += n.body.chars().count() as u64;
+        for t in extract_tags(&n.body) {
+            *tag_counts.entry(t).or_insert(0) += 1;
+        }
+        let finder = WikiLinkFinder;
+        links += finder.find_iter(&n.body).count() as u32;
+        if let Some(t) = n.created_at {
+            earliest = Some(earliest.map(|e| e.min(t)).unwrap_or(t));
+            latest = Some(latest.map(|e| e.max(t)).unwrap_or(t));
+        }
+    }
+    let mut top_tags: Vec<(String, u32)> = tag_counts.into_iter().collect();
+    top_tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    top_tags.truncate(10);
+    Ok(serde_json::json!({
+        "total_notes": total_notes,
+        "total_words": total_words,
+        "total_chars": total_chars,
+        "pinned": pinned_count,
+        "links": links,
+        "top_tags": top_tags,
+        "earliest": earliest,
+        "latest": latest,
+    }))
+}
+
+#[tauri::command]
 fn note_stats(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
     let note = state
         .store
@@ -1265,6 +1563,12 @@ struct Settings {
     sort_by: String,
     #[serde(default)]
     lock: Option<LockConfig>,
+    #[serde(default = "default_locale")]
+    locale: String,
+}
+
+fn default_locale() -> String {
+    "en".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1297,6 +1601,7 @@ impl Default for Settings {
             spell_check: false,
             sort_by: "updated".to_string(),
             lock: None,
+            locale: "en".to_string(),
         }
     }
 }
@@ -1595,6 +1900,11 @@ fn main() -> Result<()> {
             purge_note,
             empty_trash,
             set_pinned,
+            set_note_order,
+            reorder_pinned,
+            bulk_set_pinned,
+            bulk_trash,
+            bulk_export_md,
             search_notes,
             all_tags,
             backlinks,
@@ -1621,6 +1931,9 @@ fn main() -> Result<()> {
             lock_disable,
             lock_unlock,
             lock_now,
+            graph_data,
+            calendar_data,
+            dashboard_stats,
             app_info,
             get_settings,
             set_settings,

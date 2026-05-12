@@ -41,6 +41,7 @@ const els = {};
   'saved-searches','save-search-btn',
   'opt-spell-check','opt-sort','sel-toolbar','cheatsheet-modal','cs-close',
   'lock-screen','lock-pass','lock-unlock-btn','lock-error','lock-state-text','lock-controls',
+  'dash-grid','dash-tags','dash-cal','dash-graph','dash-refresh-btn',
   'backlinks-panel','backlinks-list','stat-words','stat-chars','stat-read',
   'modal-backdrop','modal-close','opt-auto-update','opt-default-preview','opt-show-backlinks','check-update-btn','update-status','update-available','update-version','update-notes','install-update-btn','skip-update-btn','update-progress','bar-fill','bar-label','about-version','open-releases-btn',
   'active-theme-select','open-theme-editor-btn','open-data-btn','theme-list','new-theme-btn','import-theme-btn',
@@ -49,6 +50,9 @@ const els = {};
   'import-md-btn','export-all-btn',
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
+  'opt-locale',
+  'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
+  'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 
@@ -59,9 +63,27 @@ const state = {
   themes: [], activeThemeId: 'dark', editingTheme: null,
   plugins: [], pluginWorkers: new Map(), pluginCommands: new Map(),
   pendingUpdate: null,
-  settings: { auto_check_updates: true, theme: 'dark', enabled_plugins: [], default_preview: false, show_backlinks: true },
+  settings: { auto_check_updates: true, theme: 'dark', enabled_plugins: [], default_preview: false, show_backlinks: true, locale: 'en' },
   palette: { open: false, items: [], cursor: 0 },
+  selectedIds: new Set(),
+  selectionAnchorId: null,
+  find: { open: false, lastIndex: -1 },
 };
+
+// --- i18n ---------------------------------------------------------------
+// Baseline English strings live in code as the fallback in t(). Other locales
+// merge in from window.MYCELIUM_TRANSLATIONS, which a community-contributed
+// translations.json (loaded later) can populate. This is intentionally a
+// thin layer in v0.10 — full string coverage rolls out in v0.11+.
+window.MYCELIUM_TRANSLATIONS = window.MYCELIUM_TRANSLATIONS || { en: {} };
+function t(key, fallback) {
+  try {
+    const loc = (state.settings && state.settings.locale) || 'en';
+    const tbl = window.MYCELIUM_TRANSLATIONS[loc] || {};
+    if (tbl[key]) return tbl[key];
+  } catch (_) {}
+  return fallback != null ? fallback : key;
+}
 
 const THEMES = ['dark', 'light', 'hc'];
 
@@ -111,23 +133,52 @@ function renderList() {
   if (!items.length) {
     const li = document.createElement('li');
     li.style.color = 'var(--text-3)'; li.style.fontSize = '12.5px'; li.style.padding = '14px 10px';
-    li.textContent = state.query ? 'No matches.' : state.activeTag ? 'No notes with #' + state.activeTag : 'No notes yet. Click "+ New note".';
+    li.textContent = state.query ? t('list.no_matches', 'No matches.') : state.activeTag ? t('list.no_with_tag', 'No notes with #') + state.activeTag : t('list.empty', 'No notes yet. Click "+ New note".');
     els.noteList.appendChild(li);
+    state._visibleNotes = [];
     return;
   }
+  state._visibleNotes = items;
   for (const n of items) {
     const li = document.createElement('li');
     if (n.id === state.activeId) li.classList.add('active');
     if (n.pinned) li.classList.add('pinned');
+    if (state.selectedIds.has(n.id)) li.classList.add('selected');
+    li.dataset.id = n.id;
+
+    if (n.pinned) {
+      // HTML5 drag handle on pinned rows so we can manually order them.
+      li.draggable = true;
+      li.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-mycelium-note-id', n.id);
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', () => li.classList.remove('dragging'));
+      li.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('text/x-mycelium-note-id')) {
+          e.preventDefault();
+          li.classList.add('drop-above');
+        }
+      });
+      li.addEventListener('dragleave', () => li.classList.remove('drop-above'));
+      li.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        li.classList.remove('drop-above');
+        const draggedId = e.dataTransfer.getData('text/x-mycelium-note-id');
+        if (!draggedId || draggedId === n.id) return;
+        await reorderPinnedDrop(draggedId, n.id);
+      });
+    }
 
     const titleRow = document.createElement('div'); titleRow.className = 'nl-row-title';
-    const t = document.createElement('span'); t.className = 'nl-title';
-    t.textContent = n.title && n.title.trim() ? n.title : 'Untitled';
+    const ti = document.createElement('span'); ti.className = 'nl-title';
+    ti.textContent = n.title && n.title.trim() ? n.title : t('untitled', 'Untitled');
     if (n.pinned) {
       const star = document.createElement('span'); star.className = 'nl-pin'; star.textContent = '★';
       titleRow.appendChild(star);
     }
-    titleRow.appendChild(t);
+    titleRow.appendChild(ti);
     li.appendChild(titleRow);
 
     if (n.snippet && n.match_in_body) {
@@ -150,9 +201,96 @@ function renderList() {
     }
     li.appendChild(sub);
 
-    li.addEventListener('click', () => openNote(n.id));
+    li.addEventListener('click', (e) => handleNoteClick(e, n));
     els.noteList.appendChild(li);
   }
+}
+
+// --- multi-select -------------------------------------------------------
+function handleNoteClick(e, n) {
+  if (e.metaKey || e.ctrlKey) {
+    e.preventDefault();
+    if (state.selectedIds.has(n.id)) state.selectedIds.delete(n.id);
+    else state.selectedIds.add(n.id);
+    state.selectionAnchorId = n.id;
+    refreshBulkBar();
+    renderList();
+    return;
+  }
+  if (e.shiftKey && state.selectionAnchorId) {
+    e.preventDefault();
+    const visible = state._visibleNotes || state.notes;
+    const a = visible.findIndex(x => x.id === state.selectionAnchorId);
+    const b = visible.findIndex(x => x.id === n.id);
+    if (a >= 0 && b >= 0) {
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      for (let i = lo; i <= hi; i++) state.selectedIds.add(visible[i].id);
+    }
+    refreshBulkBar();
+    renderList();
+    return;
+  }
+  // Plain click clears selection and opens the note.
+  if (state.selectedIds.size) clearSelection(false);
+  state.selectionAnchorId = n.id;
+  openNote(n.id);
+}
+
+function clearSelection(rerender) {
+  state.selectedIds.clear();
+  state.selectionAnchorId = null;
+  refreshBulkBar();
+  if (rerender !== false) renderList();
+}
+
+function refreshBulkBar() {
+  const n = state.selectedIds.size;
+  if (!els.bulkBar) return;
+  if (!n) { els.bulkBar.classList.add('hidden'); return; }
+  els.bulkBar.classList.remove('hidden');
+  els.bulkCount.textContent = n + ' ' + (n === 1 ? t('bulk.selected_singular', 'selected') : t('bulk.selected_plural', 'selected'));
+}
+
+async function bulkPin(pin) {
+  const ids = Array.from(state.selectedIds);
+  if (!ids.length) return;
+  try {
+    await invoke('bulk_set_pinned', { ids, pinned: pin });
+    clearSelection(false);
+    await loadNotes();
+  } catch (e) { alert('Bulk pin failed: ' + e); }
+}
+async function bulkTrashSelected() {
+  const ids = Array.from(state.selectedIds);
+  if (!ids.length) return;
+  if (!confirm('Move ' + ids.length + ' note(s) to trash?')) return;
+  try {
+    await invoke('bulk_trash', { ids });
+    if (ids.includes(state.activeId)) showEmpty();
+    clearSelection(false);
+    await loadNotes();
+  } catch (e) { alert('Bulk trash failed: ' + e); }
+}
+async function bulkExportSelected() {
+  const ids = Array.from(state.selectedIds);
+  if (!ids.length) return;
+  try {
+    const out = await invoke('bulk_export_md', { ids });
+    downloadJson('mycelium-export-selected.json', { format: 'mycelium-export-v1', exported_at: new Date().toISOString(), notes: out.map(([f, c]) => ({ filename: f, content: c })) });
+  } catch (e) { alert('Bulk export failed: ' + e); }
+}
+
+// --- drag-reorder pinned ----------------------------------------------
+async function reorderPinnedDrop(draggedId, targetId) {
+  const pinned = (state._visibleNotes || state.notes).filter(n => n.pinned);
+  const ids = pinned.map(n => n.id).filter(id => id !== draggedId);
+  const tIdx = ids.indexOf(targetId);
+  if (tIdx < 0) return;
+  ids.splice(tIdx, 0, draggedId);
+  try {
+    await invoke('reorder_pinned', { ids });
+    await loadNotes();
+  } catch (e) { setStatus('reorder failed: ' + e); }
 }
 
 async function renderTagBar() {
@@ -407,6 +545,7 @@ function pickFile(accept) {
 
 async function openTrash() {
   state.view = 'trash';
+  clearSelection(false);
   document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'trash'));
   showView('trash');
   try {
@@ -417,6 +556,7 @@ async function openTrash() {
 
 async function openAllNotes() {
   state.view = 'all';
+  clearSelection(false);
   document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'all'));
   if (state.activeId) showView('editor'); else showView('empty');
   await loadNotes();
@@ -476,6 +616,7 @@ function closeSettings() { els.modalBackdrop.classList.add('hidden'); }
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+  if (name === 'dashboard') refreshDashboard();
 }
 
 async function loadSettings() {
@@ -487,11 +628,13 @@ async function loadSettings() {
     if (!state.settings.saved_searches) state.settings.saved_searches = [];
     if (state.settings.spell_check === undefined) state.settings.spell_check = false;
     if (!state.settings.sort_by) state.settings.sort_by = 'updated';
+    if (!state.settings.locale) state.settings.locale = 'en';
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
     els.optSpellCheck.checked = !!state.settings.spell_check;
     els.optSort.value = state.settings.sort_by;
+    if (els.optLocale) els.optLocale.value = state.settings.locale;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -687,6 +830,7 @@ async function saveSettings() {
   state.settings.show_backlinks = !!els.optShowBacklinks.checked;
   state.settings.spell_check = !!els.optSpellCheck.checked;
   state.settings.sort_by = els.optSort.value || 'updated';
+  if (els.optLocale) state.settings.locale = els.optLocale.value || 'en';
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
   applySpellCheck();
@@ -1098,6 +1242,109 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+// --- find & replace ---------------------------------------------------
+function openFindBar() {
+  if (!state.activeId) return;
+  if (!els.findBar) return;
+  state.find.open = true;
+  state.find.lastIndex = -1;
+  els.findBar.classList.remove('hidden');
+  // Pre-fill find from current selection if it's short.
+  const sel = els.body.value.slice(els.body.selectionStart, els.body.selectionEnd);
+  if (sel && sel.length < 80 && !sel.includes('\n')) els.findInput.value = sel;
+  setTimeout(() => { els.findInput.focus(); els.findInput.select(); refreshFindCount(); }, 30);
+}
+function closeFindBar() {
+  if (!els.findBar) return;
+  state.find.open = false;
+  els.findBar.classList.add('hidden');
+  els.body.focus();
+}
+function findAllOccurrences(needle) {
+  if (!needle) return [];
+  const hay = els.body.value;
+  const out = [];
+  const lcHay = hay.toLowerCase();
+  const lcNeedle = needle.toLowerCase();
+  let i = 0;
+  while ((i = lcHay.indexOf(lcNeedle, i)) !== -1) {
+    out.push(i);
+    i += Math.max(1, lcNeedle.length);
+  }
+  return out;
+}
+function refreshFindCount() {
+  if (!els.findInput) return;
+  const needle = els.findInput.value;
+  const occ = findAllOccurrences(needle);
+  if (!needle) { els.findCount.textContent = ''; return; }
+  if (!occ.length) { els.findCount.textContent = '0 / 0'; return; }
+  const idx = state.find.lastIndex >= 0 ? occ.indexOf(state.find.lastIndex) : -1;
+  els.findCount.textContent = (idx + 1) + ' / ' + occ.length;
+}
+function findNext() {
+  const needle = els.findInput.value;
+  if (!needle) { els.body.focus(); return; }
+  const hay = els.body.value;
+  const lcHay = hay.toLowerCase();
+  const lcNeedle = needle.toLowerCase();
+  let from = els.body.selectionEnd;
+  if (state.find.lastIndex >= 0 && from === state.find.lastIndex + needle.length) {
+    // already at last hit, move forward
+  }
+  let pos = lcHay.indexOf(lcNeedle, from);
+  if (pos < 0) pos = lcHay.indexOf(lcNeedle, 0); // wrap
+  if (pos < 0) { state.find.lastIndex = -1; refreshFindCount(); return; }
+  state.find.lastIndex = pos;
+  els.body.focus();
+  els.body.setSelectionRange(pos, pos + needle.length);
+  // Bring the match into view: rough estimate via line count.
+  const linesBefore = hay.slice(0, pos).split('\n').length - 1;
+  els.body.scrollTop = Math.max(0, (linesBefore - 4) * 24);
+  refreshFindCount();
+}
+function replaceCurrent() {
+  const needle = els.findInput.value;
+  if (!needle) return;
+  const replace = els.replaceInput.value;
+  const sel = els.body.value.slice(els.body.selectionStart, els.body.selectionEnd);
+  if (sel.toLowerCase() === needle.toLowerCase()) {
+    const start = els.body.selectionStart;
+    const before = els.body.value.slice(0, start);
+    const after = els.body.value.slice(els.body.selectionEnd);
+    els.body.value = before + replace + after;
+    els.body.setSelectionRange(start + replace.length, start + replace.length);
+    state.find.lastIndex = -1;
+    scheduleSave();
+  }
+  findNext();
+}
+function replaceAll() {
+  const needle = els.findInput.value;
+  if (!needle) return;
+  const replace = els.replaceInput.value;
+  const hay = els.body.value;
+  // Case-insensitive whole-string replace via index walk to preserve casing of replacement.
+  let out = '';
+  let i = 0;
+  const lcHay = hay.toLowerCase();
+  const lcNeedle = needle.toLowerCase();
+  let count = 0;
+  while (i < hay.length) {
+    const at = lcHay.indexOf(lcNeedle, i);
+    if (at < 0) { out += hay.slice(i); break; }
+    out += hay.slice(i, at) + replace;
+    i = at + needle.length;
+    count++;
+  }
+  if (!count) { setStatus('No matches.'); return; }
+  els.body.value = out;
+  scheduleSave();
+  state.find.lastIndex = -1;
+  setStatus('Replaced ' + count + ' match' + (count === 1 ? '' : 'es') + '.');
+  refreshFindCount();
+}
+
 async function refreshLockUi() {
   try {
     const s = await invoke('lock_status');
@@ -1213,6 +1460,7 @@ const PALETTE_COMMANDS = [
   { name: 'Italic selection', shortcut: 'Ctrl+I', run: () => applyFormat('italic') },
   { name: 'Code selection', shortcut: 'Ctrl+E', run: () => applyFormat('code') },
   { name: 'Link selection', shortcut: 'Ctrl+L', run: () => applyFormat('link') },
+  { name: 'Find & replace in note', shortcut: 'Ctrl+H', run: openFindBar },
 ];
 
 function fuzzyScore(text, q) {
@@ -1323,6 +1571,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'h') { e.preventDefault(); openFindBar(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && !inField) { e.preventDefault(); newDailyNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'd' && inField && target === els.title) { e.preventDefault(); newDailyNote(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
@@ -1338,6 +1587,8 @@ document.addEventListener('keydown', (e) => {
     if (!els.cheatsheetModal.classList.contains('hidden')) { closeCheatsheet(); return; }
     if (!els.historyModal.classList.contains('hidden')) { closeHistory(); return; }
     if (!els.modalBackdrop.classList.contains('hidden')) { closeSettings(); return; }
+    if (state.find.open) { closeFindBar(); return; }
+    if (state.selectedIds.size) { clearSelection(); return; }
     if (!els.selToolbar.classList.contains('hidden')) { hideSelToolbar(); return; }
     if (target === els.search) { els.search.value = ''; state.query = ''; loadNotes(); els.search.blur(); }
   }
@@ -1465,6 +1716,31 @@ els.cheatsheetModal.addEventListener('click', (e) => { if (e.target === els.chea
 
 els.optSpellCheck.addEventListener('change', saveSettings);
 els.optSort.addEventListener('change', () => { saveSettings(); renderList(); });
+if (els.optLocale) els.optLocale.addEventListener('change', () => { saveSettings(); renderList(); refreshBulkBar(); });
+
+if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
+if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));
+if (els.bulkExport) els.bulkExport.addEventListener('click', bulkExportSelected);
+if (els.bulkTrash) els.bulkTrash.addEventListener('click', bulkTrashSelected);
+if (els.bulkClear) els.bulkClear.addEventListener('click', () => clearSelection());
+
+if (els.findCloseBtn) els.findCloseBtn.addEventListener('click', closeFindBar);
+if (els.findNextBtn)  els.findNextBtn.addEventListener('click', findNext);
+if (els.findReplaceBtn) els.findReplaceBtn.addEventListener('click', replaceCurrent);
+if (els.findReplaceAllBtn) els.findReplaceAllBtn.addEventListener('click', replaceAll);
+if (els.findInput) {
+  els.findInput.addEventListener('input', refreshFindCount);
+  els.findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); findNext(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+  });
+}
+if (els.replaceInput) {
+  els.replaceInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); replaceCurrent(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeFindBar(); }
+  });
+}
 
 window.addEventListener('beforeunload', () => {
   if (state.pendingTimer) { clearTimeout(state.pendingTimer); flushSave(); }
@@ -1473,6 +1749,171 @@ window.addEventListener('beforeunload', () => {
 
 els.lockUnlockBtn.addEventListener('click', attemptUnlock);
 els.lockPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptUnlock(); });
+
+async function refreshDashboard() {
+  if (!els.dashGrid) return;
+  try {
+    const stats = await invoke('dashboard_stats');
+    const cells = [
+      { label: 'Notes', value: stats.total_notes },
+      { label: 'Words', value: (stats.total_words || 0).toLocaleString() },
+      { label: 'Characters', value: (stats.total_chars || 0).toLocaleString() },
+      { label: 'Pinned', value: stats.pinned },
+      { label: 'Wiki-links', value: stats.links },
+      { label: 'Tags', value: (stats.top_tags || []).length },
+    ];
+    els.dashGrid.innerHTML = '';
+    for (const c of cells) {
+      const card = document.createElement('div');
+      card.className = 'dash-card';
+      const v = document.createElement('div'); v.className = 'dash-val'; v.textContent = c.value;
+      const l = document.createElement('div'); l.className = 'dash-lbl'; l.textContent = c.label;
+      card.appendChild(v); card.appendChild(l);
+      els.dashGrid.appendChild(card);
+    }
+    els.dashTags.innerHTML = '';
+    if (!stats.top_tags || !stats.top_tags.length) {
+      const li = document.createElement('li');
+      li.style.background = 'transparent'; li.style.color = 'var(--text-3)'; li.style.fontSize = '12.5px';
+      li.textContent = 'No tags yet. Add #tag in any note body.';
+      els.dashTags.appendChild(li);
+    } else {
+      for (const [tag, count] of stats.top_tags) {
+        const li = document.createElement('li');
+        const main = document.createElement('div'); main.className = 'row-main';
+        const name = document.createElement('div'); name.className = 'row-name'; name.textContent = '#' + tag;
+        const sub = document.createElement('div'); sub.className = 'row-sub'; sub.textContent = count + ' note' + (count === 1 ? '' : 's');
+        main.appendChild(name); main.appendChild(sub);
+        li.appendChild(main);
+        const actions = document.createElement('div'); actions.className = 'row-actions';
+        actions.appendChild(btn('ghost-btn', 'Filter', () => { state.activeTag = tag; closeSettings(); renderTagBar(); renderList(); }));
+        li.appendChild(actions);
+        els.dashTags.appendChild(li);
+      }
+    }
+  } catch (e) { console.error('dashboard stats:', e); }
+
+  try {
+    const cal = await invoke('calendar_data');
+    drawHeatmap(els.dashCal, cal);
+  } catch (e) { console.error('calendar:', e); }
+
+  try {
+    const g = await invoke('graph_data');
+    drawGraph(els.dashGraph, g);
+  } catch (e) { console.error('graph:', e); }
+}
+
+function drawHeatmap(container, data) {
+  container.innerHTML = '';
+  const map = new Map(data.map(([k, v]) => [k, v]));
+  const today = new Date();
+  const weeks = 12;
+  const days = weeks * 7;
+  let max = 0;
+  for (const [, v] of data) if (v > max) max = v;
+  const grid = document.createElement('div'); grid.className = 'cal-grid';
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const v = map.get(key) || 0;
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    const intensity = max > 0 ? (v / max) : 0;
+    cell.style.background = v === 0 ? 'var(--bg-3)' : `color-mix(in srgb, var(--accent) ${Math.round(20 + intensity * 80)}%, var(--bg-3))`;
+    cell.title = `${key}: ${v} note${v === 1 ? '' : 's'}`;
+    grid.appendChild(cell);
+  }
+  container.appendChild(grid);
+}
+
+function drawGraph(canvas, data) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!data.nodes || !data.nodes.length) {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-3');
+    ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No notes with [[wiki-links]] yet.', W / 2, H / 2);
+    return;
+  }
+  const nodes = data.nodes.map((n, i) => ({
+    ...n,
+    x: W / 2 + Math.cos(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    y: H / 2 + Math.sin(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    vx: 0, vy: 0,
+  }));
+  const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
+  const edges = data.edges.map(e => ({ source: idIdx.get(e.source), target: idIdx.get(e.target) }))
+    .filter(e => e.source !== undefined && e.target !== undefined);
+
+  for (let iter = 0; iter < 250; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      let fx = 0, fy = 0;
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue;
+        const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        const d2 = dx * dx + dy * dy + 1;
+        const f = 1500 / d2;
+        fx += dx * f; fy += dy * f;
+      }
+      const cx = W / 2 - nodes[i].x, cy = H / 2 - nodes[i].y;
+      fx += cx * 0.005; fy += cy * 0.005;
+      nodes[i].vx = (nodes[i].vx + fx) * 0.5;
+      nodes[i].vy = (nodes[i].vy + fy) * 0.5;
+    }
+    for (const e of edges) {
+      const a = nodes[e.source], b = nodes[e.target];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const target = 80;
+      const f = (d - target) * 0.05;
+      a.vx += dx / d * f; a.vy += dy / d * f;
+      b.vx -= dx / d * f; b.vy -= dy / d * f;
+    }
+    for (const n of nodes) {
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(20, Math.min(W - 20, n.x));
+      n.y = Math.max(20, Math.min(H - 20, n.y));
+    }
+  }
+
+  const styles = getComputedStyle(document.body);
+  const accent = styles.getPropertyValue('--accent') || '#7aa6ff';
+  const text = styles.getPropertyValue('--text') || '#e6e6e6';
+  const text3 = styles.getPropertyValue('--text-3') || '#6f7177';
+
+  ctx.strokeStyle = text3.trim(); ctx.lineWidth = 0.5;
+  for (const e of edges) {
+    const a = nodes[e.source], b = nodes[e.target];
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  for (const n of nodes) {
+    ctx.fillStyle = n.pinned ? accent.trim() : text.trim();
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.size || 5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = text.trim(); ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  for (const n of nodes) {
+    ctx.fillText(n.title.slice(0, 18), n.x, n.y - (n.size || 5) - 4);
+  }
+
+  canvas._nodes = nodes;
+}
+
+els.dashGraph && els.dashGraph.addEventListener('click', (e) => {
+  const r = els.dashGraph.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (els.dashGraph.width / r.width);
+  const y = (e.clientY - r.top) * (els.dashGraph.height / r.height);
+  const nodes = els.dashGraph._nodes || [];
+  for (const n of nodes) {
+    const dx = x - n.x, dy = y - n.y;
+    if (dx * dx + dy * dy < (n.size || 5) * (n.size || 5) * 4) {
+      closeSettings(); openNote(n.id); return;
+    }
+  }
+});
+els.dashRefreshBtn && els.dashRefreshBtn.addEventListener('click', refreshDashboard);
 
 (async () => {
   if (!T) { document.body.innerHTML = '<div style="padding:32px;color:#e6e6e6;background:#0e0f12;font-family:sans-serif">Tauri runtime not available. Please re-install.</div>'; return; }

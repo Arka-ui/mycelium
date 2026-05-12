@@ -1,3 +1,20 @@
+# Mycelium v0.54.0-beta.1 - Tag autocomplete
+
+beta.54 brings the same `[[wiki-link]]`-style autocomplete to `#tags` so you stop reinventing tag spellings.
+
+## New in v0.54.0
+
+### Inline tag popover
+- Type `#x` in the editor body and a popover lists matching existing tags ranked by substring position (earlier = better) then frequency (more common first).
+- Source: existing `all_tags` backend command (no schema change).
+- **Arrow keys** navigate, **Enter** / **Tab** inserts `#tag`, **Esc** closes. Click outside also closes.
+- Up to 8 suggestions; hint shows note count.
+
+### Auto-update
+- Pushing v0.54.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.53.0-beta.1 - Properties form editor
 
 beta.53 puts a key/value form between you and the `---` frontmatter block, so adding `status: doing` (or removing `due:`) doesn't require typing YAML.

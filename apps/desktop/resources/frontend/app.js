@@ -910,6 +910,7 @@ async function openNote(id) {
   state.activeId = id; state.active = note;
   state.collapsedLines = new Set(); // v0.11 — folds reset per note
   closeWikiAutocomplete();
+  closeTagAutocomplete(); // v0.54
   pushRecent(id); // v0.12 — recents
   addTab(id);     // v0.29 — register / focus tab
   showView('editor');
@@ -3200,6 +3201,101 @@ function stripTrailingWhitespace(s) {
   return s.split('\n').map(line => line.replace(/[ \t]+$/, '')).join('\n');
 }
 
+// v0.54 — Tag autocomplete (when typing `#x` in editor body)
+state.tagAuto = null;
+function ensureTagPopover() {
+  let pop = document.getElementById('tag-pop');
+  if (pop) return pop;
+  pop = document.createElement('ul');
+  pop.id = 'tag-pop';
+  pop.className = 'wiki-pop hidden'; // reuse the same pop styling
+  document.body.appendChild(pop);
+  return pop;
+}
+function closeTagAutocomplete() {
+  const pop = document.getElementById('tag-pop');
+  if (pop) pop.classList.add('hidden');
+  state.tagAuto = null;
+}
+async function maybeOpenTagAutocomplete() {
+  if (!state.activeId) return;
+  const ta = els.body;
+  const caret = ta.selectionStart;
+  const upto = ta.value.slice(0, caret);
+  const lineStart = upto.lastIndexOf('\n') + 1;
+  const lineUpto = upto.slice(lineStart);
+  // Find the last `#` not preceded by alphanumeric on the line.
+  let hash = -1;
+  for (let i = lineUpto.length - 1; i >= 0; i--) {
+    const ch = lineUpto[i];
+    if (ch === '#') {
+      const prev = i > 0 ? lineUpto[i - 1] : ' ';
+      if (!/[A-Za-z0-9_-]/.test(prev)) { hash = i; }
+      break;
+    }
+    if (!/[A-Za-z0-9_-]/.test(ch)) break;
+  }
+  if (hash < 0) { closeTagAutocomplete(); return; }
+  const after = lineUpto.slice(hash + 1);
+  if (!/^[A-Za-z0-9_-]*$/.test(after)) { closeTagAutocomplete(); return; }
+  if (after.length < 1) { closeTagAutocomplete(); return; }
+  const query = after.toLowerCase();
+  let tags = [];
+  try { tags = await invoke('all_tags'); } catch (_) { tags = []; }
+  const matches = tags
+    .filter(([t]) => t.includes(query))
+    .sort((a, b) => {
+      const ai = a[0].indexOf(query), bi = b[0].indexOf(query);
+      if (ai !== bi) return ai - bi;
+      return b[1] - a[1]; // higher count first
+    })
+    .slice(0, 8);
+  if (!matches.length) { closeTagAutocomplete(); return; }
+  const pop = ensureTagPopover();
+  pop.innerHTML = '';
+  state.tagAuto = { from: lineStart + hash, to: caret, items: matches, cursor: 0 };
+  matches.forEach((m, idx) => {
+    const li = document.createElement('li');
+    li.className = 'wiki-pop-item' + (idx === 0 ? ' on' : '');
+    const lab = document.createElement('span'); lab.textContent = '#' + m[0];
+    li.appendChild(lab);
+    const hint = document.createElement('span'); hint.className = 'wiki-pop-hint';
+    hint.textContent = ' ' + m[1] + ' note' + (m[1] === 1 ? '' : 's');
+    li.appendChild(hint);
+    li.addEventListener('mousedown', (e) => { e.preventDefault(); commitTagAutocomplete(idx); });
+    pop.appendChild(li);
+  });
+  const r = ta.getBoundingClientRect();
+  const linesBefore = upto.split('\n').length - 1;
+  const lineHeight = 24;
+  const top = Math.min(r.top + (linesBefore + 1) * lineHeight - ta.scrollTop + 4, window.innerHeight - 220);
+  const left = Math.min(r.left + 80, window.innerWidth - 220);
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(r.top + 8, top) + 'px';
+  pop.classList.remove('hidden');
+}
+function commitTagAutocomplete(index) {
+  if (!state.tagAuto) return;
+  const m = state.tagAuto.items[index];
+  if (!m) return;
+  const ta = els.body;
+  const before = ta.value.slice(0, state.tagAuto.from);
+  const after = ta.value.slice(state.tagAuto.to);
+  const insert = '#' + m[0];
+  ta.value = before + insert + after;
+  const np = before.length + insert.length;
+  ta.setSelectionRange(np, np);
+  closeTagAutocomplete();
+  scheduleSave();
+}
+function moveTagCursor(delta) {
+  if (!state.tagAuto) return;
+  const pop = document.getElementById('tag-pop');
+  if (!pop) return;
+  state.tagAuto.cursor = Math.max(0, Math.min(state.tagAuto.items.length - 1, state.tagAuto.cursor + delta));
+  Array.from(pop.children).forEach((li, i) => li.classList.toggle('on', i === state.tagAuto.cursor));
+}
+
 // --- v0.43 helper: full set of all (non-trashed) notes for autocomplete + reorder
 //      that must be filter-independent. Falls back to state.notes if the cache is empty.
 state._allNotesCache = [];
@@ -3726,7 +3822,7 @@ els.previewBtn.addEventListener('click', togglePreview);
 if (els.readingBtn) els.readingBtn.addEventListener('click', toggleReadingMode);
 els.exportBtn.addEventListener('click', exportActiveMd);
 els.title.addEventListener('input', scheduleSave);
-els.body.addEventListener('input', () => { scheduleSave(); maybeOpenWikiAutocomplete(); });
+els.body.addEventListener('input', () => { scheduleSave(); maybeOpenWikiAutocomplete(); maybeOpenTagAutocomplete(); });
 // v0.32 — remember scroll position per note (debounced).
 els.body.addEventListener('scroll', () => {
   if (!state.activeId) return;
@@ -3760,6 +3856,16 @@ els.body.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp')   { e.preventDefault(); moveWikiCursor(-1); return; }
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commitWikiAutocomplete(state.wikiAuto.cursor); return; }
     if (e.key === 'Escape') { e.preventDefault(); closeWikiAutocomplete(); return; }
+  }
+  // v0.54 — tag autocomplete navigation
+  if (state.tagAuto) {
+    const tp = document.getElementById('tag-pop');
+    if (tp && !tp.classList.contains('hidden')) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveTagCursor(1); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); moveTagCursor(-1); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commitTagAutocomplete(state.tagAuto.cursor); return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeTagAutocomplete(); return; }
+    }
   }
   if (handleSmartEnter(e)) return;
   // v0.25 — try snippet expansion before smartTab so ;name+Tab wins.
@@ -3838,6 +3944,11 @@ document.addEventListener('click', (e) => {
   const pop = document.getElementById('wiki-pop');
   if (state.wikiAuto && pop && !pop.classList.contains('hidden')) {
     if (!pop.contains(e.target) && e.target !== els.body) closeWikiAutocomplete();
+  }
+  // v0.54 — close tag autocomplete popover too
+  const tpop = document.getElementById('tag-pop');
+  if (state.tagAuto && tpop && !tpop.classList.contains('hidden')) {
+    if (!tpop.contains(e.target) && e.target !== els.body) closeTagAutocomplete();
   }
 });
 

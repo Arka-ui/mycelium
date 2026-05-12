@@ -1,3 +1,22 @@
+# Mycelium v0.72.0-beta.1 - LaTeX expansion
+
+beta.72 enriches inline math rendering with substantially more symbols and a handful of accent / decoration macros.
+
+## New in v0.72.0
+
+### Symbol map growth
+- ~100 new macros across full Greek (incl. variants like `\varepsilon`, `\varphi`), big operators (`\bigcup`, `\bigcap`, `\bigoplus`, …), integrals (`\iint`, `\oiint`, …), set theory and logic (`\subseteq`, `\nsubseteq`, `\models`, `\vdash`, …), arrows (long, double, harpoons, hooks), operators (`\oplus`, `\otimes`, `\bigodot`, …), and miscellany (`\hbar`, `\ell`, `\aleph`, `\beth`, `\wp`, etc.).
+
+### Accent and decoration macros
+- `\sqrt{x}` → `√(x)`-style with overline over the radicand.
+- `\overline{x}`, `\underline{x}` — over/under-bar boxes.
+- `\hat{x}`, `\bar{x}`, `\tilde{x}`, `\vec{x}`, `\dot{x}`, `\ddot{x}` — combining-character accents.
+
+### Auto-update
+- Pushing v0.72.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.71.0-beta.1 - Pinned section split
 
 beta.71 marks the boundary between pinned and unpinned notes in the sidebar with subtle section headers.

@@ -632,6 +632,10 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
 }
 .preview .math .frac .num { display: block; border-bottom: 1px solid currentColor; padding: 0 4px; }
 .preview .math .frac .den { display: block; padding: 0 4px; }
+/* v0.72 — math accents and decorations */
+.preview .math .overline { border-top: 1px solid currentColor; padding: 0 2px; }
+.preview .math .underline { border-bottom: 1px solid currentColor; padding: 0 2px; }
+.preview .math .accent { display: inline-block; }
 
 .preview pre code .hl-kw  { color: var(--accent); font-weight: 600; }
 .preview pre code .hl-str { color: #b5e48c; }

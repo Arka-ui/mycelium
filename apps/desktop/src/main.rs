@@ -2842,6 +2842,13 @@ struct Settings {
     /// v0.37 — in preview, auto-link plain occurrences of known note titles.
     #[serde(default)]
     auto_wiki_link: bool,
+    /// v0.38 — Pomodoro / focus timer duration in minutes.
+    #[serde(default = "default_pomodoro")]
+    pomodoro_minutes: u32,
+}
+
+fn default_pomodoro() -> u32 {
+    25
 }
 
 fn default_trash_days() -> u32 {
@@ -2910,6 +2917,7 @@ impl Default for Settings {
             sidebar_visible: true,
             trash_purge_days: 30,
             auto_wiki_link: false,
+            pomodoro_minutes: 25,
         }
     }
 }

@@ -1,3 +1,22 @@
+# Mycelium v0.38.0-beta.1 - Focus timer
+
+beta.38 lands a built-in Pomodoro / focus timer.
+
+## New in v0.38.0
+
+### Start / cancel from palette
+- Palette → "Start focus timer" begins a session of `pomodoro_minutes` (default 25). Configurable in **Settings → General → Focus timer (Pomodoro)**: 5 / 10 / 15 / 20 / 25 / 30 / 45 / 60 / 90 min.
+- Palette → "Cancel focus timer" stops it.
+
+### Live countdown chip
+- Sidebar footer shows ⏱ MM:SS while a session is running. Click the chip to cancel.
+- At zero, plays a short tone (best-effort) and fires a system Notification (if granted).
+
+### Auto-update
+- Pushing v0.38.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.37.0-beta.1 - Auto-link & word frequency
 
 beta.37 brings two small but powerful insights into your prose.

@@ -54,7 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
-  'opt-auto-wiki-link',
+  'opt-auto-wiki-link','opt-pomodoro','pomodoro',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
@@ -1256,6 +1256,8 @@ async function loadSettings() {
     if (els.optTrashDays) els.optTrashDays.value = String(state.settings.trash_purge_days);
     if (state.settings.auto_wiki_link === undefined) state.settings.auto_wiki_link = false;
     if (els.optAutoWikiLink) els.optAutoWikiLink.checked = !!state.settings.auto_wiki_link;
+    if (!state.settings.pomodoro_minutes) state.settings.pomodoro_minutes = 25;
+    if (els.optPomodoro) els.optPomodoro.value = String(state.settings.pomodoro_minutes);
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1620,6 +1622,7 @@ async function saveSettings() {
   if (els.optQuickCapture) state.settings.quick_capture = !!els.optQuickCapture.checked;
   if (els.optTrashDays) state.settings.trash_purge_days = parseInt(els.optTrashDays.value, 10) || 0;
   if (els.optAutoWikiLink) state.settings.auto_wiki_link = !!els.optAutoWikiLink.checked;
+  if (els.optPomodoro) state.settings.pomodoro_minutes = parseInt(els.optPomodoro.value, 10) || 25;
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -2295,6 +2298,50 @@ async function importMultipleMd() {
   els.fileInput.click();
 }
 
+// v0.38 — Pomodoro / focus timer
+state.pomodoro = { interval: null, endsAt: 0 };
+function startPomodoro(minutes) {
+  const m = Math.max(1, Math.min(180, minutes || state.settings.pomodoro_minutes || 25));
+  if (state.pomodoro.interval) cancelPomodoro(true);
+  const ends = Date.now() + m * 60 * 1000;
+  state.pomodoro.endsAt = ends;
+  setStatus('Focus timer: ' + m + ' min started.');
+  state.pomodoro.interval = setInterval(tickPomodoro, 1000);
+  tickPomodoro();
+}
+function tickPomodoro() {
+  if (!els.pomodoro) return;
+  const left = state.pomodoro.endsAt - Date.now();
+  if (left <= 0) {
+    finishPomodoro();
+    return;
+  }
+  const mm = Math.floor(left / 60000);
+  const ss = Math.floor((left % 60000) / 1000);
+  els.pomodoro.classList.remove('hidden');
+  els.pomodoro.textContent = '⏱ ' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+}
+function cancelPomodoro(silent) {
+  if (state.pomodoro.interval) clearInterval(state.pomodoro.interval);
+  state.pomodoro.interval = null;
+  state.pomodoro.endsAt = 0;
+  if (els.pomodoro) { els.pomodoro.classList.add('hidden'); els.pomodoro.textContent = ''; }
+  if (!silent) setStatus('Focus timer cancelled.');
+}
+function finishPomodoro() {
+  cancelPomodoro(true);
+  setStatus('Focus session complete.');
+  // Best-effort system bell.
+  try {
+    const audio = new Audio('data:audio/wav;base64,UklGRl9vAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==');
+    audio.play().catch(() => {});
+  } catch (_) {}
+  // Browser notification fallback.
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try { new Notification('Mycelium', { body: 'Focus session complete.' }); } catch (_) {}
+  }
+}
+
 // v0.20 — scroll preview to a heading whose text matches `anchor` (case-insensitive).
 function scrollPreviewToHeading(anchor) {
   if (!anchor || !els.preview) return;
@@ -2905,6 +2952,8 @@ const PALETTE_COMMANDS = [
   { name: 'Editor: duplicate current line', shortcut: 'Ctrl+Shift+D', run: () => { if (els.body) { els.body.focus(); duplicateCurrentLine(); } } },
   { name: 'Editor: toggle HTML comment', shortcut: 'Ctrl+/', run: () => { if (els.body) { els.body.focus(); toggleComment(); } } },
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
+  { name: 'Start focus timer', shortcut: '', run: () => startPomodoro(state.settings.pomodoro_minutes || 25) },
+  { name: 'Cancel focus timer', shortcut: '', run: () => cancelPomodoro() },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });
@@ -3215,6 +3264,8 @@ els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
 if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
+if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
+if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomodoro.interval) cancelPomodoro(); else startPomodoro(state.settings.pomodoro_minutes); });
 if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {
   const n = await purgeEligibleTrash();
   refreshTrashBadge();

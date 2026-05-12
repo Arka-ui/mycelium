@@ -1060,6 +1060,16 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
   vertical-align: middle;
 }
 
+/* --- v0.38 — Pomodoro footer chip ---------------------------------- */
+.pomodoro {
+  background: var(--bg-3); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 999px;
+  padding: 1px 9px; font-size: 11px;
+  font-family: ui-monospace, monospace;
+  cursor: pointer;
+}
+.pomodoro:hover { background: var(--bg); }
+
 /* --- v0.37 — auto-wiki-link visual cue ----------------------------- */
 .preview a.wiki-link.auto {
   text-decoration: underline dotted;

@@ -1,3 +1,25 @@
+# Mycelium v0.26.0-beta.1 - Emoji & sharing
+
+beta.26 makes notes more expressive in preview and easier to share outside the app.
+
+## New in v0.26.0
+
+### Markdown emoji shortcodes
+- Type `:smile:` `:rocket:` `:fire:` (and ~120 more) in any note. Preview replaces them with the actual emoji.
+- Curated dictionary; unknown shortcodes are passed through unchanged so `:not_an_emoji:` stays as text.
+- Source remains plain Markdown — no `:emoji:` is rewritten in the .json file on disk.
+
+### Copy current note as HTML
+- New palette command "Copy current note as HTML" writes the rendered HTML (with any smart-typography substitutions applied) to the system clipboard. Paste into email, docs, GitHub, anywhere that accepts HTML.
+
+### Save current note as standalone .html
+- New palette command "Save current note as standalone .html" downloads the note as a single self-contained HTML file with inline styles. No external assets, opens in any browser.
+
+### Auto-update
+- Pushing v0.26.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.25.0-beta.1 - Text snippets
 
 beta.25 ships a tiny snippet expansion engine: type `;name` followed by Tab in the editor body and the snippet at the caret expands. Six defaults ship; managing your own is a click away.

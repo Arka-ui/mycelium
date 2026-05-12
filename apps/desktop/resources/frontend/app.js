@@ -1868,6 +1868,41 @@ async function copyActiveAsMarkdown() {
   } catch (e) { alert('Copy failed: ' + e); }
 }
 
+// v0.26 — copy current note's rendered HTML
+async function copyActiveAsHtml() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  const src = els.body.value || '';
+  let { html } = window.Markdown.render(src);
+  if (state.settings.smart_typography) { try { html = smartTypography(html); } catch(_){} }
+  try {
+    await navigator.clipboard.writeText(html);
+    setStatus('HTML copied to clipboard.');
+  } catch (e) { alert('Copy failed: ' + e); }
+}
+
+// v0.26 — save current note as a self-contained .html file
+function saveActiveAsHtml() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  const src = els.body.value || '';
+  let { html } = window.Markdown.render(src);
+  if (state.settings.smart_typography) { try { html = smartTypography(html); } catch(_){} }
+  const title = state.active && state.active.title ? state.active.title : 'Untitled';
+  const safe = title.replace(/[^a-zA-Z0-9_\- ]/g, '_').trim() || 'Untitled';
+  const styles = `
+    body{max-width:760px;margin:32px auto;padding:0 16px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#1c1d20;background:#fafafa}
+    h1,h2,h3,h4{margin-top:1.6em}
+    pre{background:#f0f1f3;padding:12px;border-radius:6px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:13px}
+    code{background:#f0f1f3;padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:12.5px}
+    a{color:#2a66e0}
+    blockquote{border-left:3px solid #d0d2d7;color:#5b5e66;margin:0;padding:4px 12px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #e0e2e7;padding:6px 10px;text-align:left}
+    .md-toc{background:#f0f1f3;padding:12px;border-radius:6px;margin:8px 0}
+  `;
+  const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body><h1>${escapeHtml(title)}</h1>${html}</body></html>`;
+  downloadText(safe + '.html', doc, 'text/html;charset=utf-8');
+}
+
 // v0.22 — multi-file Markdown import
 async function importMultipleMd() {
   els.fileInput.value = '';
@@ -2415,6 +2450,8 @@ const PALETTE_COMMANDS = [
   { name: 'Show orphan notes (no links in or out)', shortcut: '', run: openOrphans },
   { name: 'Filter notes by property...', shortcut: '', run: promptFilterByProperty },
   { name: 'Copy current note as Markdown', shortcut: '', run: copyActiveAsMarkdown },
+  { name: 'Copy current note as HTML', shortcut: '', run: copyActiveAsHtml },
+  { name: 'Save current note as standalone .html', shortcut: '', run: saveActiveAsHtml },
   { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
   { name: 'Toggle sidebar', shortcut: 'Ctrl+\\', run: toggleSidebar },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },

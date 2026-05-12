@@ -8,6 +8,7 @@
 </head>
 <body class="theme-dark">
 <div id="app">
+  <button id="sidebar-toggle" class="sidebar-toggle hidden" title="Show sidebar (Ctrl+\)">&#9776;</button>
   <aside id="sidebar" aria-label="Notes">
     <header class="side-head">
       <div class="brand">Mycelium</div>
@@ -15,6 +16,7 @@
         <button id="cmd-btn" class="icon-btn" title="Command palette (Ctrl+K)">&#9883;</button>
         <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
         <button id="theme-btn" class="icon-btn" title="Cycle theme (Ctrl+,)">&#9728;</button>
+        <button id="sidebar-hide-btn" class="icon-btn" title="Hide sidebar (Ctrl+\)">&#171;</button>
       </div>
     </header>
     <div class="search-wrap">
@@ -58,6 +60,7 @@
       <span id="version"></span>
     </footer>
   </aside>
+  <div id="sidebar-divider" class="sidebar-divider" title="Drag to resize sidebar"></div>
 
   <main id="editor-pane">
     <div id="empty-state" class="empty">
@@ -471,10 +474,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.23.0</strong></p>
+          <p>Version: <strong id="about-version">v0.24.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.23: rich backlinks — backlink rows now show the surrounding line as an inline snippet, and a new Mentions section finds notes that reference the current title as plain text (not as <code>[[wiki]]</code>).</p>
+          <p class="setting-help">Beta.24: sidebar polish — drag the sidebar/editor divider to resize, click « (or Ctrl+\) to hide the sidebar entirely, ☰ to bring it back. Width and visibility persist across restarts.</p>
         </div>
       </section>
 
@@ -542,6 +545,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></td><td>Move current line up / down</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Increase / decrease / reset editor font size</td></tr>
           <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print (or save as PDF)</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>\</kbd></td><td>Toggle sidebar visibility</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

@@ -2502,8 +2502,15 @@ struct Settings {
     calendar_property: String,
     #[serde(default = "default_true")]
     quick_capture: bool,
+    #[serde(default = "default_sidebar_width")]
+    sidebar_width: u32,
+    #[serde(default = "default_true")]
+    sidebar_visible: bool,
 }
 
+fn default_sidebar_width() -> u32 {
+    280
+}
 fn default_board_property() -> String {
     "status".to_string()
 }
@@ -2559,6 +2566,8 @@ impl Default for Settings {
             board_property: "status".to_string(),
             calendar_property: "due".to_string(),
             quick_capture: true,
+            sidebar_width: 280,
+            sidebar_visible: true,
         }
     }
 }

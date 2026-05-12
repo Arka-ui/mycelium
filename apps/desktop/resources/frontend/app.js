@@ -54,6 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
+  'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
@@ -954,6 +955,9 @@ async function loadSettings() {
     if (state.settings.quick_capture === undefined) state.settings.quick_capture = true;
     if (els.optQuickCapture) els.optQuickCapture.checked = !!state.settings.quick_capture;
     applyQuickCapture();
+    if (!state.settings.sidebar_width) state.settings.sidebar_width = 280;
+    if (state.settings.sidebar_visible === undefined) state.settings.sidebar_visible = true;
+    applySidebarLayout();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1712,6 +1716,42 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
 
+// v0.24 — sidebar collapse + drag-to-resize.
+function applySidebarLayout() {
+  const visible = state.settings.sidebar_visible !== false;
+  const w = Math.max(180, Math.min(640, state.settings.sidebar_width || 280));
+  state.settings.sidebar_width = w;
+  document.documentElement.style.setProperty('--side-w', w + 'px');
+  if (els.sidebar) els.sidebar.classList.toggle('hidden', !visible);
+  if (els.sidebarDivider) els.sidebarDivider.classList.toggle('hidden', !visible);
+  if (els.sidebarToggle) els.sidebarToggle.classList.toggle('hidden', visible);
+  document.body.classList.toggle('sidebar-collapsed', !visible);
+}
+function toggleSidebar() {
+  state.settings.sidebar_visible = !(state.settings.sidebar_visible !== false);
+  applySidebarLayout();
+  invoke('set_settings', { settings: state.settings }).catch(()=>{});
+}
+function startSidebarResize(e) {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startW = state.settings.sidebar_width || 280;
+  document.body.classList.add('resizing-sidebar');
+  function onMove(ev) {
+    const dx = ev.clientX - startX;
+    state.settings.sidebar_width = Math.max(180, Math.min(640, startW + dx));
+    document.documentElement.style.setProperty('--side-w', state.settings.sidebar_width + 'px');
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.classList.remove('resizing-sidebar');
+    invoke('set_settings', { settings: state.settings }).catch(()=>{});
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 // v0.22 — quick-capture: append a timestamped line to today's daily note.
 function applyQuickCapture() {
   if (!els.quickCaptureRow) return;
@@ -2293,6 +2333,7 @@ const PALETTE_COMMANDS = [
   { name: 'Filter notes by property...', shortcut: '', run: promptFilterByProperty },
   { name: 'Copy current note as Markdown', shortcut: '', run: copyActiveAsMarkdown },
   { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
+  { name: 'Toggle sidebar', shortcut: 'Ctrl+\\', run: toggleSidebar },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
@@ -2434,6 +2475,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === '-') { e.preventDefault(); bumpFontSize(-1); return; }
   if (e.ctrlKey && e.key === '0') { e.preventDefault(); resetFontSize(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); printActiveNote(); return; }
+  if (e.ctrlKey && e.key === '\\') { e.preventDefault(); toggleSidebar(); return; }
   if (e.altKey && e.key === 'ArrowUp' && target === els.body) { e.preventDefault(); moveLine(-1); return; }
   if (e.altKey && e.key === 'ArrowDown' && target === els.body) { e.preventDefault(); moveLine(1); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
@@ -2605,6 +2647,9 @@ if (els.printBtn) els.printBtn.addEventListener('click', printActiveNote);
 if (els.copyMdBtn) els.copyMdBtn.addEventListener('click', copyActiveAsMarkdown);
 if (els.importMdMultiBtn) els.importMdMultiBtn.addEventListener('click', importMultipleMd);
 if (els.optQuickCapture) els.optQuickCapture.addEventListener('change', saveSettings);
+if (els.sidebarHideBtn) els.sidebarHideBtn.addEventListener('click', toggleSidebar);
+if (els.sidebarToggle) els.sidebarToggle.addEventListener('click', toggleSidebar);
+if (els.sidebarDivider) els.sidebarDivider.addEventListener('mousedown', startSidebarResize);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));

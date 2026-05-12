@@ -1,3 +1,24 @@
+# Mycelium v0.24.0-beta.1 - Sidebar polish
+
+beta.24 makes the sidebar feel like a proper IDE panel: drag to resize, click to collapse, and the new state sticks across restarts.
+
+## New in v0.24.0
+
+### Drag-to-resize
+- Hover the new 6px divider between the sidebar and the editor pane → it tints accent.
+- Click and drag → the sidebar width updates live.
+- Width is clamped to 180–640 px and persisted as `sidebar_width`.
+
+### Collapse / show
+- New « button in the sidebar header (and **Ctrl + \\**) hides the sidebar entirely. Editor pane expands to fill the window.
+- A small ☰ button appears at the top-left when collapsed; clicking it (or **Ctrl + \\** again) brings the sidebar back.
+- State persists as `sidebar_visible`.
+
+### Auto-update
+- Pushing v0.24.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.23.0-beta.1 - Rich backlinks
 
 beta.23 turns the backlinks panel from a list of titles into a rich context view, and adds a Mentions section for notes that reference the current title in prose.

@@ -65,7 +65,7 @@ const els = {};
   'props-modal','props-close','props-rows','props-add-btn','props-save-btn','props-btn',
   'stat-goal','trash-badge','opt-trash-days','purge-now-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
-  'export-workspace-enc-btn',
+  'export-workspace-enc-btn','opt-backup-reminder','last-backup-text',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-merge','bulk-trash','bulk-clear',
@@ -1704,6 +1704,9 @@ async function loadSettings() {
     setupIdleAutoLock();
     if (state.settings.sync_scroll === undefined) state.settings.sync_scroll = true;
     if (els.optSyncScroll) els.optSyncScroll.checked = !!state.settings.sync_scroll;
+    if (state.settings.backup_reminder_days === undefined) state.settings.backup_reminder_days = 14;
+    if (els.optBackupReminder) els.optBackupReminder.value = String(state.settings.backup_reminder_days);
+    refreshLastBackupText();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -2027,8 +2030,32 @@ async function exportWorkspace() {
     const bundle = await invoke('export_workspace');
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     downloadJson(`mycelium-workspace-${stamp}.json`, bundle);
+    await markBackupNow(); // v0.56
     alert('Workspace exported. Keep this file safe.');
   } catch (e) { alert('Export failed: ' + e); }
+}
+
+// v0.56 — record the time of a successful backup; refresh status text.
+async function markBackupNow() {
+  state.settings.last_backup_at = new Date().toISOString();
+  try { await invoke('set_settings', { settings: state.settings }); } catch (_) {}
+  refreshLastBackupText();
+}
+function refreshLastBackupText() {
+  if (!els.lastBackupText) return;
+  const ts = state.settings.last_backup_at;
+  if (!ts) { els.lastBackupText.textContent = 'Last backup: never'; return; }
+  els.lastBackupText.textContent = 'Last backup: ' + fmtDate(ts);
+}
+function maybeShowBackupReminder() {
+  const days = state.settings.backup_reminder_days || 0;
+  if (days <= 0) return;
+  const last = state.settings.last_backup_at ? new Date(state.settings.last_backup_at).getTime() : 0;
+  const ageMs = Date.now() - last;
+  const threshold = days * 24 * 3600 * 1000;
+  if (ageMs >= threshold) {
+    setStatus(`Reminder: it's been ${last ? Math.floor(ageMs / 86400000) + ' days' : 'a while'} since your last workspace backup. Settings → Data → Backup workspace.`);
+  }
 }
 
 // v0.27 — encrypted backup via passphrase
@@ -2042,6 +2069,7 @@ async function exportWorkspaceEncrypted() {
     const bundle = await invoke('export_workspace_encrypted', { passphrase: p });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     downloadJson(`mycelium-workspace-${stamp}.encrypted.json`, bundle);
+    await markBackupNow(); // v0.56
     alert('Encrypted workspace exported. Lose the passphrase = lose the data.');
   } catch (e) { alert('Encrypted export failed: ' + e); }
 }
@@ -2085,6 +2113,7 @@ async function saveSettings() {
   if (els.optAutoLockIdle) state.settings.auto_lock_idle_minutes = parseInt(els.optAutoLockIdle.value, 10) || 0;
   setupIdleAutoLock();
   if (els.optSyncScroll) state.settings.sync_scroll = !!els.optSyncScroll.checked;
+  if (els.optBackupReminder) state.settings.backup_reminder_days = parseInt(els.optBackupReminder.value, 10) || 0;
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -3971,6 +4000,7 @@ els.attachBtn.addEventListener('click', pickAttachment);
 els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
+if (els.optBackupReminder) els.optBackupReminder.addEventListener('change', saveSettings);
 if (els.optTrashDays) els.optTrashDays.addEventListener('change', saveSettings);
 if (els.optAutoWikiLink) els.optAutoWikiLink.addEventListener('change', () => { saveSettings(); if (state.preview) renderPreview(); });
 if (els.optPomodoro) els.optPomodoro.addEventListener('change', saveSettings);
@@ -4524,4 +4554,6 @@ if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) =
   showView('empty');
   setStatus('ready');
   if (state.settings.auto_check_updates) setTimeout(() => checkForUpdates(true), 2500);
+  // v0.56 — backup reminder shown 4s after the update check so it doesn't get clobbered.
+  setTimeout(maybeShowBackupReminder, 4000);
 })();

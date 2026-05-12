@@ -3115,6 +3115,16 @@ struct Settings {
     /// v0.42 — sync scroll between editor and preview when split view is active.
     #[serde(default = "default_true")]
     sync_scroll: bool,
+    /// v0.56 — show a backup reminder if it's been this many days since the last backup. 0 = never.
+    #[serde(default = "default_backup_reminder_days")]
+    backup_reminder_days: u32,
+    /// v0.56 — timestamp of the last successful workspace backup (set by frontend after export).
+    #[serde(default)]
+    last_backup_at: Option<DateTime<Utc>>,
+}
+
+fn default_backup_reminder_days() -> u32 {
+    14
 }
 
 fn default_pomodoro() -> u32 {
@@ -3190,6 +3200,8 @@ impl Default for Settings {
             pomodoro_minutes: 25,
             auto_lock_idle_minutes: 0,
             sync_scroll: true,
+            backup_reminder_days: 14,
+            last_backup_at: None,
         }
     }
 }

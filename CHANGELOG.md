@@ -1,3 +1,25 @@
+# Mycelium v0.56.0-beta.1 - Backup reminders
+
+beta.56 nudges you to take a workspace backup before the inevitable disk failure.
+
+## New in v0.56.0
+
+### Configurable reminder
+- New **Settings → Data → Backup reminder** dropdown: Off / 3 / 7 / 14 (default) / 30 days.
+- After the chosen interval since your last successful backup, a one-shot reminder appears in the status bar on launch.
+- Both plain and encrypted backups (`Backup workspace…` and `Encrypted backup…`) record the time.
+
+### "Last backup" indicator
+- Shown next to the dropdown — e.g. `Last backup: 5d ago` or `Last backup: never`.
+
+### Backend
+- Two new settings fields: `backup_reminder_days` (default 14), `last_backup_at` (auto-set).
+
+### Auto-update
+- Pushing v0.56.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.55.0-beta.1 - Reveal in OS
 
 beta.55 lets power users hop straight from a note to its underlying `.json` file in their OS file manager — useful for grep / sed / scripting workflows.

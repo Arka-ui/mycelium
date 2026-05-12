@@ -1434,6 +1434,47 @@ fn month_calendar(
     }))
 }
 
+/// v0.66 — Encrypt a single note's body with a passphrase. Returns the JSON envelope text
+/// (`{"_note_enc1": "<base64>", "salt": "<hex>"}`) that the frontend stores in `body`.
+/// Cipher is the same ChaCha20-Poly1305 + 50,000 BLAKE3 KDF used everywhere else.
+#[tauri::command]
+fn encrypt_note_body(plaintext: String, passphrase: String) -> Result<String, String> {
+    if passphrase.len() < 6 {
+        return Err("passphrase must be at least 6 characters".into());
+    }
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    let salt_hex = hex_encode(&salt);
+    let key = derive_master_key(&salt_hex, &passphrase);
+    let blob = encrypt_for_disk(plaintext.as_bytes(), &key)?;
+    Ok(serde_json::json!({
+        "_note_enc1": blob,
+        "salt": salt_hex,
+    })
+    .to_string())
+}
+
+/// v0.66 — Decrypt the envelope produced by `encrypt_note_body`. Returns the plaintext.
+#[tauri::command]
+fn decrypt_note_body(envelope: String, passphrase: String) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(&envelope)
+        .map_err(|_| "not a valid encrypted envelope".to_string())?;
+    let salt = v
+        .get("salt")
+        .and_then(|x| x.as_str())
+        .ok_or_else(|| "missing salt".to_string())?;
+    let blob = v
+        .get("_note_enc1")
+        .and_then(|x| x.as_str())
+        .ok_or_else(|| "missing ciphertext".to_string())?;
+    let key = derive_master_key(salt, &passphrase);
+    let plaintext = decrypt_from_disk(blob, &key)
+        .map_err(|_| "wrong passphrase or corrupt envelope".to_string())?;
+    String::from_utf8(plaintext)
+        .map_err(|e| format!("decryption succeeded but UTF-8 invalid: {}", e))
+}
+
 /// v0.27 — Encrypt the workspace bundle with a passphrase before download.
 /// Returns a JSON envelope `{ "_enc1": "<base64-nonce-and-ciphertext>", "salt": "<hex>" }`.
 /// The salt is per-export (16 fresh bytes); the master key derivation is identical to
@@ -3618,6 +3659,8 @@ fn main() -> Result<()> {
             save_snippets,
             export_workspace_encrypted,
             decrypt_workspace_bundle,
+            encrypt_note_body,
+            decrypt_note_body,
             export_note_md,
             export_all_md,
             import_md,

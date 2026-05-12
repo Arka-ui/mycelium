@@ -1,3 +1,34 @@
+# Mycelium v0.66.0-beta.1 - Per-note encryption
+
+beta.66 introduces per-note encryption — independent of the workspace lock — so individual sensitive notes can carry their own passphrase even on an unlocked workspace.
+
+## New in v0.66.0
+
+### How it works
+- The note's `body` field on disk holds a JSON envelope `{"_note_enc1": "<base64>", "salt": "<hex>"}`.
+- Cipher: ChaCha20-Poly1305 with the same 50,000-iteration BLAKE3 KDF used elsewhere; fresh 16-byte salt per note.
+- Once unlocked in a session, the passphrase is cached in memory (`state.notePassphrases`); subsequent saves re-encrypt automatically before persisting.
+
+### New palette commands
+- **Encrypt this note (passphrase)...** — prompts twice, encrypts, persists envelope.
+- **Unlock this note (passphrase)...** — decrypts in-place; cached for the session so further saves re-encrypt.
+- **Permanently decrypt this note** — clears the cached passphrase and saves the plaintext to disk.
+
+### Backend
+- `encrypt_note_body(plaintext, passphrase) → envelope` and `decrypt_note_body(envelope, passphrase) → plaintext`.
+- `flushSave` automatically re-encrypts before persisting if the note has a cached passphrase.
+- `openNote` automatically decrypts on open if the passphrase is cached for that note id.
+
+### Trade-offs / honesty
+- Cached passphrases live in JS memory until the app is closed (or the user runs "Permanently decrypt this note").
+- A workspace-level Auto-lock (v0.40) does NOT clear per-note caches yet.
+- No external audit; same crypto primitives as the workspace lock.
+
+### Auto-update
+- Pushing v0.66.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.65.0-beta.1 - Wiki-link tab opens
 
 beta.65 mirrors browser-style tab opens for `[[wiki-links]]` in preview.

@@ -1074,6 +1074,18 @@ async function openNote(id) {
   pushRecent(id); // v0.12 — recents
   addTab(id);     // v0.29 — register / focus tab
   pushNav(id);    // v0.57 — back/forward history
+  // v0.66 — if the body is an encrypted envelope and we have a cached passphrase,
+  // auto-decrypt before display. Otherwise leave the envelope visible (user can run
+  // "Unlock this note" to decrypt).
+  if (isNoteEncrypted(note.body || '')) {
+    const passphrase = state.notePassphrases.get(id);
+    if (passphrase) {
+      try {
+        const plaintext = await invoke('decrypt_note_body', { envelope: note.body, passphrase });
+        note.body = plaintext;
+      } catch (_) { /* fall through; show envelope */ }
+    }
+  }
   showView('editor');
   els.title.value = note.title || '';
   els.body.value = note.body || '';
@@ -1157,12 +1169,19 @@ async function flushSave() {
   if (state.settings.strip_trailing_ws) {
     const stripped = stripTrailingWhitespace(body);
     if (stripped !== body) {
-      // Preserve cursor if user is editing.
       const ss = els.body.selectionStart, se = els.body.selectionEnd;
       els.body.value = stripped;
       els.body.setSelectionRange(Math.min(ss, stripped.length), Math.min(se, stripped.length));
       body = stripped;
     }
+  }
+  // v0.66 — if this note has a cached per-note passphrase, re-encrypt the body before
+  // persisting so the file on disk stays as a `_note_enc1` envelope. Skip if the body
+  // is *already* an envelope (means the user never unlocked, just clicked away).
+  const passphrase = state.notePassphrases.get(id);
+  if (passphrase && !isNoteEncrypted(body)) {
+    try { body = await invoke('encrypt_note_body', { plaintext: body, passphrase }); }
+    catch (e) { setSaveState('save failed'); setStatus('encrypt failed: ' + e); return; }
   }
   setSaveState('saving...');
   try {
@@ -3079,6 +3098,73 @@ function finishPomodoro() {
   }
 }
 
+// v0.66 — Per-note encryption (passphrase per note, kept in memory for the session).
+state.notePassphrases = new Map(); // noteId → plaintext passphrase
+function isNoteEncrypted(body) {
+  if (!body || body.length < 30 || body.length > 2_000_000) return false;
+  if (!body.startsWith('{')) return false;
+  try {
+    const v = JSON.parse(body);
+    return v && typeof v === 'object' && typeof v._note_enc1 === 'string' && typeof v.salt === 'string';
+  } catch (_) { return false; }
+}
+async function encryptCurrentNote() {
+  if (!state.activeId || !state.active) { alert('Open a note first.'); return; }
+  if (isNoteEncrypted(state.active.body || els.body.value || '')) {
+    alert('This note is already encrypted.');
+    return;
+  }
+  const p = prompt('Encrypt this note with passphrase (≥6 chars):');
+  if (!p) return;
+  if (p.length < 6) { alert('Too short.'); return; }
+  const c = prompt('Confirm passphrase:');
+  if (p !== c) { alert('Passphrases do not match.'); return; }
+  try {
+    const envelope = await invoke('encrypt_note_body', { plaintext: els.body.value || '', passphrase: p });
+    state.notePassphrases.set(state.activeId, p);
+    // Save the envelope as the body. The next openNote will see it as encrypted; we'll
+    // refresh immediately so the view shows the encrypted state.
+    const note = await invoke('update_note', { id: state.activeId, title: null, body: envelope });
+    state.active = note;
+    setStatus('Note encrypted.');
+    await loadNotes();
+    await openNote(state.activeId);
+  } catch (e) { alert('Encrypt failed: ' + e); }
+}
+async function unlockCurrentNote() {
+  if (!state.activeId || !state.active) return;
+  const body = els.body.value || state.active.body || '';
+  if (!isNoteEncrypted(body)) { alert('This note is not encrypted.'); return; }
+  const p = prompt('Enter the note\'s passphrase:');
+  if (!p) return;
+  try {
+    const plaintext = await invoke('decrypt_note_body', { envelope: body, passphrase: p });
+    state.notePassphrases.set(state.activeId, p);
+    els.body.value = plaintext;
+    state.active.body = plaintext;
+    setStatus('Note unlocked.');
+    if (state.preview) renderPreview();
+    refreshStats();
+    refreshProps();
+  } catch (e) { alert('Unlock failed: ' + e); }
+}
+async function decryptCurrentNotePermanently() {
+  if (!state.activeId || !state.active) return;
+  const body = els.body.value || state.active.body || '';
+  // Body is already plaintext if we previously unlocked, in which case `notePassphrases` has the key.
+  if (isNoteEncrypted(body)) {
+    await unlockCurrentNote();
+    if (isNoteEncrypted(els.body.value || '')) return; // unlock failed
+  }
+  if (!confirm('Permanently decrypt this note? Future saves will store plaintext on disk.')) return;
+  state.notePassphrases.delete(state.activeId);
+  try {
+    await invoke('update_note', { id: state.activeId, title: null, body: els.body.value || '' });
+    setStatus('Note permanently decrypted.');
+    await loadNotes();
+  } catch (e) { alert('Save failed: ' + e); }
+}
+
 // v0.62 — wiki-link hover preview.
 function ensureWikiHover() {
   let pop = document.getElementById('wiki-hover');
@@ -3876,6 +3962,9 @@ const PALETTE_COMMANDS = [
   { name: 'Copy current note as HTML', shortcut: '', run: copyActiveAsHtml },
   { name: 'Save current note as standalone .html', shortcut: '', run: saveActiveAsHtml },
   { name: 'Encrypted workspace backup...', shortcut: '', run: exportWorkspaceEncrypted },
+  { name: 'Encrypt this note (passphrase)...', shortcut: '', run: encryptCurrentNote },
+  { name: 'Unlock this note (passphrase)...', shortcut: '', run: unlockCurrentNote },
+  { name: 'Permanently decrypt this note', shortcut: '', run: decryptCurrentNotePermanently },
   { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
   { name: 'Toggle sidebar', shortcut: 'Ctrl+\\', run: toggleSidebar },
   { name: 'Tabs: next', shortcut: 'Ctrl+Tab', run: () => cycleTab(1) },

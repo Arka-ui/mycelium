@@ -111,16 +111,50 @@ fn snippet(body: &str, needle: &str, radius: usize) -> String {
 
 struct Store {
     root: PathBuf,
+    key: Option<[u8; 32]>,
 }
 
 impl Store {
     fn new(root: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root).context("create notes dir")?;
-        Ok(Store { root })
+        Ok(Store { root, key: None })
+    }
+
+    fn set_key(&mut self, key: Option<[u8; 32]>) {
+        self.key = key;
     }
 
     fn note_path(&self, id: &str) -> PathBuf {
         self.root.join(format!("{}.json", id))
+    }
+
+    fn read_file_bytes(&self, p: &Path) -> Result<Vec<u8>> {
+        let raw = fs::read(p)?;
+        if let Some(key) = &self.key {
+            if let Ok(text) = std::str::from_utf8(&raw) {
+                if let Ok(env) = serde_json::from_str::<serde_json::Value>(text) {
+                    if let Some(blob) = env.get("_enc1").and_then(|v| v.as_str()) {
+                        return decrypt_from_disk(blob, key)
+                            .map_err(|e| anyhow::anyhow!("decrypt failed: {}", e));
+                    }
+                }
+            }
+        }
+        Ok(raw)
+    }
+
+    fn write_file_bytes(&self, p: &Path, data: &[u8]) -> Result<()> {
+        let tmp = p.with_extension("json.tmp");
+        if let Some(key) = &self.key {
+            let blob = encrypt_for_disk(data, key)
+                .map_err(|e| anyhow::anyhow!("encrypt failed: {}", e))?;
+            let env = serde_json::json!({"_enc1": blob});
+            fs::write(&tmp, serde_json::to_vec(&env)?)?;
+        } else {
+            fs::write(&tmp, data)?;
+        }
+        fs::rename(&tmp, p)?;
+        Ok(())
     }
 
     fn all_notes(&self) -> Result<Vec<Note>> {
@@ -131,7 +165,7 @@ impl Store {
             if p.extension().and_then(|s| s.to_str()) != Some("json") {
                 continue;
             }
-            let bytes = match fs::read(&p) {
+            let bytes = match self.read_file_bytes(&p) {
                 Ok(b) => b,
                 Err(_) => continue,
             };
@@ -186,7 +220,7 @@ impl Store {
         if !p.exists() {
             return Ok(None);
         }
-        let bytes = fs::read(&p)?;
+        let bytes = self.read_file_bytes(&p)?;
         let note: Note = serde_json::from_slice(&bytes)?;
         Ok(Some(note))
     }
@@ -317,10 +351,15 @@ impl Store {
 
     fn write(&self, note: &Note) -> Result<()> {
         let p = self.note_path(&note.id);
-        let tmp = p.with_extension("json.tmp");
         let bytes = serde_json::to_vec_pretty(note)?;
-        fs::write(&tmp, bytes)?;
-        fs::rename(&tmp, &p)?;
+        self.write_file_bytes(&p, &bytes)
+    }
+
+    fn rewrite_all(&self) -> Result<()> {
+        let notes = self.all_notes()?;
+        for note in notes {
+            self.write(&note)?;
+        }
         Ok(())
     }
 }
@@ -371,6 +410,52 @@ fn check_unlocked(state: &State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+fn derive_master_key(salt_hex: &str, passphrase: &str) -> [u8; 32] {
+    let salt = hex_decode(salt_hex).unwrap_or_default();
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"mycelium-master-key-v1");
+    hasher.update(&salt);
+    hasher.update(passphrase.as_bytes());
+    let mut acc = hasher.finalize();
+    for _ in 0..50_000 {
+        acc = blake3::hash(acc.as_bytes());
+    }
+    *acc.as_bytes()
+}
+
+fn encrypt_for_disk(plaintext: &[u8], key: &[u8; 32]) -> Result<String, String> {
+    use base64::Engine;
+    use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, KeyInit, Nonce};
+    use rand::RngCore;
+    let cipher = ChaCha20Poly1305::new_from_slice(key).map_err(|e| format!("key init: {}", e))?;
+    let mut nonce_bytes = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ct = cipher
+        .encrypt(nonce, plaintext)
+        .map_err(|e| format!("encrypt: {}", e))?;
+    let mut out = Vec::with_capacity(12 + ct.len());
+    out.extend_from_slice(&nonce_bytes);
+    out.extend_from_slice(&ct);
+    Ok(base64::engine::general_purpose::STANDARD.encode(out))
+}
+
+fn decrypt_from_disk(b64: &str, key: &[u8; 32]) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, KeyInit, Nonce};
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64.as_bytes())
+        .map_err(|e| format!("base64: {}", e))?;
+    if bytes.len() < 12 {
+        return Err("ciphertext too short".into());
+    }
+    let cipher = ChaCha20Poly1305::new_from_slice(key).map_err(|e| format!("key init: {}", e))?;
+    let nonce = Nonce::from_slice(&bytes[..12]);
+    cipher
+        .decrypt(nonce, &bytes[12..])
+        .map_err(|e| format!("decrypt: {}", e))
+}
+
 #[tauri::command]
 fn lock_status(state: State<'_, AppState>) -> serde_json::Value {
     let settings = get_settings();
@@ -389,22 +474,44 @@ fn lock_set(
         return Err("passphrase must be at least 6 characters".into());
     }
     let mut settings = get_settings();
-    if let Some(existing) = &settings.lock {
-        let provided = old_passphrase.unwrap_or_default();
+
+    let was_enabled = settings.lock.is_some();
+    if was_enabled {
+        let provided = old_passphrase.clone().unwrap_or_default();
+        let existing = settings.lock.as_ref().unwrap();
         if compute_verifier(&existing.salt, &provided) != existing.verifier {
             return Err("current passphrase is incorrect".into());
         }
+        let old_key = derive_master_key(&existing.salt, &provided);
+        state.store.lock().unwrap().set_key(Some(old_key));
+        state
+            .store
+            .lock()
+            .unwrap()
+            .rewrite_all()
+            .map_err(|e| format!("decrypt notes failed: {}", e))?;
+        state.store.lock().unwrap().set_key(None);
     }
+
     use rand::RngCore;
     let mut salt = [0u8; 16];
     rand::rngs::OsRng.fill_bytes(&mut salt);
     let salt_hex = hex_encode(&salt);
     let verifier = compute_verifier(&salt_hex, &new_passphrase);
     settings.lock = Some(LockConfig {
-        salt: salt_hex,
+        salt: salt_hex.clone(),
         verifier,
     });
     set_settings(settings)?;
+
+    let new_key = derive_master_key(&salt_hex, &new_passphrase);
+    state.store.lock().unwrap().set_key(Some(new_key));
+    state
+        .store
+        .lock()
+        .unwrap()
+        .rewrite_all()
+        .map_err(|e| format!("encrypt notes failed: {}", e))?;
     *state.unlocked.lock().unwrap() = true;
     Ok(())
 }
@@ -419,6 +526,16 @@ fn lock_disable(state: State<'_, AppState>, passphrase: String) -> Result<(), St
     if compute_verifier(&existing.salt, &passphrase) != existing.verifier {
         return Err("passphrase incorrect".into());
     }
+    let key = derive_master_key(&existing.salt, &passphrase);
+    state.store.lock().unwrap().set_key(Some(key));
+    state
+        .store
+        .lock()
+        .unwrap()
+        .rewrite_all()
+        .map_err(|e| format!("decrypt failed: {}", e))?;
+    state.store.lock().unwrap().set_key(None);
+
     settings.lock = None;
     set_settings(settings)?;
     *state.unlocked.lock().unwrap() = true;
@@ -433,6 +550,8 @@ fn lock_unlock(state: State<'_, AppState>, passphrase: String) -> Result<bool, S
         .clone()
         .ok_or_else(|| "lock not enabled".to_string())?;
     if compute_verifier(&existing.salt, &passphrase) == existing.verifier {
+        let key = derive_master_key(&existing.salt, &passphrase);
+        state.store.lock().unwrap().set_key(Some(key));
         *state.unlocked.lock().unwrap() = true;
         Ok(true)
     } else {
@@ -442,6 +561,7 @@ fn lock_unlock(state: State<'_, AppState>, passphrase: String) -> Result<bool, S
 
 #[tauri::command]
 fn lock_now(state: State<'_, AppState>) -> Result<(), String> {
+    state.store.lock().unwrap().set_key(None);
     *state.unlocked.lock().unwrap() = false;
     Ok(())
 }

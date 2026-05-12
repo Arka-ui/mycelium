@@ -1,3 +1,34 @@
+# Mycelium v0.14.0-beta.1 - Writing comfort
+
+beta.14 dials the editor in for long sessions: readable font size, word wrap toggle, smart typography in preview, move-line shortcut, and one-click print to PDF.
+
+## New in v0.14.0
+
+### Adjustable editor font size
+- New `editor_font_size` setting (default 15 px). Pick from 12 / 13 / 14 / 15 / 16 / 17 / 18 / 20 in **Settings → General**.
+- **Ctrl + =** / **Ctrl + +** : increase by 1 px
+- **Ctrl + -** : decrease by 1 px
+- **Ctrl + 0** : reset to default
+- All shortcuts available from the command palette as well.
+
+### Word wrap toggle
+- New `word_wrap` setting (default on). When off, long lines scroll horizontally instead of wrapping. Useful for tables, ASCII art, and long URL inspection.
+
+### Smart typography in preview
+- New `smart_typography` setting (default off). When on, the preview replaces `--` → `—`, `...` → `…`, straight quotes → typographic quotes (`"foo"` → `"foo"`, `'bar'` → `'bar'`).
+- Source text is unchanged — only the rendered preview transforms. Code blocks are skipped.
+
+### Move line up / down
+- **Alt + ↑** / **Alt + ↓** in the editor moves the current line (or the line containing the selection) up or down by one. Selection follows.
+
+### Print / save as PDF
+- New 🖨 toolbar button + **Ctrl + P** prints the current note's preview using the OS print dialog. The print stylesheet hides every chrome element and renders body / headings / lists / code in print-friendly black on white.
+
+### Auto-update
+- Pushing v0.14.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.13.0-beta.1 - Editor smarts
 
 beta.13 fixes the silent papercuts that pile up in any Markdown editor: starting a new bullet on Enter, indenting a line with Tab, and turning pasted URLs into proper links when you have text selected.

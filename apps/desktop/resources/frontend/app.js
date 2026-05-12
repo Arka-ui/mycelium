@@ -50,7 +50,7 @@ const els = {};
   'import-md-btn','export-all-btn',
   'cmd-palette','cmd-input','cmd-results',
   'file-input',
-  'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','reading-btn',
+  'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -456,7 +456,10 @@ function togglePreview() {
 function renderPreview() {
   if (!els.preview) return;
   const src = els.body.value || '';
-  const { html } = window.Markdown.render(src);
+  let { html } = window.Markdown.render(src);
+  if (state.settings.smart_typography) {
+    try { html = smartTypography(html); } catch (_) { /* fall back to raw html */ }
+  }
   els.preview.innerHTML = html;
   els.preview.querySelectorAll('a.wiki-link').forEach(a => {
     a.addEventListener('click', async (e) => {
@@ -736,6 +739,9 @@ async function loadSettings() {
     if (state.settings.auto_pair === undefined) state.settings.auto_pair = true;
     if (state.settings.smart_lists === undefined) state.settings.smart_lists = true;
     if (state.settings.strip_trailing_ws === undefined) state.settings.strip_trailing_ws = false;
+    if (!state.settings.editor_font_size) state.settings.editor_font_size = 15;
+    if (state.settings.word_wrap === undefined) state.settings.word_wrap = true;
+    if (state.settings.smart_typography === undefined) state.settings.smart_typography = false;
     els.optAutoUpdate.checked = !!state.settings.auto_check_updates;
     els.optDefaultPreview.checked = !!state.settings.default_preview;
     els.optShowBacklinks.checked = !!state.settings.show_backlinks;
@@ -745,6 +751,11 @@ async function loadSettings() {
     if (els.optAutoPair) els.optAutoPair.checked = !!state.settings.auto_pair;
     if (els.optSmartLists) els.optSmartLists.checked = !!state.settings.smart_lists;
     if (els.optStripTrailingWs) els.optStripTrailingWs.checked = !!state.settings.strip_trailing_ws;
+    if (els.optWordWrap) els.optWordWrap.checked = !!state.settings.word_wrap;
+    if (els.optSmartTypography) els.optSmartTypography.checked = !!state.settings.smart_typography;
+    if (els.optEditorFontSize) els.optEditorFontSize.value = String(state.settings.editor_font_size);
+    applyEditorFontSize();
+    applyWordWrap();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -754,6 +765,109 @@ function applySpellCheck() {
   const on = !!state.settings.spell_check;
   els.title.spellcheck = on;
   els.body.spellcheck = on;
+}
+
+// --- v0.14 — editor font + word wrap ---------------------------------
+function applyEditorFontSize() {
+  const sz = Math.max(10, Math.min(28, state.settings.editor_font_size || 15));
+  state.settings.editor_font_size = sz;
+  els.body.style.fontSize = sz + 'px';
+}
+function applyWordWrap() {
+  const on = !!state.settings.word_wrap;
+  els.body.style.whiteSpace = on ? 'pre-wrap' : 'pre';
+  els.body.style.overflowX = on ? 'hidden' : 'auto';
+  els.body.setAttribute('wrap', on ? 'soft' : 'off');
+}
+function bumpFontSize(delta) {
+  state.settings.editor_font_size = Math.max(10, Math.min(28, (state.settings.editor_font_size || 15) + delta));
+  applyEditorFontSize();
+  if (els.optEditorFontSize) els.optEditorFontSize.value = String(state.settings.editor_font_size);
+  invoke('set_settings', { settings: state.settings }).catch(()=>{});
+}
+function resetFontSize() {
+  state.settings.editor_font_size = 15;
+  applyEditorFontSize();
+  if (els.optEditorFontSize) els.optEditorFontSize.value = '15';
+  invoke('set_settings', { settings: state.settings }).catch(()=>{});
+}
+
+// --- v0.14 — smart typography (preview-only post-pass) ----------------
+function smartTypography(html) {
+  // Only operate on text nodes (avoid touching <pre><code> or attributes).
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  walkText(tmp, (txt) => {
+    let s = txt;
+    // Em-dash, ellipsis.
+    s = s.replace(/---/g, '—');
+    s = s.replace(/--/g, '—');
+    s = s.replace(/\.\.\./g, '…');
+    // Curly quotes — naive but reasonable.
+    s = s.replace(/(^|[\s(])"/g, '$1“').replace(/"/g, '”');
+    s = s.replace(/(^|[\s(])'/g, '$1‘').replace(/'/g, '’');
+    return s;
+  });
+  return tmp.innerHTML;
+}
+function walkText(root, fn) {
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType === 3) { node.nodeValue = fn(node.nodeValue || ''); continue; }
+    if (node.nodeType === 1) {
+      const tag = node.tagName;
+      if (tag === 'PRE' || tag === 'CODE' || tag === 'SCRIPT' || tag === 'STYLE') continue;
+      walkText(node, fn);
+    }
+  }
+}
+
+// --- v0.14 — move current line up / down -----------------------------
+function moveLine(direction) {
+  const ta = els.body;
+  const value = ta.value;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = (() => {
+    const next = value.indexOf('\n', end);
+    return next === -1 ? value.length : next;
+  })();
+  const cur = value.slice(lineStart, lineEnd);
+  if (direction < 0) {
+    if (lineStart === 0) return;
+    const prevStart = value.lastIndexOf('\n', lineStart - 2) + 1;
+    const prev = value.slice(prevStart, lineStart - 1);
+    const before = value.slice(0, prevStart);
+    const after = value.slice(lineEnd);
+    ta.value = before + cur + '\n' + prev + after;
+    const delta = lineStart - prevStart;
+    ta.setSelectionRange(start - delta, end - delta);
+  } else {
+    if (lineEnd === value.length) return;
+    const nextEndCandidate = value.indexOf('\n', lineEnd + 1);
+    const nextEnd = nextEndCandidate === -1 ? value.length : nextEndCandidate;
+    const next = value.slice(lineEnd + 1, nextEnd);
+    const before = value.slice(0, lineStart);
+    const after = value.slice(nextEnd);
+    ta.value = before + next + '\n' + cur + after;
+    const delta = next.length + 1;
+    ta.setSelectionRange(start + delta, end + delta);
+  }
+  scheduleSave();
+}
+
+// --- v0.14 — Print (browser-native print of current preview) ---------
+function printActiveNote() {
+  if (!state.activeId) return;
+  const wasPreview = state.preview;
+  if (!wasPreview) { state.preview = true; updatePreviewUI(); }
+  document.body.classList.add('print-mode');
+  const restore = () => {
+    document.body.classList.remove('print-mode');
+    if (!wasPreview) { state.preview = false; updatePreviewUI(); }
+    window.removeEventListener('afterprint', restore);
+  };
+  window.addEventListener('afterprint', restore);
+  setTimeout(() => window.print(), 80);
 }
 
 function sortNotes(notes) {
@@ -944,6 +1058,12 @@ async function saveSettings() {
   if (els.optAutoPair) state.settings.auto_pair = !!els.optAutoPair.checked;
   if (els.optSmartLists) state.settings.smart_lists = !!els.optSmartLists.checked;
   if (els.optStripTrailingWs) state.settings.strip_trailing_ws = !!els.optStripTrailingWs.checked;
+  if (els.optWordWrap) state.settings.word_wrap = !!els.optWordWrap.checked;
+  if (els.optSmartTypography) state.settings.smart_typography = !!els.optSmartTypography.checked;
+  if (els.optEditorFontSize) state.settings.editor_font_size = parseInt(els.optEditorFontSize.value, 10) || 15;
+  applyEditorFontSize();
+  applyWordWrap();
+  if (state.preview) renderPreview();
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
   applySpellCheck();
@@ -1839,6 +1959,10 @@ const PALETTE_COMMANDS = [
   { name: 'Find & replace in note', shortcut: 'Ctrl+H', run: openFindBar },
   { name: 'Toggle reading mode', shortcut: 'Ctrl+Shift+M', run: toggleReadingMode },
   { name: 'Open random note', shortcut: 'Ctrl+R', run: openRandomNote },
+  { name: 'Print / save as PDF', shortcut: 'Ctrl+P', run: printActiveNote },
+  { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
+  { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
+  { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
 ];
 
 function fuzzyScore(text, q) {
@@ -1973,6 +2097,12 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); toggleReadingMode(); return; }
   if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); togglePreview(); return; }
   if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'r' && !inField) { e.preventDefault(); openRandomNote(); return; }
+  if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); bumpFontSize(1); return; }
+  if (e.ctrlKey && e.key === '-') { e.preventDefault(); bumpFontSize(-1); return; }
+  if (e.ctrlKey && e.key === '0') { e.preventDefault(); resetFontSize(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); printActiveNote(); return; }
+  if (e.altKey && e.key === 'ArrowUp' && target === els.body) { e.preventDefault(); moveLine(-1); return; }
+  if (e.altKey && e.key === 'ArrowDown' && target === els.body) { e.preventDefault(); moveLine(1); return; }
   if (e.ctrlKey && e.key === 's')               { e.preventDefault(); if (state.pendingTimer) clearTimeout(state.pendingTimer); state.pendingTimer = null; flushSave(); return; }
   if (e.ctrlKey && e.key === '/')               { e.preventDefault(); openCheatsheet(); return; }
   if (target === els.body && e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('bold'); return; }
@@ -2134,6 +2264,10 @@ if (els.optLocale) els.optLocale.addEventListener('change', () => { saveSettings
 if (els.optAutoPair) els.optAutoPair.addEventListener('change', saveSettings);
 if (els.optSmartLists) els.optSmartLists.addEventListener('change', saveSettings);
 if (els.optStripTrailingWs) els.optStripTrailingWs.addEventListener('change', saveSettings);
+if (els.optWordWrap) els.optWordWrap.addEventListener('change', saveSettings);
+if (els.optSmartTypography) els.optSmartTypography.addEventListener('change', saveSettings);
+if (els.optEditorFontSize) els.optEditorFontSize.addEventListener('change', saveSettings);
+if (els.printBtn) els.printBtn.addEventListener('click', printActiveNote);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));

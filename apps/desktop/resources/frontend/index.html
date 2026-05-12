@@ -80,6 +80,7 @@
           <button id="pin-btn" class="icon-btn" title="Pin to top">&#9733;</button>
           <button id="preview-btn" class="icon-btn" title="Toggle preview (Ctrl+M)">&#128065;</button>
           <button id="reading-btn" class="icon-btn" title="Toggle reading mode (Ctrl+Shift+M)">&#128214;</button>
+          <button id="print-btn" class="icon-btn" title="Print / save as PDF (Ctrl+P)">&#128424;</button>
           <button id="history-btn" class="icon-btn" title="Note history">&#8634;</button>
           <button id="attach-btn" class="icon-btn" title="Attach file (or drag-drop / paste)">&#128206;</button>
           <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
@@ -207,6 +208,35 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">Removes trailing spaces and tabs from every line before persisting. Off by default; turn on for cleaner Markdown diffs in version control.</div>
             </div>
           </label>
+          <label class="setting-row">
+            <input id="opt-word-wrap" type="checkbox">
+            <div>
+              <div class="setting-name">Word wrap in editor</div>
+              <div class="setting-help">When off, long lines scroll horizontally instead of wrapping. Useful for tables and ASCII art.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-smart-typography" type="checkbox">
+            <div>
+              <div class="setting-name">Smart typography in preview</div>
+              <div class="setting-help">In preview only: <code>--</code> becomes &mdash;, <code>...</code> becomes &hellip;, straight quotes become typographic quotes. Source text is unchanged.</div>
+            </div>
+          </label>
+          <div class="setting-row">
+            <label>Editor font size
+              <select id="opt-editor-font-size" class="select">
+                <option value="12">12 px</option>
+                <option value="13">13 px</option>
+                <option value="14">14 px</option>
+                <option value="15">15 px (default)</option>
+                <option value="16">16 px</option>
+                <option value="17">17 px</option>
+                <option value="18">18 px</option>
+                <option value="20">20 px</option>
+              </select>
+            </label>
+            <span class="setting-help">Or use <kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>Ctrl</kbd>+<kbd>-</kbd> / <kbd>Ctrl</kbd>+<kbd>0</kbd> in the editor.</span>
+          </div>
         </div>
         <div class="setting-group">
           <h3>Note list</h3>
@@ -387,10 +417,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.13.0</strong></p>
+          <p>Version: <strong id="about-version">v0.14.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.13: editor smarts — smart list continuation, auto-indent, Tab / Shift+Tab to indent within lists, smart paste-link (URL on selection becomes <code>[selection](url)</code>), and optional strip-trailing-whitespace on save.</p>
+          <p class="setting-help">Beta.14: writing comfort — adjustable editor font size (Ctrl+= / Ctrl+- / Ctrl+0), word-wrap toggle, smart typography in preview, move-line up/down (Alt+Up/Down), and one-click Print / save-as-PDF.</p>
         </div>
       </section>
 
@@ -455,6 +485,9 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <tr><td><kbd>Tab</kbd> in a list</td><td>Indent the current line</td></tr>
           <tr><td><kbd>Shift</kbd>+<kbd>Tab</kbd> in a list</td><td>Outdent the current line</td></tr>
           <tr><td>Paste URL on a selection</td><td>Wraps selection as <code>[selection](url)</code></td></tr>
+          <tr><td><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></td><td>Move current line up / down</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Increase / decrease / reset editor font size</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print (or save as PDF)</td></tr>
           <tr><th colspan="2" class="cs-section">In the sidebar</th></tr>
           <tr><td><kbd>Ctrl</kbd>+click</td><td>Toggle a note in the multi-selection</td></tr>
           <tr><td><kbd>Shift</kbd>+click</td><td>Range-select notes</td></tr>

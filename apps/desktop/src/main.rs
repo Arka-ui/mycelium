@@ -1571,6 +1571,16 @@ struct Settings {
     smart_lists: bool,
     #[serde(default)]
     strip_trailing_ws: bool,
+    #[serde(default = "default_editor_font_size")]
+    editor_font_size: u32,
+    #[serde(default = "default_true")]
+    word_wrap: bool,
+    #[serde(default)]
+    smart_typography: bool,
+}
+
+fn default_editor_font_size() -> u32 {
+    15
 }
 
 fn default_locale() -> String {
@@ -1611,6 +1621,9 @@ impl Default for Settings {
             auto_pair: true,
             smart_lists: true,
             strip_trailing_ws: false,
+            editor_font_size: 15,
+            word_wrap: true,
+            smart_typography: false,
         }
     }
 }

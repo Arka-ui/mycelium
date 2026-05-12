@@ -850,3 +850,44 @@ body.reading-mode .preview {
 .md-toc a.toc-link { color: var(--text-2); text-decoration: none; }
 .md-toc a.toc-link:hover { color: var(--accent); text-decoration: underline; }
 .md-toc-empty { color: var(--text-3); font-style: italic; }
+
+/* --- v0.14 — print mode --------------------------------------------- */
+@media print {
+  body.print-mode * { visibility: hidden; }
+  body.print-mode #editor-pane,
+  body.print-mode #editor-pane *,
+  body.print-mode .preview,
+  body.print-mode .preview * { visibility: visible; }
+  body.print-mode #sidebar,
+  body.print-mode .ed-head,
+  body.print-mode .ed-foot,
+  body.print-mode .ed-toolbar,
+  body.print-mode .body-input,
+  body.print-mode #outline-panel,
+  body.print-mode #backlinks-panel,
+  body.print-mode .find-bar,
+  body.print-mode .modal-backdrop,
+  body.print-mode .lock-screen,
+  body.print-mode .sel-toolbar,
+  body.print-mode .bulk-bar,
+  body.print-mode .code-copy,
+  body.print-mode .fold-toggle { display: none !important; }
+  body.print-mode #editor-pane,
+  body.print-mode .editor,
+  body.print-mode .preview {
+    position: absolute; inset: 0; padding: 0; margin: 0;
+    background: white !important; color: black !important;
+    overflow: visible !important; height: auto !important; max-height: none !important;
+  }
+  body.print-mode .preview {
+    font-size: 12pt; line-height: 1.5;
+    padding: 24pt !important;
+  }
+  body.print-mode .preview * { color: black !important; background: transparent !important; }
+  body.print-mode .preview a { color: #1a4fbc !important; text-decoration: underline; }
+  body.print-mode .preview pre,
+  body.print-mode .preview code { background: #f4f4f4 !important; }
+}
+
+/* --- v0.14 — word-wrap-off textarea ---------------------------------- */
+textarea.body-input { tab-size: 2; }

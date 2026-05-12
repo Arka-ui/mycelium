@@ -1,3 +1,23 @@
+# Mycelium v0.36.0-beta.1 - Bulk merge
+
+beta.36 lets you fold many notes into one in a single click.
+
+## New in v0.36.0
+
+### Merge from selection
+- Multi-select 2+ notes (Ctrl/Cmd-click in the sidebar) and the bulk action bar now shows a **⇉ Merge** button.
+- The first-selected note becomes the **target**; the others are **sources**.
+- Each source's body is appended to the target under a new `## Source Title` heading; sources move to trash; target's `updated_at` advances.
+- Confirmation dialog shows the source count and target name before doing the work.
+
+### Backend
+- New `merge_notes(target_id, source_ids)` Tauri command. Refuses to include the target id in the source list.
+
+### Auto-update
+- Pushing v0.36.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.35.0-beta.1 - Sidebar keyboard navigation
 
 beta.35 lets you navigate the workspace without leaving the keyboard.

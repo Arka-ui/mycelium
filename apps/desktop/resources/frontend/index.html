@@ -48,6 +48,7 @@
         <button id="bulk-pin" class="bulk-btn" title="Pin all selected">★ Pin</button>
         <button id="bulk-unpin" class="bulk-btn" title="Unpin all selected">☆ Unpin</button>
         <button id="bulk-export" class="bulk-btn" title="Export selected as Markdown">⬇ Export</button>
+        <button id="bulk-merge" class="bulk-btn" title="Merge into the first selected note">⇉ Merge</button>
         <button id="bulk-trash" class="bulk-btn danger" title="Move all selected to trash">🗑 Trash</button>
         <button id="bulk-clear" class="bulk-btn ghost" title="Clear selection (Esc)">×</button>
       </div>
@@ -513,10 +514,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.35.0</strong></p>
+          <p>Version: <strong id="about-version">v0.36.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.35: keyboard navigation — ↑/↓ move through notes in the sidebar, Home/End jump to first/last, Enter focuses the editor, Delete trashes, F2 renames.</p>
+          <p class="setting-help">Beta.36: bulk merge — select 2+ notes (Ctrl-click) and the bulk bar gains a ⇉ Merge button. The first selected becomes the target; the others' bodies are appended (each under <code>## Title</code>) and the sources move to trash.</p>
         </div>
       </section>
 

@@ -62,7 +62,7 @@ const els = {};
   'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
-  'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
+  'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-merge','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
@@ -509,6 +509,21 @@ async function bulkTrashSelected() {
     await loadNotes();
   } catch (e) { alert('Bulk trash failed: ' + e); }
 }
+async function bulkMergeSelected() {
+  const ids = Array.from(state.selectedIds);
+  if (ids.length < 2) { alert('Select at least 2 notes (Ctrl/Cmd-click) to merge.'); return; }
+  const target = ids[0];
+  const sources = ids.slice(1);
+  const targetName = (state.notes.find(n => n.id === target) || {}).title || 'first selected';
+  if (!confirm(`Merge ${sources.length} note(s) into "${targetName}"?\n\nSource notes will be moved to trash and their bodies appended (each under "## Title").`)) return;
+  try {
+    const merged = await invoke('merge_notes', { targetId: target, sourceIds: sources });
+    clearSelection(false);
+    await loadNotes();
+    openNote(merged.id);
+  } catch (e) { alert('Merge failed: ' + e); }
+}
+
 async function bulkExportSelected() {
   const ids = Array.from(state.selectedIds);
   if (!ids.length) return;
@@ -3236,6 +3251,7 @@ if (els.snipResetBtn) els.snipResetBtn.addEventListener('click', resetSnippetsTo
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));
 if (els.bulkExport) els.bulkExport.addEventListener('click', bulkExportSelected);
+if (els.bulkMerge) els.bulkMerge.addEventListener('click', bulkMergeSelected);
 if (els.bulkTrash) els.bulkTrash.addEventListener('click', bulkTrashSelected);
 if (els.bulkClear) els.bulkClear.addEventListener('click', () => clearSelection());
 

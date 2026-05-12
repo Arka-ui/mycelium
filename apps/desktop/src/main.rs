@@ -808,6 +808,48 @@ fn bulk_trash(state: State<'_, AppState>, ids: Vec<String>) -> Result<u32, Strin
     Ok(n)
 }
 
+/// v0.36 — Append the bodies of `source_ids` to `target_id`'s body (each preceded by a
+/// `\n\n## <Title>\n\n` header), trash the sources, return the merged note.
+#[tauri::command]
+fn merge_notes(
+    state: State<'_, AppState>,
+    target_id: String,
+    source_ids: Vec<String>,
+) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    if source_ids.iter().any(|s| s == &target_id) {
+        return Err("source list must not contain the target id".into());
+    }
+    if source_ids.is_empty() {
+        return Err("nothing to merge".into());
+    }
+    let store = state.store.lock().unwrap();
+    let mut target = store
+        .get(&target_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "target note not found".to_string())?;
+    for sid in &source_ids {
+        let src = match store.get(sid).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        if !target.body.is_empty() && !target.body.ends_with('\n') {
+            target.body.push('\n');
+        }
+        let title = if src.title.trim().is_empty() {
+            "Untitled"
+        } else {
+            &src.title
+        };
+        target.body.push_str(&format!("\n\n## {}\n\n", title));
+        target.body.push_str(&src.body);
+        store.trash(sid).map_err(|e| e.to_string())?;
+    }
+    target.updated_at = Some(Utc::now());
+    store.write(&target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
 #[tauri::command]
 fn bulk_export_md(
     state: State<'_, AppState>,
@@ -3119,6 +3161,7 @@ fn main() -> Result<()> {
             bulk_set_pinned,
             bulk_trash,
             bulk_export_md,
+            merge_notes,
             search_notes,
             all_tags,
             backlinks,

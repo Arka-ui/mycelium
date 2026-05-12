@@ -56,6 +56,7 @@ const els = {};
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'snip-rows','snip-add-btn','snip-save-btn','snip-reset-btn',
+  'export-workspace-enc-btn',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
@@ -1241,12 +1242,35 @@ async function exportWorkspace() {
   } catch (e) { alert('Export failed: ' + e); }
 }
 
+// v0.27 — encrypted backup via passphrase
+async function exportWorkspaceEncrypted() {
+  const p = prompt('Backup passphrase (at least 6 characters):');
+  if (!p) return;
+  if (p.length < 6) { alert('Passphrase too short.'); return; }
+  const c = prompt('Confirm passphrase:');
+  if (p !== c) { alert('Passphrases do not match.'); return; }
+  try {
+    const bundle = await invoke('export_workspace_encrypted', { passphrase: p });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadJson(`mycelium-workspace-${stamp}.encrypted.json`, bundle);
+    alert('Encrypted workspace exported. Lose the passphrase = lose the data.');
+  } catch (e) { alert('Encrypted export failed: ' + e); }
+}
+
 async function importWorkspace() {
   const r = await pickFile('.json'); if (!r || !r.json) return;
-  if (r.json.format !== 'mycelium-workspace-v1') { alert('Not a Mycelium workspace bundle.'); return; }
+  let bundle = r.json;
+  // v0.27 — auto-detect encrypted format and prompt for passphrase.
+  if (bundle.format === 'mycelium-workspace-enc-v1') {
+    const p = prompt('This bundle is encrypted. Enter the passphrase:');
+    if (!p) return;
+    try { bundle = await invoke('decrypt_workspace_bundle', { bundle, passphrase: p }); }
+    catch (e) { alert('Decrypt failed: ' + e); return; }
+  }
+  if (bundle.format !== 'mycelium-workspace-v1') { alert('Not a Mycelium workspace bundle.'); return; }
   const overwrite = confirm('Overwrite notes that already exist with the same ID?\n\nOK = overwrite, Cancel = keep existing copies.');
   try {
-    const summary = await invoke('import_workspace', { bundle: r.json, overwrite });
+    const summary = await invoke('import_workspace', { bundle, overwrite });
     alert(`Restored. Notes: ${summary.notes_imported} imported, ${summary.notes_skipped} skipped. Themes: ${summary.themes_imported}. Templates: ${summary.templates_imported}.`);
     await loadThemes(); await loadTemplates(); await loadNotes(); await loadSettings();
   } catch (e) { alert('Restore failed: ' + e); }
@@ -2452,6 +2476,7 @@ const PALETTE_COMMANDS = [
   { name: 'Copy current note as Markdown', shortcut: '', run: copyActiveAsMarkdown },
   { name: 'Copy current note as HTML', shortcut: '', run: copyActiveAsHtml },
   { name: 'Save current note as standalone .html', shortcut: '', run: saveActiveAsHtml },
+  { name: 'Encrypted workspace backup...', shortcut: '', run: exportWorkspaceEncrypted },
   { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
   { name: 'Toggle sidebar', shortcut: 'Ctrl+\\', run: toggleSidebar },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
@@ -2716,6 +2741,7 @@ els.hmPurgeBtn.addEventListener('click', purgeHistoryActive);
 els.attachBtn.addEventListener('click', pickAttachment);
 els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
+if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
 
 els.body.addEventListener('paste', async (e) => {
   if (!e.clipboardData) return;

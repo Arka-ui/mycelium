@@ -1096,6 +1096,59 @@ fn month_calendar(
     }))
 }
 
+/// v0.27 — Encrypt the workspace bundle with a passphrase before download.
+/// Returns a JSON envelope `{ "_enc1": "<base64-nonce-and-ciphertext>", "salt": "<hex>" }`.
+/// The salt is per-export (16 fresh bytes); the master key derivation is identical to
+/// the at-rest workspace lock (50,000 BLAKE3 iterations over a domain-separated input).
+#[tauri::command]
+fn export_workspace_encrypted(
+    state: State<'_, AppState>,
+    passphrase: String,
+) -> Result<serde_json::Value, String> {
+    if passphrase.len() < 6 {
+        return Err("passphrase must be at least 6 characters".into());
+    }
+    let bundle = export_workspace(state)?;
+    let plaintext = serde_json::to_vec(&bundle).map_err(|e| e.to_string())?;
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::rngs::OsRng.fill_bytes(&mut salt);
+    let salt_hex = hex_encode(&salt);
+    let key = derive_master_key(&salt_hex, &passphrase);
+    let blob = encrypt_for_disk(&plaintext, &key)?;
+    Ok(serde_json::json!({
+        "format": "mycelium-workspace-enc-v1",
+        "salt": salt_hex,
+        "_enc1": blob,
+    }))
+}
+
+/// v0.27 — Decrypt an `export_workspace_encrypted` bundle and return the inner workspace JSON.
+/// The frontend can then hand the result to the existing `import_workspace`.
+#[tauri::command]
+fn decrypt_workspace_bundle(
+    bundle: serde_json::Value,
+    passphrase: String,
+) -> Result<serde_json::Value, String> {
+    let format = bundle.get("format").and_then(|v| v.as_str()).unwrap_or("");
+    if format != "mycelium-workspace-enc-v1" {
+        return Err("not an encrypted Mycelium workspace bundle".into());
+    }
+    let salt = bundle
+        .get("salt")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "missing salt".to_string())?;
+    let blob = bundle
+        .get("_enc1")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "missing ciphertext".to_string())?;
+    let key = derive_master_key(salt, &passphrase);
+    let plaintext = decrypt_from_disk(blob, &key)
+        .map_err(|_| "wrong passphrase or corrupt bundle".to_string())?;
+    serde_json::from_slice::<serde_json::Value>(&plaintext)
+        .map_err(|e| format!("decryption succeeded but inner JSON was invalid: {}", e))
+}
+
 // --- v0.25 — text snippets (typed shortcuts that expand in the editor) ---
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Snippet {
@@ -2982,6 +3035,8 @@ fn main() -> Result<()> {
             mentions,
             list_snippets,
             save_snippets,
+            export_workspace_encrypted,
+            decrypt_workspace_bundle,
             export_note_md,
             export_all_md,
             import_md,

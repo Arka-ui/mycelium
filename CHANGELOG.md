@@ -1,3 +1,31 @@
+# Mycelium v0.27.0-beta.1 - Encrypted backups
+
+beta.27 lets you take an encrypted snapshot of the entire workspace — notes, themes, templates, plugins, settings — and stash it on a USB stick or in cloud storage without leaking the contents.
+
+## New in v0.27.0
+
+### Encrypted backup
+- New **Settings → Data → "Encrypted backup..."** button (and palette command "Encrypted workspace backup...").
+- Prompts for a passphrase (≥6 chars) twice, then downloads `mycelium-workspace-<stamp>.encrypted.json`.
+- Cipher: ChaCha20-Poly1305 with a 12-byte random nonce, key derived via 50,000 BLAKE3 iterations from a fresh 16-byte salt + passphrase. Same primitives as the at-rest workspace lock.
+- Envelope: `{ "format": "mycelium-workspace-enc-v1", "salt": "<hex>", "_enc1": "<base64-nonce-and-ciphertext>" }`.
+
+### Restore auto-detects the format
+- The existing **Restore from backup...** button now recognises encrypted bundles by their `format` field, prompts for the passphrase, decrypts in-process, and continues with the normal import flow.
+- Plain (non-encrypted) bundles still work exactly as before.
+
+### Honest disclaimer
+- Lose the passphrase = lose the data. There is no recovery.
+- Encryption is identical in primitives to the at-rest workspace lock, but is not yet covered by an external audit (planned with the rest of the cryptography in M4).
+
+### Backend
+- New `export_workspace_encrypted(passphrase)` and `decrypt_workspace_bundle(bundle, passphrase)` commands.
+
+### Auto-update
+- Pushing v0.27.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.26.0-beta.1 - Emoji & sharing
 
 beta.26 makes notes more expressive in preview and easier to share outside the app.

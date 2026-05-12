@@ -1,3 +1,21 @@
+# Mycelium v0.60.0-beta.1 - Quick wins
+
+beta.60 adds three small palette commands that eliminate dozens of keystrokes a day.
+
+## New in v0.60.0
+
+### New palette commands
+- **New note from clipboard** — reads system clipboard text, creates a note where the first line becomes the title (max 120 chars, leading `#` stripped) and the full text becomes the body.
+- **Insert today's date at caret** — inserts `YYYY-MM-DD` at the editor caret.
+- **Insert current time at caret** — inserts `HH:MM` at the editor caret.
+
+All three integrate with the existing draft / save pipeline (so the snippet is debounced-saved and counts toward the goal chip).
+
+### Auto-update
+- Pushing v0.60.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.59.0-beta.1 - Custom keyboard shortcuts
 
 beta.59 lets you bind any palette command to a keyboard shortcut of your choice.

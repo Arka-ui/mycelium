@@ -3785,6 +3785,33 @@ const PALETTE_COMMANDS = [
       try { await invoke('reveal_note', { id: state.activeId }); }
       catch (e) { alert('Reveal failed: ' + e); }
   } },
+  // v0.60 — quick wins
+  { name: 'New note from clipboard', shortcut: '', run: async () => {
+      let text = '';
+      try { text = await navigator.clipboard.readText(); } catch (_) { text = ''; }
+      if (!text || !text.trim()) { alert('Clipboard is empty (or permission denied).'); return; }
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
+      const title = (lines[0] || '').trim().replace(/^#+\s*/, '').slice(0, 120) || 'From clipboard';
+      const body = text;
+      try {
+        const note = await invoke('create_note', { title, body });
+        await loadNotes(); openNote(note.id);
+      } catch (e) { alert('Create failed: ' + e); }
+  } },
+  { name: 'Insert today\'s date at caret', shortcut: '', run: () => {
+      if (!els.body) return;
+      const d = new Date();
+      const s = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      insertAtCursor(els.body, s);
+      scheduleSave();
+  } },
+  { name: 'Insert current time at caret', shortcut: '', run: () => {
+      if (!els.body) return;
+      const d = new Date();
+      const s = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      insertAtCursor(els.body, s);
+      scheduleSave();
+  } },
   { name: 'Start focus timer', shortcut: '', run: () => startPomodoro(state.settings.pomodoro_minutes || 25) },
   { name: 'Cancel focus timer', shortcut: '', run: () => cancelPomodoro() },
   { name: 'Toggle always-on-top window', shortcut: '', run: async () => {

@@ -1,3 +1,29 @@
+# Mycelium v0.31.0-beta.1 - Template variables
+
+beta.31 makes templates dynamic: drop a `{{date}}` or `{{title}}` token in any template body and it gets substituted when you create the note. A `{{cursor}}` marker places the caret automatically.
+
+## New in v0.31.0
+
+### Tokens
+- `{{date}}` — today as `YYYY-MM-DD`
+- `{{time}}` — now as `HH:MM`
+- `{{datetime}}` — current RFC 3339 timestamp
+- `{{year}}` / `{{month}}` / `{{day}}` — individual components
+- `{{title}}` — the title you just chose for the new note
+- `{{cursor}}` — pass-through marker; the frontend removes it after open and places the caret at that position
+- Unknown tokens (`{{not_real}}`) are left unchanged so existing templates with curly-brace literals don't break.
+
+### Backend
+- New helper `expand_template_vars(body, title)` runs in `note_from_template` before persisting. UTF-8 safe; matches by lowercased name; handles repeated tokens.
+
+### "Duplicate as..." palette command
+- New command prompts for a new title and creates a copy of the open note with that title, leaving body intact. Speeds up "use this note as a starting point for a new one with a different name".
+
+### Auto-update
+- Pushing v0.31.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.30.0-beta.1 - Search-everywhere modal
 
 beta.30 graduates the sidebar search box: a centered modal with snippet previews and keyboard-driven results, opened from anywhere with Ctrl+Shift+F.

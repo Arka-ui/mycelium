@@ -353,7 +353,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="data">
         <div class="setting-group">
           <h3>Templates</h3>
-          <p class="setting-help">Templates let you spin up a new note pre-populated with structure (meeting agenda, daily log, project brief, ...). Save the currently-open note as a template, or create a new note from any template you've saved.</p>
+          <p class="setting-help">Templates let you spin up a new note pre-populated with structure (meeting agenda, daily log, project brief, ...). Save the currently-open note as a template, or create a new note from any template you've saved. Use <code>{{date}}</code>, <code>{{time}}</code>, <code>{{datetime}}</code>, <code>{{title}}</code>, <code>{{year}}</code>, <code>{{month}}</code>, <code>{{day}}</code> as substitution tokens; <code>{{cursor}}</code> places the caret at that spot after expansion.</p>
           <ul id="template-list" class="thing-list"></ul>
           <div class="setting-row">
             <button id="save-template-btn" class="primary-btn small">Save current note as template</button>
@@ -493,10 +493,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.30.0</strong></p>
+          <p>Version: <strong id="about-version">v0.31.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.30: search-everywhere modal — Ctrl+Shift+F opens a centered live search across every note with snippet previews and keyboard navigation.</p>
+          <p class="setting-help">Beta.31: template variables — <code>{{date}}</code>, <code>{{time}}</code>, <code>{{datetime}}</code>, <code>{{title}}</code>, <code>{{year/month/day}}</code> substitute on template use. <code>{{cursor}}</code> places the caret. Plus a "Duplicate as..." palette command.</p>
         </div>
       </section>
 

@@ -1717,6 +1717,7 @@ function renderTemplateList() {
       if (title === null) return;
       const note = await invoke('note_from_template', { templateId: t.id, title });
       closeSettings(); await loadNotes(); openNote(note.id);
+      placeCursorAtMarker();
     }));
     actions.appendChild(btn('danger-btn', 'Delete', async () => {
       if (!confirm('Delete template "' + t.name + '"?')) return;
@@ -1750,6 +1751,8 @@ async function openTemplateMenu(anchor) {
         hideMenus();
         const note = await invoke('note_from_template', { templateId: t.id, title: t.name });
         await loadNotes(); openNote(note.id);
+        // v0.31 — if the template body contains {{cursor}}, place caret there.
+        placeCursorAtMarker();
       });
       menu.appendChild(li);
     }
@@ -1758,6 +1761,18 @@ async function openTemplateMenu(anchor) {
   menu.style.left = r.left + 'px';
   menu.style.top = (r.bottom + 4) + 'px';
   menu.classList.remove('hidden');
+}
+
+// v0.31 — find the {{cursor}} marker, remove it, and place the caret at that spot.
+function placeCursorAtMarker() {
+  if (!els.body) return;
+  const v = els.body.value;
+  const idx = v.indexOf('{{cursor}}');
+  if (idx < 0) return;
+  els.body.value = v.slice(0, idx) + v.slice(idx + '{{cursor}}'.length);
+  els.body.setSelectionRange(idx, idx);
+  els.body.focus();
+  scheduleSave();
 }
 
 // v0.15 — context menu for tag chips (rename / filter / clear filter)
@@ -2649,6 +2664,16 @@ const PALETTE_COMMANDS = [
   { name: 'Tabs: close current', shortcut: 'Ctrl+W', run: () => state.activeId && closeTab(state.activeId) },
   { name: 'Tabs: close all', shortcut: '', run: () => { state.tabs = []; saveTabs(); showEmpty(); renderTabs(); } },
   { name: 'Search every note...', shortcut: 'Ctrl+Shift+F', run: openSearchModal },
+  { name: 'Duplicate current note as...', shortcut: '', run: async () => {
+    if (!state.activeId) return;
+    const newTitle = prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
+    if (newTitle === null) return;
+    try {
+      const dup = await invoke('duplicate_note', { id: state.activeId });
+      await invoke('update_note', { id: dup.id, title: newTitle, body: null });
+      await loadNotes(); openNote(dup.id);
+    } catch (e) { alert('Duplicate failed: ' + e); }
+  } },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },

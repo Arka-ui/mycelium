@@ -2173,12 +2173,59 @@ fn note_from_template(
     let bytes = fs::read(&p).map_err(|e| e.to_string())?;
     let template: Template = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     let final_title = title.unwrap_or_else(|| template.name.clone());
+    // v0.31 — substitute template variables before creating the note.
+    let body = expand_template_vars(&template.body, &final_title);
     state
         .store
         .lock()
         .unwrap()
-        .create(final_title, template.body)
+        .create(final_title, body)
         .map_err(|e| e.to_string())
+}
+
+/// v0.31 — Replace `{{var}}` tokens in template bodies. Recognised:
+/// `{{date}}` (YYYY-MM-DD), `{{time}}` (HH:MM), `{{datetime}}` (RFC3339),
+/// `{{title}}` (the new note's title), `{{year}}`, `{{month}}`, `{{day}}`,
+/// `{{cursor}}` (left as-is so the frontend can place the caret on it).
+/// Unknown `{{name}}` tokens are left unchanged.
+fn expand_template_vars(body: &str, title: &str) -> String {
+    let now = Utc::now();
+    let date = now.format("%Y-%m-%d").to_string();
+    let time = now.format("%H:%M").to_string();
+    let datetime = now.to_rfc3339();
+    let year = now.format("%Y").to_string();
+    let month = now.format("%m").to_string();
+    let day = now.format("%d").to_string();
+    let mut out = String::with_capacity(body.len() + 32);
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'{' && bytes[i + 1] == b'{' {
+            if let Some(close) = body[i + 2..].find("}}") {
+                let name = &body[i + 2..i + 2 + close];
+                let resolved = match name.trim().to_lowercase().as_str() {
+                    "date" => Some(date.clone()),
+                    "time" => Some(time.clone()),
+                    "datetime" => Some(datetime.clone()),
+                    "title" => Some(title.to_string()),
+                    "year" => Some(year.clone()),
+                    "month" => Some(month.clone()),
+                    "day" => Some(day.clone()),
+                    "cursor" => Some("{{cursor}}".to_string()), // pass-through marker
+                    _ => None,
+                };
+                if let Some(v) = resolved {
+                    out.push_str(&v);
+                    i += 2 + close + 2;
+                    continue;
+                }
+            }
+        }
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
 }
 
 #[tauri::command]

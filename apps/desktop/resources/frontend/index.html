@@ -325,7 +325,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               </select>
             </label>
           </div>
-          <p class="setting-help">Mycelium ships English baseline strings. Other locales are community-contributed; drop a <code>translations.json</code> in the data folder (override entries by key). Full string coverage rolls out in upcoming releases.</p>
+          <p class="setting-help">Mycelium ships English baseline strings inline. Other locales are stubbed for upcoming community contributions — disk loading of a <code>translations.json</code> is on the roadmap. Selecting a locale today only changes the setting value; full string coverage rolls out in upcoming releases.</p>
         </div>
         <div class="setting-group">
           <h3>Privacy &amp; lock</h3>
@@ -468,7 +468,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <div class="setting-group">
           <h3>Note graph</h3>
-          <p class="setting-help">Notes connected by <code>[[wiki-link]]</code>. Drag the canvas; click a node to open the note.</p>
+          <p class="setting-help">Notes connected by <code>[[wiki-link]]</code>. Click a node to open the note. (Workspaces above 100 notes show only the top-ranked subset.)</p>
           <canvas id="dash-graph" class="dash-graph" width="640" height="360"></canvas>
           <div class="setting-row">
             <button id="dash-refresh-btn" class="ghost-btn">Refresh</button>
@@ -559,10 +559,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.42.0</strong></p>
+          <p>Version: <strong id="about-version">v0.43.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.42: synced scroll — when split view is on (Ctrl+M), scrolling either editor or preview keeps the other at the matching proportional position.</p>
+          <p class="setting-help">Beta.43: quality fixes — addresses ~12 review findings: drag-reorder uses the full pinned set, sortNotes respects display_order, palette dedup by note id, wiki autocomplete ranks by relevance and uses the unfiltered note set, smart-list empty-task exits, smart-Tab non-list selection, heatmap UTC + 7-row grid, graph caps nodes/iterations, dashboard "Tags" uses distinct count, copy fixes, etc.</p>
         </div>
       </section>
 

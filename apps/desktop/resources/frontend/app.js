@@ -344,8 +344,11 @@ async function loadNotes() {
   try {
     if (state.query.trim()) {
       state.notes = await invoke('search_notes', { query: state.query.trim() });
+      // v0.43 — keep an unfiltered cache so wiki-autocomplete and reorder stay sane.
+      refreshAllNotesCache();
     } else {
       state.notes = await invoke('list_notes');
+      state._allNotesCache = state.notes;
     }
     renderList();
     renderTagBar();
@@ -595,8 +598,17 @@ async function bulkExportSelected() {
 
 // --- drag-reorder pinned ----------------------------------------------
 async function reorderPinnedDrop(draggedId, targetId) {
-  const pinned = (state._visibleNotes || state.notes).filter(n => n.pinned);
-  const ids = pinned.map(n => n.id).filter(id => id !== draggedId);
+  // v0.43 — always operate on the FULL pinned set (not the filtered visible list)
+  // so notes hidden by a tag/search filter still get a contiguous display_order.
+  const fullPinned = allNotesView()
+    .filter(n => n.pinned && !n.trashed_at)
+    .slice()
+    .sort((a, b) => {
+      const ao = a.display_order && a.display_order > 0 ? a.display_order : Number.MAX_SAFE_INTEGER;
+      const bo = b.display_order && b.display_order > 0 ? b.display_order : Number.MAX_SAFE_INTEGER;
+      return ao - bo;
+    });
+  const ids = fullPinned.map(n => n.id).filter(id => id !== draggedId);
   const tIdx = ids.indexOf(targetId);
   if (tIdx < 0) return;
   ids.splice(tIdx, 0, draggedId);
@@ -1474,6 +1486,12 @@ function sortNotes(notes) {
   const arr = notes.slice();
   arr.sort((a, b) => {
     if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+    // v0.43 — respect manual display_order on pinned notes (1-based; 0 = no manual order = last).
+    if (a.pinned && b.pinned) {
+      const ao = a.display_order && a.display_order > 0 ? a.display_order : Number.MAX_SAFE_INTEGER;
+      const bo = b.display_order && b.display_order > 0 ? b.display_order : Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+    }
     if (by === 'title') return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
     if (by === 'created') return (b.created_at || b.updated_at || '').localeCompare(a.created_at || a.updated_at || '');
     return (b.updated_at || '').localeCompare(a.updated_at || '');
@@ -2511,26 +2529,40 @@ async function maybeOpenWikiAutocomplete() {
   if (/[\n]/.test(after)) { closeWikiAutocomplete(); return; }
   const query = after.toLowerCase();
   // v0.20 — also suggest aliases.
+  // v0.43 — rank by substring position (earlier = better) then by length, and use the
+  // unfiltered note set so a sidebar search/tag filter doesn't hide candidates.
   const seen = new Set();
-  const matches = [];
-  for (const n of state.notes) {
-    if (n.title && (!query || n.title.toLowerCase().includes(query))) {
-      const k = 'title:' + n.title;
-      if (!seen.has(k)) { seen.add(k); matches.push({ title: n.title, hint: '' }); }
-    }
-    if (matches.length >= 8) break;
+  const scored = [];
+  for (const n of allNotesView()) {
+    if (!n.title) continue;
+    const lc = n.title.toLowerCase();
+    if (query && !lc.includes(query)) continue;
+    const idx = query ? lc.indexOf(query) : 0;
+    const k = 'title:' + n.title;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    scored.push({ title: n.title, hint: '', score: idx * 1000 + n.title.length });
   }
+  scored.sort((a, b) => a.score - b.score);
+  const matches = scored.slice(0, 8);
   if (matches.length < 8) {
     let aliasInfo = [];
     try { aliasInfo = await invoke('all_aliases'); } catch (_) { aliasInfo = []; }
+    const aliasScored = [];
     for (const ai of aliasInfo) {
       for (const al of (ai.aliases || [])) {
-        if (!query || al.toLowerCase().includes(query)) {
-          const k = 'alias:' + al;
-          if (!seen.has(k)) { seen.add(k); matches.push({ title: al, hint: '→ ' + ai.title }); }
-          if (matches.length >= 8) break;
-        }
+        const lc = (al || '').toLowerCase();
+        if (query && !lc.includes(query)) continue;
+        const k = 'alias:' + al;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const idx = query ? lc.indexOf(query) : 0;
+        aliasScored.push({ title: al, hint: '→ ' + ai.title, score: idx * 1000 + al.length });
       }
+    }
+    aliasScored.sort((a, b) => a.score - b.score);
+    for (const m of aliasScored) {
+      matches.push(m);
       if (matches.length >= 8) break;
     }
   }
@@ -2594,8 +2626,8 @@ function handleSmartEnter(e) {
   let m = line.match(/^(\s*)([-*+])\s+(\[[ xX]\]\s+)?(.*)$/);
   if (m) {
     const indent = m[1], marker = m[2], task = m[3] || '', content = m[4];
-    if (content.trim() === '' && !task) {
-      // Empty bullet — exit the list (replace bullet with blank line).
+    // v0.43 — empty content exits the list whether the bullet is plain OR a task ("- [ ] ").
+    if (content.trim() === '') {
       e.preventDefault();
       const before = value.slice(0, lineStart);
       const after = value.slice(pos);
@@ -2681,7 +2713,9 @@ function handleSmartTab(e) {
   const lineStart = value.lastIndexOf('\n', start - 1) + 1;
   const line = value.slice(lineStart, value.indexOf('\n', start) === -1 ? value.length : value.indexOf('\n', start));
   const isList = /^(\s*)([-*+]\s|\d+\.\s)/.test(line);
-  if (!isList && start === end) {
+  if (!isList) {
+    // v0.43 — also handle single-line selection on non-list lines: replace selection with 2 spaces
+    // (consistent with the no-selection case; prevents Tab from escaping focus to other elements).
     e.preventDefault();
     const before = value.slice(0, start);
     const after = value.slice(end);
@@ -2788,6 +2822,17 @@ function handleSmartPaste(e) {
 
 function stripTrailingWhitespace(s) {
   return s.split('\n').map(line => line.replace(/[ \t]+$/, '')).join('\n');
+}
+
+// --- v0.43 helper: full set of all (non-trashed) notes for autocomplete + reorder
+//      that must be filter-independent. Falls back to state.notes if the cache is empty.
+state._allNotesCache = [];
+async function refreshAllNotesCache() {
+  try { state._allNotesCache = await invoke('list_notes'); }
+  catch (_) { /* keep previous cache */ }
+}
+function allNotesView() {
+  return state._allNotesCache && state._allNotesCache.length ? state._allNotesCache : state.notes;
 }
 
 // --- v0.11 — auto-pair brackets ---------------------------------------
@@ -3122,18 +3167,19 @@ function refreshPalette(q) {
       const n = state.notes.find(x => x.id === id);
       if (!n) continue;
       const title = n.title || 'Untitled';
-      items.push({ kind: 'recent', label: title, hint: 'recent · ' + fmtDate(n.updated_at), score: 100, run: () => openNote(id) });
+      items.push({ kind: 'recent', noteId: id, label: title, hint: 'recent · ' + fmtDate(n.updated_at), score: 100, run: () => openNote(id) });
     }
   }
   for (const n of state.notes) {
     const title = n.title || 'Untitled';
     const s = fuzzyScore(title, q);
-    if (s > 0 || !q) items.push({ kind: 'note', label: title, hint: 'open · ' + fmtDate(n.updated_at), score: s + (n.pinned ? 2 : 0), run: () => openNote(n.id) });
+    if (s > 0 || !q) items.push({ kind: 'note', noteId: n.id, label: title, hint: 'open · ' + fmtDate(n.updated_at), score: s + (n.pinned ? 2 : 0), run: () => openNote(n.id) });
   }
-  // De-duplicate by (kind, label) preserving highest score.
+  // v0.43 — de-duplicate notes/recents by note id (so a note that's also recent doesn't appear twice),
+  // and commands by their label. Highest-scoring entry wins.
   const seen = new Map();
   for (const it of items) {
-    const k = it.kind + '|' + it.label;
+    const k = it.noteId ? 'note:' + it.noteId : 'cmd:' + it.label;
     const prev = seen.get(k);
     if (!prev || it.score > prev.score) seen.set(k, it);
   }
@@ -3385,6 +3431,11 @@ els.noteList.addEventListener('contextmenu', (e) => {
 document.addEventListener('click', (e) => {
   if (!els.ctxMenu.classList.contains('hidden') && !els.ctxMenu.contains(e.target)) hideMenus();
   if (!els.templateMenu.classList.contains('hidden') && !els.templateMenu.contains(e.target) && e.target !== els.newFromTemplate) hideMenus();
+  // v0.43 — close wiki autocomplete popover when clicking anywhere outside it (and outside the body editor).
+  const pop = document.getElementById('wiki-pop');
+  if (state.wikiAuto && pop && !pop.classList.contains('hidden')) {
+    if (!pop.contains(e.target) && e.target !== els.body) closeWikiAutocomplete();
+  }
 });
 
 els.historyBtn.addEventListener('click', openHistory);
@@ -3527,7 +3578,8 @@ async function refreshDashboard() {
       { label: 'Characters', value: (stats.total_chars || 0).toLocaleString() },
       { label: 'Pinned', value: stats.pinned },
       { label: 'Wiki-links', value: stats.links },
-      { label: 'Tags', value: (stats.top_tags || []).length },
+      // v0.43 — use the full distinct count (top_tags is truncated to 10 server-side).
+      { label: 'Tags', value: (stats.distinct_tags != null ? stats.distinct_tags : (stats.top_tags || []).length) },
     ];
     els.dashGrid.innerHTML = '';
     for (const c of cells) {
@@ -3572,27 +3624,60 @@ async function refreshDashboard() {
 }
 
 function drawHeatmap(container, data) {
+  // v0.43 — render as 12 week-columns × 7 day-rows in CSS grid order, using UTC dates
+  // throughout to match the backend's UTC YYYY-MM-DD keys (no off-by-one timezone bugs).
   container.innerHTML = '';
   const map = new Map(data.map(([k, v]) => [k, v]));
-  const today = new Date();
   const weeks = 12;
   const days = weeks * 7;
   let max = 0;
   for (const [, v] of data) if (v > max) max = v;
-  const grid = document.createElement('div'); grid.className = 'cal-grid';
+  // Anchor on today (UTC) and walk backwards.
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  // Build a flat ordered list (oldest→newest) of (weekColumn, dayRow, key, count).
+  const cells = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
+    const ts = todayUtc - i * 86400000;
+    const d = new Date(ts);
     const key = d.toISOString().slice(0, 10);
-    const v = map.get(key) || 0;
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell';
-    const intensity = max > 0 ? (v / max) : 0;
-    cell.style.background = v === 0 ? 'var(--bg-3)' : `color-mix(in srgb, var(--accent) ${Math.round(20 + intensity * 80)}%, var(--bg-3))`;
-    cell.title = `${key}: ${v} note${v === 1 ? '' : 's'}`;
-    grid.appendChild(cell);
+    cells.push({ key, value: map.get(key) || 0, weekday: d.getUTCDay() });
+  }
+  // 7 rows (Sun..Sat) × 12 cols. CSS grid is column-major when grid-auto-flow:column.
+  const grid = document.createElement('div'); grid.className = 'cal-grid';
+  // Walk weeks (col) outer, days (row) inner.
+  let i = 0;
+  while (i < cells.length) {
+    // The first column may be partial (week starts mid-week). Pad earlier days as empty.
+    const firstCol = (i === 0);
+    if (firstCol) {
+      const startWeekday = cells[0].weekday;
+      for (let r = 0; r < startWeekday; r++) {
+        const pad = document.createElement('div');
+        pad.className = 'cal-cell empty-pad';
+        pad.style.background = 'transparent';
+        grid.appendChild(pad);
+      }
+      for (let r = startWeekday; r < 7 && i < cells.length; r++, i++) {
+        appendHeatCell(grid, cells[i], max);
+      }
+    } else {
+      for (let r = 0; r < 7 && i < cells.length; r++, i++) {
+        appendHeatCell(grid, cells[i], max);
+      }
+    }
   }
   container.appendChild(grid);
+}
+function appendHeatCell(grid, c, max) {
+  const cell = document.createElement('div');
+  cell.className = 'cal-cell';
+  const intensity = max > 0 ? (c.value / max) : 0;
+  cell.style.background = c.value === 0
+    ? 'var(--bg-3)'
+    : `color-mix(in srgb, var(--accent) ${Math.round(20 + intensity * 80)}%, var(--bg-3))`;
+  cell.title = `${c.key}: ${c.value} note${c.value === 1 ? '' : 's'}`;
+  grid.appendChild(cell);
 }
 
 function drawGraph(canvas, data) {
@@ -3605,17 +3690,40 @@ function drawGraph(canvas, data) {
     ctx.fillText('No notes with [[wiki-links]] yet.', W / 2, H / 2);
     return;
   }
-  const nodes = data.nodes.map((n, i) => ({
+  // v0.43 — guard against UI freeze on large graphs.
+  // Cap node count: prefer pinned nodes + nodes touched by an edge.
+  const MAX_NODES = 100;
+  let inputNodes = data.nodes;
+  let inputEdges = data.edges || [];
+  let truncated = false;
+  if (inputNodes.length > MAX_NODES) {
+    truncated = true;
+    const linked = new Set();
+    for (const e of inputEdges) { linked.add(e.source); linked.add(e.target); }
+    const sorted = inputNodes.slice().sort((a, b) => {
+      // pinned first, then linked, then by size (= note body length proxy)
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      const al = linked.has(a.id), bl = linked.has(b.id);
+      if (al !== bl) return al ? -1 : 1;
+      return (b.size || 0) - (a.size || 0);
+    });
+    inputNodes = sorted.slice(0, MAX_NODES);
+    const keep = new Set(inputNodes.map(n => n.id));
+    inputEdges = inputEdges.filter(e => keep.has(e.source) && keep.has(e.target));
+  }
+  const nodes = inputNodes.map((n, i) => ({
     ...n,
-    x: W / 2 + Math.cos(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
-    y: H / 2 + Math.sin(i / data.nodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    x: W / 2 + Math.cos(i / inputNodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
+    y: H / 2 + Math.sin(i / inputNodes.length * Math.PI * 2) * Math.min(W, H) * 0.32,
     vx: 0, vy: 0,
   }));
   const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
-  const edges = data.edges.map(e => ({ source: idIdx.get(e.source), target: idIdx.get(e.target) }))
+  const edges = inputEdges.map(e => ({ source: idIdx.get(e.source), target: idIdx.get(e.target) }))
     .filter(e => e.source !== undefined && e.target !== undefined);
 
-  for (let iter = 0; iter < 250; iter++) {
+  // Scale iterations down with node count: O(N^2) per iter means ~2.5M ops at 250×100 nodes.
+  const iters = Math.max(40, Math.min(250, Math.round(25000 / Math.max(1, nodes.length))));
+  for (let iter = 0; iter < iters; iter++) {
     for (let i = 0; i < nodes.length; i++) {
       let fx = 0, fy = 0;
       for (let j = 0; j < nodes.length; j++) {
@@ -3663,6 +3771,12 @@ function drawGraph(canvas, data) {
   ctx.fillStyle = text.trim(); ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
   for (const n of nodes) {
     ctx.fillText(n.title.slice(0, 18), n.x, n.y - (n.size || 5) - 4);
+  }
+  // v0.43 — note when nodes were dropped to keep the UI responsive.
+  if (truncated) {
+    ctx.fillStyle = (getComputedStyle(document.body).getPropertyValue('--text-3') || '#888').trim();
+    ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(`Showing top ${nodes.length} of ${data.nodes.length} notes`, W - 6, H - 6);
   }
 
   canvas._nodes = nodes;

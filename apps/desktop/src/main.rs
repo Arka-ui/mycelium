@@ -294,7 +294,8 @@ impl Store {
         let mut note = self
             .get(id)?
             .ok_or_else(|| anyhow::anyhow!("note not found: {}", id))?;
-        note.display_order = order;
+        // v0.43 — clamp to >= 0 (the field is documented as "1-based; 0 = no manual order").
+        note.display_order = order.max(0);
         self.write(&note)?;
         Ok(())
     }
@@ -913,12 +914,13 @@ fn bulk_export_md(
             Some(n) => n,
             None => continue,
         };
-        let title = if note.title.is_empty() {
-            "Untitled".into()
+        // v0.43 — treat whitespace-only titles as untitled, never produce ".md" alone.
+        let title = if note.title.trim().is_empty() {
+            "Untitled".to_string()
         } else {
             note.title.clone()
         };
-        let safe = title
+        let safe: String = title
             .chars()
             .map(|c| {
                 if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
@@ -927,8 +929,12 @@ fn bulk_export_md(
                     '_'
                 }
             })
-            .collect::<String>();
-        let filename = format!("{}.md", safe.trim());
+            .collect();
+        let mut base = safe.trim().to_string();
+        if base.is_empty() {
+            base = format!("Untitled-{}", note.id);
+        }
+        let filename = format!("{}.md", base);
         let mut content = format!("# {}\n\n", title);
         if let Some(t) = note.updated_at {
             content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
@@ -2092,12 +2098,13 @@ fn export_all_md(state: State<'_, AppState>) -> Result<Vec<(String, String)>, St
         if note.trashed_at.is_some() {
             continue;
         }
-        let title = if note.title.is_empty() {
-            "Untitled".into()
+        // v0.43 — treat whitespace-only titles as untitled, never produce ".md" alone.
+        let title = if note.title.trim().is_empty() {
+            "Untitled".to_string()
         } else {
             note.title.clone()
         };
-        let safe = title
+        let safe: String = title
             .chars()
             .map(|c| {
                 if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ' {
@@ -2106,8 +2113,12 @@ fn export_all_md(state: State<'_, AppState>) -> Result<Vec<(String, String)>, St
                     '_'
                 }
             })
-            .collect::<String>();
-        let filename = format!("{}.md", safe.trim());
+            .collect();
+        let mut base = safe.trim().to_string();
+        if base.is_empty() {
+            base = format!("Untitled-{}", note.id);
+        }
+        let filename = format!("{}.md", base);
         let mut content = format!("# {}\n\n", title);
         if let Some(t) = note.updated_at {
             content.push_str(&format!("> Updated: {}\n\n", t.to_rfc3339()));
@@ -2387,27 +2398,46 @@ fn graph_data(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
         .unwrap()
         .all_notes()
         .map_err(|e| e.to_string())?;
+    // v0.43 — track ambiguous titles so wiki-link edges don't silently resolve to a random note.
+    // For empty titles we don't index them at all (they can't be wiki-linked by name).
     let mut title_to_id: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
+    let mut ambiguous: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut nodes = vec![];
     for n in &notes {
         if n.trashed_at.is_some() {
             continue;
         }
-        let title = if n.title.trim().is_empty() {
-            "Untitled".into()
+        let raw_title = n.title.trim();
+        let display_title = if raw_title.is_empty() {
+            "Untitled".to_string()
         } else {
-            n.title.clone()
+            raw_title.to_string()
         };
-        title_to_id.insert(title.to_lowercase(), n.id.clone());
+        if !raw_title.is_empty() {
+            let key = raw_title.to_lowercase();
+            use std::collections::hash_map::Entry;
+            match title_to_id.entry(key.clone()) {
+                Entry::Vacant(v) => {
+                    v.insert(n.id.clone());
+                }
+                Entry::Occupied(_) => {
+                    ambiguous.insert(key);
+                }
+            }
+        }
         let body_len = n.body.len();
         nodes.push(serde_json::json!({
             "id": n.id,
-            "title": title,
+            "title": display_title,
             "size": (body_len.min(20000) as f64 / 200.0).clamp(4.0, 20.0),
             "pinned": n.pinned,
             "tags": extract_tags(&n.body),
         }));
+    }
+    // Drop ambiguous keys so we never resolve a [[link]] to a random one of several matches.
+    for k in &ambiguous {
+        title_to_id.remove(k);
     }
     let mut edges = vec![];
     let re = regex_lite();
@@ -2533,6 +2563,7 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
             latest = Some(latest.map(|e| e.max(t)).unwrap_or(t));
         }
     }
+    let distinct_tags = tag_counts.len() as u32; // v0.43 — full distinct count, not the truncated top-10.
     let mut top_tags: Vec<(String, u32)> = tag_counts.into_iter().collect();
     top_tags.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     top_tags.truncate(10);
@@ -2543,6 +2574,7 @@ fn dashboard_stats(state: State<'_, AppState>) -> Result<serde_json::Value, Stri
         "pinned": pinned_count,
         "links": links,
         "top_tags": top_tags,
+        "distinct_tags": distinct_tags,
         "earliest": earliest,
         "latest": latest,
     }))

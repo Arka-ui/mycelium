@@ -1,3 +1,53 @@
+# Mycelium v0.43.0-beta.1 - Quality fixes
+
+beta.43 is a consolidated round of fixes addressing the review findings raised on the v0.10–v0.14 PRs. No new user-facing surface; everything is correctness, robustness, and consistency.
+
+## Fixes
+
+### Pinned ordering
+- `sortNotes()` now respects `display_order` for pinned notes (manual order asc; 0 = no manual order = end). Previously, drag-reorder updates were wiped on the next render because the client-side sort ignored `display_order`.
+- `reorderPinnedDrop()` now derives the `ids` payload from the **full** pinned set (regardless of active tag/search filter), so hidden pinned notes don't end up with overlapping or stale `display_order` values when the filter clears.
+- `set_display_order(order)` now clamps `order` to `>= 0` so negatives can't be persisted.
+
+### Bulk export
+- `bulk_export_md` and `export_all_md` no longer produce empty filenames (e.g., `.md`) for whitespace-only or punctuation-only titles — they fall back to `Untitled-<id>.md`.
+
+### Graph data
+- `graph_data` no longer overwrites entries in its `title_to_id` map when multiple notes share a title (or are all empty). Ambiguous titles are dropped from the link-target map so a `[[link]]` never silently resolves to a random one of several notes. Empty titles are excluded from the map entirely.
+
+### Note graph rendering
+- `drawGraph()` caps to **100 nodes** (preferring pinned + linked + larger notes) and scales iterations down with node count (≥40, ≤250) to keep the UI thread responsive on large workspaces.
+- A "Showing top N of M notes" footer appears when truncation kicks in.
+- "Drag the canvas" help text removed (the implementation only supports click).
+
+### Activity heatmap
+- Switched to UTC date arithmetic everywhere so frontend keys match the backend's UTC `YYYY-MM-DD` keys (no off-by-one timezone shift).
+- Grid now lays out as **7 day-rows × 12 week-columns** (column-major), matching the "last 12 weeks" intent. The first week pads empty cells for the leading days.
+
+### Dashboard "Tags" card
+- Uses a new `distinct_tags` field returned by `dashboard_stats` (instead of the truncated `top_tags.length`), so the count reflects the actual number of distinct tags in the workspace.
+
+### Wiki-link autocomplete
+- Now sorts suggestions by substring position (earlier = better), then by title length (shorter wins ties).
+- Sources from the **unfiltered** note set so a sidebar search/tag filter doesn't hide candidates.
+- Aliases are also relevance-ranked.
+- Closes on any click outside the popover (was only closing on body clicks).
+
+### Smart list / smart Tab
+- Smart Enter on `- [ ] ` (empty task) now exits the list (matches the plain-bullet behavior).
+- Smart Tab on a non-list line now `preventDefault()`s for both selection and no-selection cases (was only handling no-selection), so Tab no longer escapes focus to chrome.
+
+### Command palette
+- Notes are de-duplicated by **note id** (not `(kind, label)`), so two notes with the same title are both reachable, and a recent-list note no longer doubles up with a regular note entry.
+
+### Translation help text
+- Updated copy to make clear that disk loading of a `translations.json` is roadmap, not implemented (locale select changes the setting value only).
+
+### Auto-update
+- Pushing v0.43.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.42.0-beta.1 - Synced scroll
 
 beta.42 keeps the editor and the preview at the same proportional scroll position when split view is on.

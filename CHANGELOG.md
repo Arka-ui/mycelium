@@ -1,3 +1,24 @@
+# Mycelium v0.62.0-beta.1 - Wiki-link hover preview
+
+beta.62 makes the wiki-link graph easier to navigate by previewing what's on the other side without leaving the current note.
+
+## New in v0.62.0
+
+### Hover preview
+- Hover any `[[wiki-link]]` in preview for ~350 ms → a small tooltip appears with:
+  - The target note's title (bold).
+  - The first ~240 characters of the body (frontmatter stripped, whitespace collapsed; ellipsis if longer).
+- Pointer-events disabled on the tooltip so it never gets in the way.
+- Auto-hides on mouse leave or note switch.
+
+### Pure client-side
+- Reuses existing `state.notes` / `state._allNotesCache` for the title→id lookup, then `get_note(id)` for the body.
+
+### Auto-update
+- Pushing v0.62.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.61.0-beta.1 - Bulk frontmatter editing
 
 beta.61 lets you set or unset a frontmatter property on many notes at once.

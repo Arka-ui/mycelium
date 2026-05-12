@@ -831,6 +831,20 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
 .wiki-pop-item:hover, .wiki-pop-item.on { background: var(--bg-3); color: var(--text); }
 .wiki-pop-hint { color: var(--text-3); font-size: 11px; margin-left: 8px; }
 
+/* v0.62 — wiki-link hover preview */
+.wiki-hover {
+  position: fixed; z-index: 95;
+  max-width: 360px;
+  background: var(--bg-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  pointer-events: none;
+}
+.wh-title { font-weight: 600; margin-bottom: 4px; color: var(--text); }
+.wh-excerpt { color: var(--text-2); line-height: 1.4; }
+
 /* --- v0.12 — reading mode (zen) -------------------------------------- */
 body.reading-mode #sidebar { display: none; }
 body.reading-mode #app { grid-template-columns: 1fr; }

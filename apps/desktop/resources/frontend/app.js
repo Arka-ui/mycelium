@@ -1061,6 +1061,7 @@ async function openNote(id) {
   state.collapsedLines = new Set(); // v0.11 — folds reset per note
   closeWikiAutocomplete();
   closeTagAutocomplete(); // v0.54
+  hideWikiHover();         // v0.62
   pushRecent(id); // v0.12 — recents
   addTab(id);     // v0.29 — register / focus tab
   pushNav(id);    // v0.57 — back/forward history
@@ -1234,6 +1235,24 @@ function renderPreview() {
   els.preview.querySelectorAll('a.wiki-link').forEach(a => {
     const title = a.dataset.wiki;
     const anchor = a.dataset.anchor || '';
+    // v0.62 — hover preview tooltip with the first ~200 chars of the target note's body.
+    let hoverTimer = null;
+    a.addEventListener('mouseenter', () => {
+      hoverTimer = setTimeout(async () => {
+        const target = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase())
+                    || (state._allNotesCache || []).find(n => (n.title || '').toLowerCase() === title.toLowerCase());
+        if (!target) return;
+        try {
+          const note = await invoke('get_note', { id: target.id });
+          if (!note) return;
+          showWikiHover(a, note);
+        } catch (_) {}
+      }, 350);
+    });
+    a.addEventListener('mouseleave', () => {
+      if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+      hideWikiHover();
+    });
     // v0.15 + v0.20 — first try sync match by title; for misses, the click handler
     // calls resolve_link which also checks frontmatter aliases.
     const found = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase());
@@ -3021,6 +3040,43 @@ function finishPomodoro() {
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try { new Notification('Mycelium', { body: 'Focus session complete.' }); } catch (_) {}
   }
+}
+
+// v0.62 — wiki-link hover preview.
+function ensureWikiHover() {
+  let pop = document.getElementById('wiki-hover');
+  if (pop) return pop;
+  pop = document.createElement('div');
+  pop.id = 'wiki-hover';
+  pop.className = 'wiki-hover hidden';
+  document.body.appendChild(pop);
+  return pop;
+}
+function showWikiHover(anchorEl, note) {
+  const pop = ensureWikiHover();
+  const title = note.title && note.title.trim() ? note.title : 'Untitled';
+  // Strip frontmatter for the excerpt preview.
+  const m = (note.body || '').match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  const body = m ? note.body.slice(m[0].length) : (note.body || '');
+  const excerpt = body.replace(/\s+/g, ' ').slice(0, 240);
+  pop.innerHTML = '';
+  const h = document.createElement('div'); h.className = 'wh-title'; h.textContent = title;
+  const e = document.createElement('div'); e.className = 'wh-excerpt'; e.textContent = excerpt + (body.length > 240 ? '…' : '');
+  pop.appendChild(h); pop.appendChild(e);
+  pop.classList.remove('hidden');
+  // Position near the anchor.
+  const r = anchorEl.getBoundingClientRect();
+  const popRect = pop.getBoundingClientRect();
+  let left = r.left;
+  let top = r.bottom + 6;
+  if (left + popRect.width > window.innerWidth - 12) left = window.innerWidth - popRect.width - 12;
+  if (top + popRect.height > window.innerHeight - 12) top = r.top - popRect.height - 6;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = Math.max(8, top) + 'px';
+}
+function hideWikiHover() {
+  const pop = document.getElementById('wiki-hover');
+  if (pop) pop.classList.add('hidden');
 }
 
 // v0.20 — scroll preview to a heading whose text matches `anchor` (case-insensitive).

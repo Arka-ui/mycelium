@@ -1,3 +1,23 @@
+# Mycelium v0.44.0-beta.1 - Compare & goal bar
+
+beta.44 reuses the v0.39 snapshot-diff infrastructure to compare any two notes side-by-side, and dresses up the writing-goal chip with a filled progress bar.
+
+## New in v0.44.0
+
+### Compare current note with another
+- New palette command **"Compare current note with..."**.
+- Prompts with a numbered list of up to 30 notes (or accepts any title / substring).
+- Renders the same unified line diff used by snapshot history (green +, red −, dimmed context, collapsed unchanged runs).
+
+### Writing-goal progress bar
+- The footer goal chip now shows an inline 80px progress bar that fills proportionally to your current count vs the frontmatter `goal:` value.
+- Bar fills with the accent color; text reads `<current> / <target> <unit> (<pct>%)`.
+
+### Auto-update
+- Pushing v0.44.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.43.0-beta.1 - Quality fixes
 
 beta.43 is a consolidated round of fixes addressing the review findings raised on the v0.10–v0.14 PRs. No new user-facing surface; everything is correctness, robustness, and consistency.

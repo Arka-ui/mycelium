@@ -1054,6 +1054,10 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
   border-color: var(--accent);
   color: var(--text);
 }
+/* v0.44 — inline progress bar inside goal chip */
+.goal-bar { display: inline-block; width: 80px; height: 6px; background: var(--bg); border-radius: 3px; vertical-align: middle; margin-right: 6px; overflow: hidden; }
+.goal-bar-fill { display: block; height: 100%; background: var(--accent); transition: width 0.3s ease; }
+.goal-text { vertical-align: middle; }
 
 /* --- v0.34 — trash badge ----------------------------------------------- */
 .side-nav-badge {

@@ -96,6 +96,39 @@ function openDiffModal(historyEntry, oldBody, newBody) {
 }
 function closeDiffModal() { if (els.diffModal) els.diffModal.classList.add('hidden'); }
 
+// v0.44 — compare two notes (uses the same diff modal as snapshot diff).
+async function compareWithNote() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  const cur = state.active;
+  const candidates = (state._allNotesCache && state._allNotesCache.length ? state._allNotesCache : state.notes)
+    .filter(n => n.id !== state.activeId && !n.trashed_at)
+    .sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
+  if (!candidates.length) { alert('No other notes to compare with.'); return; }
+  const list = candidates.slice(0, 30).map((n, i) => `${i + 1}. ${n.title || 'Untitled'}`).join('\n');
+  const moreNote = candidates.length > 30 ? `\n…and ${candidates.length - 30} more (type a title or substring instead).` : '';
+  const ans = prompt(`Compare "${cur.title || 'Untitled'}" against:\n\n${list}${moreNote}\n\nEnter a number, or type any title / substring:`);
+  if (ans == null) return;
+  let target = null;
+  const numIdx = parseInt(ans, 10);
+  if (!Number.isNaN(numIdx) && numIdx >= 1 && numIdx <= candidates.length) {
+    target = candidates[numIdx - 1];
+  } else {
+    const lc = ans.trim().toLowerCase();
+    target = candidates.find(n => (n.title || '').toLowerCase() === lc)
+          || candidates.find(n => (n.title || '').toLowerCase().includes(lc));
+  }
+  if (!target) { alert('No matching note.'); return; }
+  let other;
+  try { other = await invoke('get_note', { id: target.id }); }
+  catch (e) { alert('Load failed: ' + e); return; }
+  if (!other) { alert('Note vanished.'); return; }
+  // Reuse the diff modal but with a "compare" header.
+  if (!els.diffModal) return;
+  els.diffMeta.textContent = `Comparing "${cur.title || 'Untitled'}" → "${other.title || 'Untitled'}" (current → other)`;
+  els.diffBody.innerHTML = unifiedLineDiff(cur.body || '', other.body || '');
+  els.diffModal.classList.remove('hidden');
+}
+
 // LCS-based diff over lines, returns HTML with .add / .del / .ctx spans.
 function unifiedLineDiff(a, b) {
   const A = a.split('\n');
@@ -968,7 +1001,9 @@ function updateGoalChip(stats) {
   const pct = Math.min(100, Math.round((current / target) * 100));
   const met = current >= target;
   els.statGoal.classList.remove('hidden');
-  els.statGoal.textContent = `Goal: ${current} / ${target} ${unit} (${pct}%)`;
+  // v0.44 — render a small inline progress bar alongside the text.
+  els.statGoal.innerHTML = `<span class="goal-bar"><span class="goal-bar-fill" style="width:${pct}%"></span></span>` +
+    `<span class="goal-text">${current} / ${target} ${escapeHtml(unit)} (${pct}%)</span>`;
   if (met) els.statGoal.classList.add('goal-met');
 }
 
@@ -3112,6 +3147,7 @@ const PALETTE_COMMANDS = [
         setStatus('Always-on-top: ' + (state.alwaysOnTop ? 'ON' : 'OFF'));
       } catch (e) { alert('Failed: ' + e); }
   } },
+  { name: 'Compare current note with another...', shortcut: '', run: compareWithNote },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });

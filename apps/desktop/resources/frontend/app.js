@@ -779,7 +779,29 @@ function renderList() {
     return;
   }
   state._visibleNotes = items;
+  // v0.71 — render a small "Pinned" section header before the first pinned note,
+  // and a "Notes" header before the first unpinned note (only if both groups are present).
+  let printedPinnedHeader = false, printedNotesHeader = false;
+  const anyPinned = items.some(x => x.pinned);
+  const anyUnpinned = items.some(x => !x.pinned);
   for (const n of items) {
+    // v0.71 — section headers
+    if (anyPinned && anyUnpinned) {
+      if (n.pinned && !printedPinnedHeader) {
+        const head = document.createElement('li');
+        head.className = 'nl-section-head';
+        head.textContent = '★ Pinned';
+        els.noteList.appendChild(head);
+        printedPinnedHeader = true;
+      }
+      if (!n.pinned && !printedNotesHeader) {
+        const head = document.createElement('li');
+        head.className = 'nl-section-head';
+        head.textContent = 'Notes';
+        els.noteList.appendChild(head);
+        printedNotesHeader = true;
+      }
+    }
     const li = document.createElement('li');
     if (n.id === state.activeId) li.classList.add('active');
     if (n.pinned) li.classList.add('pinned');
@@ -4457,11 +4479,10 @@ els.saveTemplateBtn.addEventListener('click', saveActiveAsTemplate);
 els.noteList.addEventListener('contextmenu', (e) => {
   let li = e.target;
   while (li && li.tagName !== 'LI') li = li.parentElement;
-  if (!li) return;
-  const idx = Array.from(els.noteList.children).indexOf(li);
-  let visible = state.notes;
-  if (state.activeTag) visible = visible.filter(n => (n.tags || []).includes(state.activeTag));
-  const note = visible[idx];
+  if (!li || !li.dataset || !li.dataset.id) return;
+  // v0.71 — look up by data-id so section-header li's don't shift the index
+  const note = (state._visibleNotes || state.notes).find(n => n.id === li.dataset.id)
+            || state.notes.find(n => n.id === li.dataset.id);
   if (!note) return;
   e.preventDefault();
   showContextMenu(e.clientX, e.clientY, note);

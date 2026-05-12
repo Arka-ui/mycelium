@@ -123,6 +123,15 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
 .danger-btn:hover { background: var(--bg-3); }
 
 .note-list { list-style: none; padding: 4px 8px; margin: 0; flex: 1; overflow-y: auto; }
+/* v0.71 — Pinned / Notes section headers inside the list */
+.nl-section-head {
+  padding: 8px 6px 4px;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.7px; text-transform: uppercase;
+  color: var(--text-3);
+  cursor: default; pointer-events: none;
+}
+.nl-section-head:hover { background: transparent; color: var(--text-3); }
 .note-list li {
   padding: 8px 10px; border-radius: var(--radius-sm);
   cursor: pointer; color: var(--text-2);

@@ -1,3 +1,21 @@
+# Mycelium v0.71.0-beta.1 - Pinned section split
+
+beta.71 marks the boundary between pinned and unpinned notes in the sidebar with subtle section headers.
+
+## New in v0.71.0
+
+### Section headers
+- When the visible note list contains both pinned and unpinned notes, two non-clickable headers (`★ Pinned` / `Notes`) are inserted so the boundary is obvious.
+- Headers are excluded from selection, contextmenu lookup (now data-id-based), and keyboard navigation.
+
+### Side notes
+- `contextmenu` handler refactored to look notes up by `data-id` instead of child index — robust to any future header / placeholder rows.
+
+### Auto-update
+- Pushing v0.71.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.70.0-beta.1 - Reset settings to defaults
 
 beta.70 adds an undo button for the entire Settings panel.

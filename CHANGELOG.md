@@ -1,3 +1,22 @@
+# Mycelium v0.61.0-beta.1 - Bulk frontmatter editing
+
+beta.61 lets you set or unset a frontmatter property on many notes at once.
+
+## New in v0.61.0
+
+### ⚐ Property in the bulk bar
+- Multi-select 2+ notes (Ctrl/Cmd-click) → bulk action bar shows a new **⚐ Property** button.
+- Prompts for the key, then the value. Leave the value blank to **remove** the property from every selected note.
+- Reports the touched-notes count in the status bar.
+
+### Backend
+- New `bulk_set_property(ids, key, value?)` Tauri command. Loops `rewrite_property` over each note; counts only notes whose body actually changed.
+
+### Auto-update
+- Pushing v0.61.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.60.0-beta.1 - Quick wins
 
 beta.60 adds three small palette commands that eliminate dozens of keystrokes a day.

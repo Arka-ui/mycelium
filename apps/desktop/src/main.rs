@@ -1019,6 +1019,38 @@ fn top_words(state: State<'_, AppState>, limit: Option<u32>) -> Result<Vec<(Stri
     Ok(out)
 }
 
+/// v0.61 — Apply one frontmatter `key: value` to many notes at once. If `value` is `None`,
+/// removes the property from each. Returns count of notes touched.
+#[tauri::command]
+fn bulk_set_property(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    key: String,
+    value: Option<String>,
+) -> Result<u32, String> {
+    check_unlocked(&state)?;
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("property key empty".into());
+    }
+    let store = state.store.lock().unwrap();
+    let mut touched = 0u32;
+    for id in &ids {
+        let note = match store.get(id).map_err(|e| e.to_string())? {
+            Some(n) => n,
+            None => continue,
+        };
+        let new_body = rewrite_property(&note.body, &key, value.as_deref());
+        if new_body != note.body {
+            store
+                .update(id, None, Some(new_body))
+                .map_err(|e| e.to_string())?;
+            touched += 1;
+        }
+    }
+    Ok(touched)
+}
+
 /// v0.36 — Append the bodies of `source_ids` to `target_id`'s body (each preceded by a
 /// `\n\n## <Title>\n\n` header), trash the sources, return the merged note.
 #[tauri::command]
@@ -3555,6 +3587,7 @@ fn main() -> Result<()> {
             bulk_trash,
             bulk_export_md,
             merge_notes,
+            bulk_set_property,
             top_words,
             all_tasks,
             rename_note_with_links,

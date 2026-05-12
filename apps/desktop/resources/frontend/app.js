@@ -70,7 +70,7 @@ const els = {};
   'export-workspace-enc-btn','opt-backup-reminder','last-backup-text',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
-  'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-merge','bulk-trash','bulk-clear',
+  'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-merge','bulk-prop','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
@@ -964,6 +964,23 @@ async function bulkTrashSelected() {
     await loadNotes();
   } catch (e) { alert('Bulk trash failed: ' + e); }
 }
+async function bulkSetProperty() {
+  const ids = Array.from(state.selectedIds);
+  if (!ids.length) return;
+  const key = prompt('Property key (e.g. "status", "type"):');
+  if (!key || !key.trim()) return;
+  const value = prompt(`Value to set on all ${ids.length} note(s)\n(leave blank to REMOVE the property):`);
+  if (value === null) return;
+  const v = value.trim() ? value.trim() : null;
+  try {
+    const n = await invoke('bulk_set_property', { ids, key: key.trim(), value: v });
+    setStatus((v == null ? 'Removed ' : 'Set ') + key + (v == null ? '' : ' = ' + v) + ' on ' + n + ' note' + (n === 1 ? '' : 's') + '.');
+    clearSelection(false);
+    await loadNotes();
+    if (state.activeId) await openNote(state.activeId);
+  } catch (e) { alert('Bulk property failed: ' + e); }
+}
+
 async function bulkMergeSelected() {
   const ids = Array.from(state.selectedIds);
   if (ids.length < 2) { alert('Select at least 2 notes (Ctrl/Cmd-click) to merge.'); return; }
@@ -4305,6 +4322,7 @@ if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));
 if (els.bulkExport) els.bulkExport.addEventListener('click', bulkExportSelected);
 if (els.bulkMerge) els.bulkMerge.addEventListener('click', bulkMergeSelected);
+if (els.bulkProp) els.bulkProp.addEventListener('click', bulkSetProperty);
 if (els.bulkTrash) els.bulkTrash.addEventListener('click', bulkTrashSelected);
 if (els.bulkClear) els.bulkClear.addEventListener('click', () => clearSelection());
 

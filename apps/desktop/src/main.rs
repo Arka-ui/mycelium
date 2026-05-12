@@ -2861,6 +2861,9 @@ struct Settings {
     /// v0.40 — auto-lock workspace after N minutes of idle (0 = disabled).
     #[serde(default)]
     auto_lock_idle_minutes: u32,
+    /// v0.42 — sync scroll between editor and preview when split view is active.
+    #[serde(default = "default_true")]
+    sync_scroll: bool,
 }
 
 fn default_pomodoro() -> u32 {
@@ -2935,6 +2938,7 @@ impl Default for Settings {
             auto_wiki_link: false,
             pomodoro_minutes: 25,
             auto_lock_idle_minutes: 0,
+            sync_scroll: true,
         }
     }
 }

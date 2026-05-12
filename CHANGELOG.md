@@ -1,3 +1,19 @@
+# Mycelium v0.42.0-beta.1 - Synced scroll
+
+beta.42 keeps the editor and the preview at the same proportional scroll position when split view is on.
+
+## New in v0.42.0
+
+### Sync scroll
+- New **Settings → General → "Synced scroll in split view"** toggle (default on).
+- When split view is active (Ctrl+M), scrolling either pane scrolls the other to the matching proportional offset.
+- Re-entrancy guard avoids feedback loops via `requestAnimationFrame`.
+
+### Auto-update
+- Pushing v0.42.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.41.0-beta.1 - Always-on-top
 
 beta.41 ships a tiny but high-impact window control: pin Mycelium above other windows.

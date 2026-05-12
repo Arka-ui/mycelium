@@ -54,7 +54,7 @@ const els = {};
   'view-orphans','outgoing-list','suggested-list','mentions-list',
   'props-strip',
   'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
-  'opt-auto-wiki-link','opt-pomodoro','pomodoro','opt-auto-lock-idle',
+  'opt-auto-wiki-link','opt-pomodoro','pomodoro','opt-auto-lock-idle','opt-sync-scroll',
   'sidebar','sidebar-divider','sidebar-toggle','sidebar-hide-btn',
   'tab-bar',
   'search-modal','search-modal-input','search-modal-results',
@@ -1320,6 +1320,8 @@ async function loadSettings() {
     if (state.settings.auto_lock_idle_minutes === undefined) state.settings.auto_lock_idle_minutes = 0;
     if (els.optAutoLockIdle) els.optAutoLockIdle.value = String(state.settings.auto_lock_idle_minutes);
     setupIdleAutoLock();
+    if (state.settings.sync_scroll === undefined) state.settings.sync_scroll = true;
+    if (els.optSyncScroll) els.optSyncScroll.checked = !!state.settings.sync_scroll;
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1694,6 +1696,7 @@ async function saveSettings() {
   if (els.optPomodoro) state.settings.pomodoro_minutes = parseInt(els.optPomodoro.value, 10) || 25;
   if (els.optAutoLockIdle) state.settings.auto_lock_idle_minutes = parseInt(els.optAutoLockIdle.value, 10) || 0;
   setupIdleAutoLock();
+  if (els.optSyncScroll) state.settings.sync_scroll = !!els.optSyncScroll.checked;
   applyEditorFontSize();
   applyWordWrap();
   applyQuickCapture();
@@ -3283,7 +3286,26 @@ els.body.addEventListener('scroll', () => {
   if (!state.activeId) return;
   clearTimeout(els._scrollTimer);
   els._scrollTimer = setTimeout(() => rememberScroll(state.activeId, els.body.scrollTop), 200);
+  // v0.42 — synced scroll into preview when split view is active.
+  syncScrollFrom('body');
 });
+els.preview.addEventListener('scroll', () => syncScrollFrom('preview'));
+state._syncScrolling = false;
+function syncScrollFrom(source) {
+  if (!state.settings.sync_scroll) return;
+  if (!state.preview) return;
+  if (state._syncScrolling) return;
+  if (els.preview.classList.contains('hidden')) return;
+  const src = source === 'body' ? els.body : els.preview;
+  const dst = source === 'body' ? els.preview : els.body;
+  const srcMax = Math.max(1, src.scrollHeight - src.clientHeight);
+  const dstMax = Math.max(0, dst.scrollHeight - dst.clientHeight);
+  const ratio = src.scrollTop / srcMax;
+  state._syncScrolling = true;
+  dst.scrollTop = ratio * dstMax;
+  requestAnimationFrame(() => { state._syncScrolling = false; });
+}
+if (els.optSyncScroll) els.optSyncScroll.addEventListener('change', saveSettings);
 els.body.addEventListener('click', () => { closeWikiAutocomplete(); });
 els.body.addEventListener('keydown', (e) => {
   // Wiki autocomplete navigation comes first.

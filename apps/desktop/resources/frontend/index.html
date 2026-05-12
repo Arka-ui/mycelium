@@ -26,6 +26,10 @@
       <button id="new-from-template" class="ghost-btn small" title="New from template">&#9662;</button>
     </div>
 
+    <div id="quick-capture-row" class="quick-capture-row hidden">
+      <input id="quick-capture-input" type="text" placeholder="Quick capture (Enter to append to today)" autocomplete="off" spellcheck="false">
+    </div>
+
     <nav class="side-nav">
       <button id="view-all" class="side-nav-btn active" data-view="all">All notes</button>
       <button id="view-orphans" class="side-nav-btn" data-view="orphans">Orphans</button>
@@ -85,6 +89,7 @@
           <button id="history-btn" class="icon-btn" title="Note history">&#8634;</button>
           <button id="attach-btn" class="icon-btn" title="Attach file (or drag-drop / paste)">&#128206;</button>
           <button id="export-btn" class="icon-btn" title="Export this note as Markdown">&#11015;</button>
+          <button id="copy-md-btn" class="icon-btn" title="Copy Markdown to clipboard">&#128203;</button>
           <button id="delete-btn" class="icon-btn danger" title="Move to trash">&#128465;</button>
         </div>
       </header>
@@ -186,6 +191,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             <div>
               <div class="setting-name">Show the backlinks panel</div>
               <div class="setting-help">Lists every note that references the current one via <code>[[wiki-link]]</code>.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-quick-capture" type="checkbox">
+            <div>
+              <div class="setting-name">Show the sidebar quick-capture box</div>
+              <div class="setting-help">A persistent input above the note list — type a thought, press Enter, and it gets appended (timestamped) to today's daily note. The daily note is created if it doesn't exist.</div>
             </div>
           </label>
           <label class="setting-row">
@@ -344,9 +356,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <h3>Import &amp; export</h3>
           <div class="setting-row">
             <button id="import-md-btn" class="primary-btn small">Import Markdown file...</button>
+            <button id="import-md-multi-btn" class="ghost-btn">Import multiple .md files...</button>
             <button id="export-all-btn" class="ghost-btn">Export all notes (.md)</button>
           </div>
-          <p class="setting-help">Imported files become new notes; their first <code># heading</code> becomes the title. Export gives you one <code>.md</code> per note as a zip-like JSON bundle you can download.</p>
+          <p class="setting-help">Imported files become new notes; their first <code># heading</code> becomes the title. The multi-file picker batches them. Export gives you one <code>.md</code> per note as a zip-like JSON bundle you can download.</p>
         </div>
         <div class="setting-group">
           <h3>Backup &amp; restore</h3>
@@ -456,10 +469,10 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.21.0</strong></p>
+          <p>Version: <strong id="about-version">v0.22.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.21: suggested notes — a new "Suggested" section in the Backlinks panel ranks related notes by shared tags, frontmatter values, and outgoing wiki-link targets. Score = 2× shared tags + 1× shared properties + 1× shared links.</p>
+          <p class="setting-help">Beta.22: capture &amp; share — sidebar quick-capture box appends timestamped lines to today's daily note, multi-file Markdown import, and a 📋 toolbar button that copies the current note's Markdown to clipboard.</p>
         </div>
       </section>
 

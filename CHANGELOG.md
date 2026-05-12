@@ -1,3 +1,26 @@
+# Mycelium v0.22.0-beta.1 - Capture & share
+
+beta.22 makes throwaway thoughts and finished notes both faster to move in and out of the workspace.
+
+## New in v0.22.0
+
+### Sidebar quick-capture box
+- A persistent dashed input above the note list. Type a thought, press Enter, and it gets appended to today's daily note as `- [HH:MM] your text`. The daily note is created if absent.
+- Toggleable in **Settings → General** ("Show the sidebar quick-capture box"). On by default.
+- Backend: `quick_capture_append(text)` — atomic append, sets `updated_at`, creates the daily note shape if needed.
+
+### Multi-file Markdown import
+- New "Import multiple .md files..." button in **Settings → Data**. Picks an arbitrary number of files at once, imports each as a new note (first `# heading` becomes the title), reports a count.
+- Also available from the command palette ("Import multiple Markdown files...").
+
+### Copy current note as Markdown
+- New 📋 toolbar button + palette command writes the current note's exported Markdown (with `# Title` and `> Updated:` header) to the system clipboard.
+
+### Auto-update
+- Pushing v0.22.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.21.0-beta.1 - Suggested notes
 
 beta.21 surfaces hidden connections in the workspace by ranking notes "related to" the open one — without you having to wiki-link them yourself.

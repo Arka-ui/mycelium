@@ -1096,6 +1096,39 @@ fn month_calendar(
     }))
 }
 
+/// Append a captured line to today's daily note (creating it if absent).
+/// The note is created with the same shape as `daily_note` and the line is timestamped.
+#[tauri::command]
+fn quick_capture_append(state: State<'_, AppState>, text: String) -> Result<Note, String> {
+    check_unlocked(&state)?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err("nothing to capture".into());
+    }
+    let now = Utc::now();
+    let today = now.format("%Y-%m-%d").to_string();
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let existing = notes
+        .into_iter()
+        .find(|n| n.title == today && n.trashed_at.is_none());
+    let stamp = now.format("%H:%M").to_string();
+    let line = format!("- [{}] {}\n", stamp, trimmed);
+    if let Some(mut note) = existing {
+        if note.body.is_empty() || !note.body.ends_with('\n') {
+            note.body.push('\n');
+        }
+        note.body.push_str(&line);
+        note.updated_at = Some(now);
+        store.write(&note).map_err(|e| e.to_string())?;
+        Ok(note)
+    } else {
+        let body = format!("# {}\n\n{}", today, line);
+        let note = store.create(today, body).map_err(|e| e.to_string())?;
+        Ok(note)
+    }
+}
+
 /// Suggest related notes for `id`, ranked by shared tags, shared frontmatter values, and
 /// shared outgoing wiki-link targets. Returns at most `limit` (default 6) summaries, never
 /// including the source note itself.
@@ -2347,6 +2380,8 @@ struct Settings {
     board_property: String,
     #[serde(default = "default_calendar_property")]
     calendar_property: String,
+    #[serde(default = "default_true")]
+    quick_capture: bool,
 }
 
 fn default_board_property() -> String {
@@ -2403,6 +2438,7 @@ impl Default for Settings {
             smart_typography: false,
             board_property: "status".to_string(),
             calendar_property: "due".to_string(),
+            quick_capture: true,
         }
     }
 }
@@ -2722,6 +2758,7 @@ fn main() -> Result<()> {
             resolve_link,
             all_aliases,
             suggested_notes,
+            quick_capture_append,
             export_note_md,
             export_all_md,
             import_md,

@@ -914,6 +914,18 @@ textarea.body-input { tab-size: 2; }
 #suggested-list a:hover { color: var(--accent); text-decoration: underline; }
 .bl-h-suggest { margin-top: 12px; }
 
+/* --- v0.22 — sidebar quick-capture box ------------------------------- */
+.quick-capture-row { padding: 0 12px 8px; }
+#quick-capture-input {
+  width: 100%;
+  background: var(--bg); color: var(--text);
+  border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; font-size: 12.5px;
+}
+#quick-capture-input::placeholder { color: var(--text-3); }
+#quick-capture-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-style: solid; }
+#quick-capture-input:disabled { opacity: 0.5; }
+
 /* --- v0.16 — properties strip ---------------------------------------- */
 .props-strip {
   display: flex; flex-wrap: wrap; gap: 6px;

@@ -53,6 +53,7 @@ const els = {};
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
   'view-orphans','outgoing-list','suggested-list',
   'props-strip',
+  'opt-quick-capture','quick-capture-row','quick-capture-input','copy-md-btn','import-md-multi-btn',
   'board-property-input','board-refresh-btn','board-grid',
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
@@ -918,6 +919,9 @@ async function loadSettings() {
     if (!state.settings.calendar_property) state.settings.calendar_property = 'due';
     if (els.boardPropertyInput) els.boardPropertyInput.value = state.settings.board_property;
     if (els.calPropertyInput) els.calPropertyInput.value = state.settings.calendar_property;
+    if (state.settings.quick_capture === undefined) state.settings.quick_capture = true;
+    if (els.optQuickCapture) els.optQuickCapture.checked = !!state.settings.quick_capture;
+    applyQuickCapture();
     applySpellCheck();
     renderSavedSearches();
   } catch (e) { console.error(e); }
@@ -1223,8 +1227,10 @@ async function saveSettings() {
   if (els.optWordWrap) state.settings.word_wrap = !!els.optWordWrap.checked;
   if (els.optSmartTypography) state.settings.smart_typography = !!els.optSmartTypography.checked;
   if (els.optEditorFontSize) state.settings.editor_font_size = parseInt(els.optEditorFontSize.value, 10) || 15;
+  if (els.optQuickCapture) state.settings.quick_capture = !!els.optQuickCapture.checked;
   applyEditorFontSize();
   applyWordWrap();
+  applyQuickCapture();
   if (state.preview) renderPreview();
   try { await invoke('set_settings', { settings: state.settings }); } catch (e) { console.error(e); }
   refreshBacklinks();
@@ -1673,6 +1679,62 @@ function hideSelToolbar() { els.selToolbar.classList.add('hidden'); }
 
 function openCheatsheet() { els.cheatsheetModal.classList.remove('hidden'); }
 function closeCheatsheet() { els.cheatsheetModal.classList.add('hidden'); }
+
+// v0.22 — quick-capture: append a timestamped line to today's daily note.
+function applyQuickCapture() {
+  if (!els.quickCaptureRow) return;
+  els.quickCaptureRow.classList.toggle('hidden', !state.settings.quick_capture);
+}
+async function quickCaptureSubmit() {
+  const t = (els.quickCaptureInput.value || '').trim();
+  if (!t) return;
+  els.quickCaptureInput.disabled = true;
+  try {
+    await invoke('quick_capture_append', { text: t });
+    els.quickCaptureInput.value = '';
+    setStatus('Captured to daily note.');
+    await loadNotes();
+  } catch (e) { alert('Capture failed: ' + e); }
+  finally { els.quickCaptureInput.disabled = false; els.quickCaptureInput.focus(); }
+}
+if (els.quickCaptureInput) {
+  els.quickCaptureInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); quickCaptureSubmit(); }
+  });
+}
+
+// v0.22 — copy current note's Markdown to clipboard
+async function copyActiveAsMarkdown() {
+  if (!state.activeId) { alert('Open a note first.'); return; }
+  try {
+    const md = await invoke('export_note_md', { id: state.activeId });
+    await navigator.clipboard.writeText(md);
+    setStatus('Markdown copied to clipboard.');
+  } catch (e) { alert('Copy failed: ' + e); }
+}
+
+// v0.22 — multi-file Markdown import
+async function importMultipleMd() {
+  els.fileInput.value = '';
+  els.fileInput.accept = '.md,.markdown,.txt';
+  els.fileInput.multiple = true;
+  els.fileInput.onchange = async () => {
+    const files = Array.from(els.fileInput.files || []);
+    els.fileInput.multiple = false;
+    if (!files.length) return;
+    let ok = 0, fail = 0;
+    for (const f of files) {
+      try {
+        const text = await f.text();
+        await invoke('import_md', { content: text, suggestedTitle: f.name.replace(/\.[^.]+$/, '') });
+        ok++;
+      } catch (e) { fail++; console.error(e); }
+    }
+    setStatus(`Imported ${ok} file${ok === 1 ? '' : 's'}.${fail ? ' ' + fail + ' failed.' : ''}`);
+    await loadNotes();
+  };
+  els.fileInput.click();
+}
 
 // v0.20 — scroll preview to a heading whose text matches `anchor` (case-insensitive).
 function scrollPreviewToHeading(anchor) {
@@ -2197,6 +2259,8 @@ const PALETTE_COMMANDS = [
   { name: 'Print / save as PDF', shortcut: 'Ctrl+P', run: printActiveNote },
   { name: 'Show orphan notes (no links in or out)', shortcut: '', run: openOrphans },
   { name: 'Filter notes by property...', shortcut: '', run: promptFilterByProperty },
+  { name: 'Copy current note as Markdown', shortcut: '', run: copyActiveAsMarkdown },
+  { name: 'Import multiple Markdown files...', shortcut: '', run: importMultipleMd },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },
@@ -2506,6 +2570,9 @@ if (els.optWordWrap) els.optWordWrap.addEventListener('change', saveSettings);
 if (els.optSmartTypography) els.optSmartTypography.addEventListener('change', saveSettings);
 if (els.optEditorFontSize) els.optEditorFontSize.addEventListener('change', saveSettings);
 if (els.printBtn) els.printBtn.addEventListener('click', printActiveNote);
+if (els.copyMdBtn) els.copyMdBtn.addEventListener('click', copyActiveAsMarkdown);
+if (els.importMdMultiBtn) els.importMdMultiBtn.addEventListener('click', importMultipleMd);
+if (els.optQuickCapture) els.optQuickCapture.addEventListener('change', saveSettings);
 
 if (els.bulkPin) els.bulkPin.addEventListener('click', () => bulkPin(true));
 if (els.bulkUnpin) els.bulkUnpin.addEventListener('click', () => bulkPin(false));

@@ -52,6 +52,7 @@ const els = {};
   'file-input',
   'opt-locale','opt-auto-pair','opt-smart-lists','opt-strip-trailing-ws','opt-word-wrap','opt-smart-typography','opt-editor-font-size','reading-btn','print-btn',
   'view-orphans','outgoing-list',
+  'props-strip',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
@@ -354,6 +355,7 @@ async function openNote(id) {
   refreshStats();
   refreshBacklinks();
   refreshOutline();
+  refreshProps();
   renderList();
   emitToPlugins('note:opened', cloneNote(note));
 }
@@ -406,6 +408,7 @@ async function flushSave() {
     els.saveState.textContent = 'saved';
     refreshStats();
     refreshOutline();
+    refreshProps();
     if (state.preview) renderPreview();
     await loadNotes();
     maybeSnapshot();
@@ -580,6 +583,53 @@ async function refreshStats() {
     els.statChars.textContent = s.chars + ' chars';
     els.statRead.textContent = '~' + s.read_minutes + ' min read';
   } catch (e) { /* silent */ }
+}
+
+// v0.16 — refresh the properties strip below the title.
+async function refreshProps() {
+  if (!els.propsStrip) return;
+  if (!state.activeId) { els.propsStrip.classList.add('hidden'); return; }
+  try {
+    const props = await invoke('note_properties', { id: state.activeId });
+    const entries = Object.entries(props);
+    if (!entries.length) { els.propsStrip.classList.add('hidden'); els.propsStrip.innerHTML = ''; return; }
+    els.propsStrip.innerHTML = '';
+    els.propsStrip.classList.remove('hidden');
+    for (const [k, v] of entries) {
+      const chip = document.createElement('span');
+      chip.className = 'prop-chip';
+      chip.title = 'Click to filter all notes with ' + k + ' = ' + v;
+      const ks = document.createElement('strong'); ks.textContent = k;
+      const sep = document.createTextNode(': ');
+      const vs = document.createElement('span'); vs.textContent = v;
+      chip.appendChild(ks); chip.appendChild(sep); chip.appendChild(vs);
+      chip.addEventListener('click', () => filterByProperty(k, v));
+      els.propsStrip.appendChild(chip);
+    }
+  } catch (e) { /* silent */ }
+}
+
+async function filterByProperty(key, value) {
+  try {
+    state.notes = await invoke('notes_by_property', { key, value: value || null });
+    state.view = 'props';
+    state.activeTag = null;
+    document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.remove('active'));
+    if (state.activeId) showView('editor'); else showView('empty');
+    renderList(); renderTagBar();
+    setStatus('Filtered by ' + key + (value ? ' = ' + value : ''));
+  } catch (e) { setStatus('filter failed: ' + e); }
+}
+
+async function promptFilterByProperty() {
+  let keys = [];
+  try { keys = await invoke('all_property_keys'); } catch (_) { keys = []; }
+  if (!keys.length) { alert('No notes have frontmatter properties yet. Add a `--- key: value ---` block at the top of any note.'); return; }
+  const opts = keys.map(([k, n]) => `${k} (${n} note${n === 1 ? '' : 's'})`).join('\n');
+  const k = prompt(`Filter by property — pick a key:\n\n${opts}\n\nEnter the key:`);
+  if (!k) return;
+  const v = prompt(`Value to match (leave blank for "any value"):`);
+  await filterByProperty(k.trim(), v && v.trim() ? v.trim() : null);
 }
 
 async function refreshBacklinks() {
@@ -2043,6 +2093,7 @@ const PALETTE_COMMANDS = [
   { name: 'Open random note', shortcut: 'Ctrl+R', run: openRandomNote },
   { name: 'Print / save as PDF', shortcut: 'Ctrl+P', run: printActiveNote },
   { name: 'Show orphan notes (no links in or out)', shortcut: '', run: openOrphans },
+  { name: 'Filter notes by property...', shortcut: '', run: promptFilterByProperty },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
   { name: 'Editor: reset font size', shortcut: 'Ctrl+0', run: resetFontSize },

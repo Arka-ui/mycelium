@@ -907,3 +907,21 @@ textarea.body-input { tab-size: 2; }
 #outgoing-list li.dead a { color: var(--danger); }
 .bl-h-out { margin-top: 12px; }
 .bl-dead { color: var(--danger) !important; font-style: italic; }
+
+/* --- v0.16 — properties strip ---------------------------------------- */
+.props-strip {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 0 0 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.prop-chip {
+  background: var(--bg-3);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11.5px; color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.prop-chip:hover { background: var(--accent); color: var(--accent-fg); }
+.prop-chip strong { font-weight: 600; }

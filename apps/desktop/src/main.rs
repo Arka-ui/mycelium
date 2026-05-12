@@ -834,6 +834,149 @@ fn all_tags(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
     Ok(out)
 }
 
+// --- v0.16 — frontmatter (very small YAML-ish subset) ----------------
+//
+// Supports a `---`-fenced block at the top of a note containing
+// `key: value` lines. Anything more complex (nested maps, multi-line
+// scalars, real YAML) is treated as opaque value text. This is
+// intentionally tiny and dependency-free.
+fn parse_frontmatter(body: &str) -> (Vec<(String, String)>, &str) {
+    let trimmed = body.trim_start_matches('\u{FEFF}');
+    if !trimmed.starts_with("---\n") && !trimmed.starts_with("---\r\n") {
+        return (vec![], body);
+    }
+    let after_open = if trimmed.starts_with("---\r\n") { 5 } else { 4 };
+    let rest = &trimmed[after_open..];
+    let close_pos = rest
+        .find("\n---\n")
+        .or_else(|| rest.find("\n---\r\n"))
+        .or_else(|| {
+            if rest.starts_with("---\n") || rest.starts_with("---\r\n") {
+                Some(0)
+            } else {
+                None
+            }
+        });
+    let Some(pos) = close_pos else {
+        return (vec![], body);
+    };
+    let block = &rest[..pos];
+    let after_close_offset = if rest[pos..].starts_with("\n---\r\n") {
+        pos + 6
+    } else {
+        pos + 5
+    };
+    let body_after = if after_close_offset >= rest.len() {
+        ""
+    } else {
+        &rest[after_close_offset..]
+    };
+    let body_after = body_after.trim_start_matches(['\n', '\r']);
+    let mut out = vec![];
+    for line in block.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Some(idx) = line.find(':') {
+            let key = line[..idx].trim();
+            let value = line[idx + 1..].trim();
+            if !key.is_empty() {
+                out.push((key.to_string(), value.to_string()));
+            }
+        }
+    }
+    (out, body_after)
+}
+
+#[tauri::command]
+fn note_properties(state: State<'_, AppState>, id: String) -> Result<serde_json::Value, String> {
+    check_unlocked(&state)?;
+    let note = state
+        .store
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    let (props, _rest) = parse_frontmatter(&note.body);
+    let map: serde_json::Map<String, serde_json::Value> = props
+        .into_iter()
+        .map(|(k, v)| (k, serde_json::Value::String(v)))
+        .collect();
+    Ok(serde_json::Value::Object(map))
+}
+
+#[tauri::command]
+fn notes_by_property(
+    state: State<'_, AppState>,
+    key: String,
+    value: Option<String>,
+) -> Result<Vec<NoteSummary>, String> {
+    check_unlocked(&state)?;
+    let key_lc = key.trim().to_lowercase();
+    if key_lc.is_empty() {
+        return Err("property key empty".into());
+    }
+    let value_match = value.map(|v| v.trim().to_lowercase());
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut out: Vec<NoteSummary> = vec![];
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut hit = false;
+        for (k, v) in &props {
+            if k.to_lowercase() != key_lc {
+                continue;
+            }
+            match &value_match {
+                None => {
+                    hit = true;
+                    break;
+                }
+                Some(want) => {
+                    if &v.to_lowercase() == want {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if hit {
+            out.push(Store::summarize(n));
+        }
+    }
+    out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    Ok(out)
+}
+
+#[tauri::command]
+fn all_property_keys(state: State<'_, AppState>) -> Result<Vec<(String, u32)>, String> {
+    check_unlocked(&state)?;
+    let store = state.store.lock().unwrap();
+    let notes = store.all_notes().map_err(|e| e.to_string())?;
+    let mut counts: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for n in &notes {
+        if n.trashed_at.is_some() {
+            continue;
+        }
+        let (props, _) = parse_frontmatter(&n.body);
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (k, _) in &props {
+            let lc = k.to_lowercase();
+            if seen.insert(lc.clone()) {
+                *counts.entry(lc).or_insert(0) += 1;
+            }
+        }
+    }
+    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Ok(out)
+}
+
 #[tauri::command]
 fn outgoing_links(
     state: State<'_, AppState>,
@@ -2089,6 +2232,9 @@ fn main() -> Result<()> {
             outgoing_links,
             orphan_notes,
             rename_tag,
+            note_properties,
+            notes_by_property,
+            all_property_keys,
             export_note_md,
             export_all_md,
             import_md,

@@ -1,3 +1,37 @@
+# Mycelium v0.16.0-beta.1 - Note properties
+
+beta.16 introduces lightweight YAML-ish frontmatter on every note. Drop a `--- key: value ---` block at the top, get a clickable properties strip below the title, and filter the whole workspace by any key/value combination.
+
+## New in v0.16.0
+
+### Frontmatter parsing
+- A note that begins with a `---`-fenced block is parsed for `key: value` lines. Example:
+
+  ```
+  ---
+  status: doing
+  type: project
+  due: 2026-06-01
+  ---
+
+  # Real note content starts here
+  ```
+- The block is hidden in preview (the rendered HTML starts at "Real note content").
+- Pure dependency-free Rust parser — supports `key: value` lines only. Anything more complex (nested maps, arrays, multi-line) is treated as opaque text.
+
+### Properties strip below title
+- Parsed key/value pairs render as colored chips between the title and the body.
+- **Click any chip** to filter the sidebar to all notes carrying that exact `key = value`.
+
+### Filter notes by property
+- Command palette → "Filter notes by property..." → pick a key, optionally a value, and the sidebar shows the matching set.
+- New backend commands: `note_properties(id)`, `notes_by_property(key, value?)`, `all_property_keys()`.
+
+### Auto-update
+- Pushing v0.16.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.15.0-beta.1 - Link & graph intelligence
 
 beta.15 makes the wiki-link graph a first-class citizen: see what's connected, what's broken, what's stranded, and rename a tag once to fix it everywhere.

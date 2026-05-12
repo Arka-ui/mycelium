@@ -730,10 +730,23 @@ async function openNote(id) {
   refreshBacklinks();
   refreshOutline();
   refreshProps();
+  applyColorBand(); // v0.47 — editor top border in note.color, if any
   renderList();
   renderTabs(); // v0.29
   restoreScroll(id); // v0.32
   emitToPlugins('note:opened', cloneNote(note));
+}
+
+// v0.47 — apply a colored band at the top of the editor pane based on note's
+// frontmatter `color:` (sidebar already shows the same color).
+function applyColorBand() {
+  if (!els.editor) return;
+  els.editor.style.borderTop = '';
+  if (!state.activeId) return;
+  const note = (state.notes || []).find(n => n.id === state.activeId);
+  if (note && note.color && isSafeCssColor(note.color)) {
+    els.editor.style.borderTop = '3px solid ' + note.color;
+  }
 }
 
 function showView(name) {
@@ -787,6 +800,7 @@ async function flushSave() {
     refreshProps();
     if (state.preview) renderPreview();
     await loadNotes();
+    applyColorBand(); // v0.47 — color band may have changed via frontmatter edit
     maybeSnapshot();
     emitToPlugins('note:saved', cloneNote(note));
   } catch (e) { els.saveState.textContent = 'save failed'; setStatus('save failed: ' + e); }
@@ -3186,6 +3200,25 @@ const PALETTE_COMMANDS = [
       } catch (e) { alert('Failed: ' + e); }
   } },
   { name: 'Compare current note with another...', shortcut: '', run: compareWithNote },
+  { name: 'Show this note\'s top words', shortcut: '', run: () => {
+      if (!state.activeId) { alert('Open a note first.'); return; }
+      const text = (els.body && els.body.value) || '';
+      const stop = new Set([
+        'the','a','an','of','to','and','or','but','is','are','was','were','in','on','at','by','for','with','as','be','been','being','have','has','had','do','does','did','will','would','shall','should','can','could','may','might','must','this','that','these','those','i','you','he','she','we','they','it','me','him','her','us','them','my','your','his','their','its','our','if','then','than','so','up','down','out','from','into','about','over','under','more','most','some','any','no','not','only','just','also','very','too','such','what','which','who','whom','whose','where','when','why','how','all','each','every','many','much','few','other','another','same','own','new','old','see'
+      ]);
+      const counts = new Map();
+      for (const raw of text.split(/[^A-Za-z0-9'\-]+/)) {
+        const w = (raw || '').toLowerCase().replace(/^[-']+|[-']+$/g, '');
+        if (w.length < 4) continue;
+        if (stop.has(w)) continue;
+        if (/^\d+$/.test(w)) continue;
+        counts.set(w, (counts.get(w) || 0) + 1);
+      }
+      const top = Array.from(counts.entries()).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0, 30);
+      if (!top.length) { alert('No words.'); return; }
+      const lines = top.map(([w, c], i) => `${(i+1).toString().padStart(2,' ')}. ${w}  (${c})`);
+      alert('Top words in this note:\n\n' + lines.join('\n'));
+  } },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });

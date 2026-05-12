@@ -1,3 +1,22 @@
+# Mycelium v0.47.0-beta.1 - Editor color band + per-note word frequency
+
+beta.47 leans further into the v0.28 visual-metadata story and adds a per-note lexical command.
+
+## New in v0.47.0
+
+### Editor color band
+- When the open note's frontmatter `color:` is a recognised CSS color, the editor pane now shows a 3 px top border in that color (matching the sidebar entry's left bar).
+- Recomputed on save so editing the frontmatter `color:` value updates the band live.
+- Same safe-color allowlist as the sidebar: hex / named / `rgb()` / `rgba()`.
+
+### "Show this note's top words"
+- New palette command lists the 30 most-frequent words in the currently-open note, with stop-words excluded and pure numeric tokens skipped. Pure client-side; no backend round-trip.
+
+### Auto-update
+- Pushing v0.47.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.46.0-beta.1 - Active-filter pill
 
 beta.46 makes it always obvious when the sidebar is showing a filtered view, and gives you one click to clear it.

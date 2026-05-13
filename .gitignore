@@ -18,6 +18,7 @@ apps/desktop/resources/frontend/*
 !apps/desktop/resources/frontend/index.html
 !apps/desktop/resources/frontend/app.css
 !apps/desktop/resources/frontend/app.js
+!apps/desktop/resources/frontend/markdown.js
 node_modules/
 dist/
 .parcel-cache/

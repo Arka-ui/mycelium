@@ -41,6 +41,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Mirrors the ci.yml fix: bump prefix to invalidate any macOS cache
+          # that had `cargo` aliased to `rustup-init`.
+          prefix-key: "v1-rust-release"
+
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          rustup default stable
+          rustc --version
+          cargo --version
 
       - name: Install system deps (Linux)
         if: matrix.os == 'ubuntu-latest'

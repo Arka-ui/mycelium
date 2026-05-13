@@ -13,6 +13,14 @@
 
 `iroh_port` is an M0 stub that returns `NotImplemented` for every call; the DNS code path is not reached.
 
+### GitHub Advisory Database (GHSA) entries not in RUSTSEC (1)
+
+GHSA covers a broader corpus than RUSTSEC (which `cargo audit` consults). When Dependabot reports something `cargo audit` doesn't, that entry is recorded here for the audit trail rather than in `.cargo/audit.toml`.
+
+| GHSA / CVE | Crate | Source path | Reachability | Resolution plan |
+|---|---|---|---|---|
+| [GHSA-h395-gr6q-cpjc](https://github.com/Keats/jsonwebtoken/security/advisories/GHSA-h395-gr6q-cpjc) / CVE-2026-25537 | `jsonwebtoken 9.3.1` | `surrealdb-core → jsonwebtoken` | **Not reached.** Mycelium configures SurrealDB with `default-features = false, features = ["kv-rocksdb"]`. No HTTP server, no remote client, no token issue/verify. The JWT type-confusion path lives in `validate()` which is never called from our embedded KV usage. | Fixed in `jsonwebtoken 10.3.0`, which requires `surrealdb 3.x`. Folded into the SurrealDB major-version bump scheduled for M2 (storage layer revisit). |
+
 ### Unsound (2)
 
 | ID | Crate | Source path | Notes |
@@ -65,6 +73,7 @@ That makes [#2](../../issues/2) (M2 wasmtime advisory cleanup) **fully resolved*
 ## Discharge plan
 
 - **#1 (M1 deps)**: when `iroh` is bumped to a release that pulls patched `hickory-proto` and `lru`, delete the corresponding lines from `audit.toml`.
+- **M2 SurrealDB bump**: clears GHSA-h395-gr6q-cpjc (jsonwebtoken type confusion). The bump to `surrealdb 3.x` was already on the M2 roadmap for vector-index support; this advisory rides along.
 - **GTK 3 chain**: track Tauri upstream for the GTK 4 backend; remove en masse when it lands.
 - **Small ecosystem warnings**: re-evaluate annually; many of these have community successor crates that the wider Rust ecosystem will adopt over time.
 

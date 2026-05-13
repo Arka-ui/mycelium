@@ -3437,7 +3437,10 @@ fn sync_status(connection_hint: Option<String>) -> SyncStatus {
 mod sync_tests {
     use super::*;
     fn s(policy: &str) -> Settings {
-        Settings { sync_policy: policy.to_string(), ..Default::default() }
+        Settings {
+            sync_policy: policy.to_string(),
+            ..Default::default()
+        }
     }
     // Cheap pure-fn restatement of the policy table so we can test it without
     // serialising settings; `sync_status` itself reads from disk.

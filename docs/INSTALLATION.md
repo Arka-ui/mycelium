@@ -1,12 +1,12 @@
-# Mycelium v0.1.0-beta.1 - installation guide
+# Mycelium installation guide
 
 > **Audience: end users installing a released binary.** Contributors building from source should read [`SETUP.md`](SETUP.md) instead.
-
-This is a closed-beta build for Windows. macOS and Linux follow.
+>
+> Current latest beta is **v0.10.0-beta.1**. Newer betas (v0.11..v0.74) have shipped on `main` and reach users via the in-app auto-updater; a fresh installer download is only needed for first install. See [CHANGELOG](../CHANGELOG.md) for what each beta adds.
 
 ## Install
 
-1. Download `Mycelium_0.1.0_x64-setup.exe` (NSIS) **or** `Mycelium_0.1.0_x64_en-US.msi` (WiX) from the [release page](https://github.com/Arka-ui/mycelium/releases/tag/v0.1.0-beta.1).
+1. Download `Mycelium_0.10.0_x64-setup.exe` (NSIS) **or** `Mycelium_0.10.0_x64_en-US.msi` (WiX) from the [release page](https://github.com/Arka-ui/mycelium/releases/tag/v0.10.0-beta.1).
 2. Double-click the installer. Windows SmartScreen may warn (no code signing yet) - click **More info -> Run anyway**.
 3. Launch from the Start menu. The window opens straight to the editor.
 

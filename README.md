@@ -18,12 +18,12 @@
 
 | Platform | File | What you get |
 |---|---|---|
-| **Windows** | [`Mycelium_0.1.0_x64-setup.exe`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_x64-setup.exe) (NSIS) or [`.msi`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_x64_en-US.msi) (WiX) | 2.3 MB / 3.3 MB &middot; signed updater |
-| **macOS** | [`Mycelium_0.1.0_aarch64.dmg`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_aarch64.dmg) | 3.1 MB &middot; Apple Silicon |
-| **Linux** | [`.deb`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_amd64.deb) or [`.AppImage`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/Mycelium_0.1.0_amd64.AppImage) | 3.2 MB / 74 MB |
-| **Self-hosted relay** (optional) | [`mycelium-relay.exe`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/mycelium-relay.exe) | Headless ciphertext-buffering relay for VPS hosting |
+| **Windows** | [`Mycelium_0.10.0_x64-setup.exe`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_x64-setup.exe) (NSIS) or [`.msi`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_x64_en-US.msi) (WiX) | signed updater |
+| **macOS** | [`Mycelium_0.10.0_aarch64.dmg`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_aarch64.dmg) | Apple Silicon |
+| **Linux** | [`.deb`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_amd64.deb) or [`.AppImage`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_amd64.AppImage) | x86_64 |
+| **Self-hosted relay** (optional) | [`mycelium-relay.exe`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/mycelium-relay.exe) | Headless ciphertext-buffering relay for VPS hosting |
 
-Verify with [`sha256sums.txt`](https://github.com/Arka-ui/mycelium/releases/download/v0.1.0-beta.1/sha256sums.txt). Full install instructions: [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
+Verify with [`sha256sums.txt`](https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/sha256sums.txt). Full install instructions: [`docs/INSTALLATION.md`](docs/INSTALLATION.md). Newer beta releases ship through the in-app auto-updater, signed with minisign.
 
 ---
 

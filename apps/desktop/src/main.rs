@@ -3230,6 +3230,13 @@ struct Settings {
     /// sync engine after a clean round-trip).
     #[serde(default)]
     last_sync_at: Option<DateTime<Utc>>,
+    /// v0.76 — UI density preset. One of `"compact"`, `"comfortable"` (default),
+    /// `"spacious"`. Multiplies the spacing tokens at :root.
+    #[serde(default = "default_density")]
+    density: String,
+    /// v0.76 — editor line-height in CSS units. Default `1.6`. Range 1.2..2.4.
+    #[serde(default = "default_line_height")]
+    editor_line_height: f32,
 }
 
 fn default_backup_reminder_days() -> u32 {
@@ -3238,6 +3245,14 @@ fn default_backup_reminder_days() -> u32 {
 
 fn default_sync_policy() -> String {
     "wifi_only".to_string()
+}
+
+fn default_density() -> String {
+    "comfortable".to_string()
+}
+
+fn default_line_height() -> f32 {
+    1.6
 }
 
 fn default_pomodoro() -> u32 {
@@ -3320,6 +3335,8 @@ impl Default for Settings {
             sync_policy: "wifi_only".to_string(),
             sync_connection_override: String::new(),
             last_sync_at: None,
+            density: "comfortable".to_string(),
+            editor_line_height: 1.6,
         }
     }
 }

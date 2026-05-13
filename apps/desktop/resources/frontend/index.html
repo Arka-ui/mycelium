@@ -223,6 +223,19 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <p class="setting-help">Choose a built-in theme or one you have created. The theme cycles with <kbd>Ctrl</kbd>+<kbd>,</kbd>.</p>
         </div>
         <div class="setting-group">
+          <h3>Density</h3>
+          <div class="setting-row">
+            <label>UI density
+              <select id="opt-density" class="select">
+                <option value="compact">Compact — tighter spacing, more on screen</option>
+                <option value="comfortable" selected>Comfortable (default)</option>
+                <option value="spacious">Spacious — extra breathing room</option>
+              </select>
+            </label>
+            <span class="setting-help">Multiplies the spacing tokens used by every panel, sidebar, and modal.</span>
+          </div>
+        </div>
+        <div class="setting-group">
           <h3>Editor</h3>
           <label class="setting-row">
             <input id="opt-default-preview" type="checkbox">
@@ -317,6 +330,18 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">In preview only: <code>--</code> becomes &mdash;, <code>...</code> becomes &hellip;, straight quotes become typographic quotes. Source text is unchanged.</div>
             </div>
           </label>
+          <div class="setting-row">
+            <label>Editor line height
+              <select id="opt-line-height" class="select">
+                <option value="1.3">1.3 — tight</option>
+                <option value="1.45">1.45</option>
+                <option value="1.6" selected>1.6 (default)</option>
+                <option value="1.8">1.8</option>
+                <option value="2.0">2.0 — airy</option>
+              </select>
+            </label>
+            <span class="setting-help">Vertical spacing between lines in the editor.</span>
+          </div>
           <div class="setting-row">
             <label>Editor font size
               <select id="opt-editor-font-size" class="select">
@@ -798,6 +823,24 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <p class="setting-help" id="diff-meta"></p>
       <pre id="diff-body" class="diff-body"></pre>
     </div>
+  </div>
+</div>
+
+<!-- v0.76 — custom dialog modal (replaces window.confirm/alert/prompt so the
+     "tauri.localhost says" chrome from native dialogs never appears) -->
+<div id="dlg-backdrop" class="modal-backdrop hidden" data-dialog-backdrop>
+  <div class="modal dlg-modal" role="alertdialog" aria-labelledby="dlg-title" aria-describedby="dlg-message">
+    <header class="modal-head">
+      <h2 id="dlg-title">Confirm</h2>
+    </header>
+    <div class="modal-body">
+      <p id="dlg-message" class="dlg-message"></p>
+      <input id="dlg-input" type="text" class="text-input dlg-input hidden" autocomplete="off" spellcheck="false">
+    </div>
+    <footer class="dlg-foot">
+      <button id="dlg-cancel" class="ghost-btn">Cancel</button>
+      <button id="dlg-ok" class="primary-btn small">OK</button>
+    </footer>
   </div>
 </div>
 

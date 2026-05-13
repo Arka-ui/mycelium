@@ -3215,10 +3215,29 @@ struct Settings {
     /// v0.64 — per-tag color overrides. Maps lowercase tag → CSS color string.
     #[serde(default)]
     tag_colors: std::collections::BTreeMap<String, String>,
+    /// v0.75 — sync policy. Controls when device-to-device sync runs and how it
+    /// adapts to network type. M0/M1 transport is still stubbed; this is the
+    /// authoritative policy contract that the future Iroh/Loro layer will read.
+    /// Values: `"wifi_only"` (default), `"wifi_cell_light"`, `"wifi_cell_full"`, `"manual"`.
+    #[serde(default = "default_sync_policy")]
+    sync_policy: String,
+    /// v0.75 — manual override for connection type detection. Empty string =
+    /// trust `navigator.connection`; otherwise force a class. Values:
+    /// `""` (auto), `"wifi"`, `"cellular"`, `"ethernet"`.
+    #[serde(default)]
+    sync_connection_override: String,
+    /// v0.75 — timestamp of the last successful sync (set by frontend / future
+    /// sync engine after a clean round-trip).
+    #[serde(default)]
+    last_sync_at: Option<DateTime<Utc>>,
 }
 
 fn default_backup_reminder_days() -> u32 {
     14
+}
+
+fn default_sync_policy() -> String {
+    "wifi_only".to_string()
 }
 
 fn default_pomodoro() -> u32 {
@@ -3298,6 +3317,9 @@ impl Default for Settings {
             last_backup_at: None,
             custom_shortcuts: std::collections::BTreeMap::new(),
             tag_colors: std::collections::BTreeMap::new(),
+            sync_policy: "wifi_only".to_string(),
+            sync_connection_override: String::new(),
+            last_sync_at: None,
         }
     }
 }
@@ -3334,6 +3356,82 @@ fn set_settings(settings: Settings) -> Result<(), String> {
     fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// v0.75 — sync status / sync-now scaffolding. Transport is M1; these commands
+// return a deterministic shape today so the Settings → Sync UI is fully wired
+// and a future Iroh/Loro engine can drop in without changing the contract.
+#[derive(Debug, Serialize)]
+struct SyncStatus {
+    /// Policy id (matches `Settings.sync_policy`).
+    policy: String,
+    /// Resolved connection class, after applying the manual override. One of
+    /// `"wifi"`, `"cellular"`, `"ethernet"`, `"offline"`, `"unknown"`.
+    connection: String,
+    /// Number of peers currently reachable. 0 in M0.
+    peers: u32,
+    /// Number of ops queued locally waiting to ship. 0 in M0.
+    queued_ops: u32,
+    /// Estimated bytes queued. 0 in M0.
+    queued_bytes: u64,
+    /// Whether sync is allowed under the resolved policy + connection. In M0
+    /// this is always false (no transport). M1 will compute it from policy.
+    allowed: bool,
+    /// Last-sync timestamp, mirrored from settings.
+    last_sync_at: Option<DateTime<Utc>>,
+    /// One-line user-readable explanation of why the answer is what it is.
+    /// Drives the helper text in Settings → Sync.
+    reason: String,
+}
+
+#[tauri::command]
+fn sync_status(connection_hint: Option<String>) -> SyncStatus {
+    // Read settings fresh so policy edits take effect without a relaunch.
+    let s = get_settings();
+    let detected = connection_hint.unwrap_or_default();
+    let connection = if !s.sync_connection_override.is_empty() {
+        s.sync_connection_override.clone()
+    } else if detected.is_empty() {
+        "unknown".to_string()
+    } else {
+        detected
+    };
+    let allowed_under_policy = matches!(
+        (s.sync_policy.as_str(), connection.as_str()),
+        ("wifi_only", "wifi" | "ethernet")
+            | ("wifi_cell_light", "wifi" | "ethernet" | "cellular")
+            | ("wifi_cell_full", "wifi" | "ethernet" | "cellular")
+    );
+    // In M0 the transport is stubbed so we can't actually sync — surface that
+    // honestly so the UI can render "Pending M1" instead of pretending.
+    let reason = if !allowed_under_policy {
+        match s.sync_policy.as_str() {
+            "wifi_only" => "Cellular detected; WiFi-only policy is blocking sync.".to_string(),
+            "manual" => "Manual mode; press 'Sync now' to push.".to_string(),
+            _ => format!(
+                "Sync paused under policy '{}' for connection '{}'.",
+                s.sync_policy, connection
+            ),
+        }
+    } else {
+        "Transport not yet implemented (M1). Policy + detection ready.".to_string()
+    };
+    SyncStatus {
+        policy: s.sync_policy.clone(),
+        connection,
+        peers: 0,
+        queued_ops: 0,
+        queued_bytes: 0,
+        allowed: false, // hard-false in M0; M1 sets this from `allowed_under_policy`.
+        last_sync_at: s.last_sync_at,
+        reason,
+    }
+}
+
+#[tauri::command]
+fn sync_now() -> Result<String, String> {
+    // M0: no transport. Return a deterministic message so the UI doesn't lie.
+    Err("Device sync is not yet implemented (milestone M1). Policy is ready; transport will land in a future beta.".to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3714,6 +3812,8 @@ fn main() -> Result<()> {
             get_settings,
             set_settings,
             reset_settings,
+            sync_status,
+            sync_now,
             list_themes,
             save_theme,
             delete_theme,

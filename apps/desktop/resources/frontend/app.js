@@ -29,6 +29,23 @@ const BUILTIN_THEMES = [
     colors: { '--bg':'#000000','--bg-2':'#0a0a0a','--bg-3':'#161616','--border':'#ffffff','--text':'#ffffff','--text-2':'#f0f0f0','--text-3':'#c0c0c0','--accent':'#ffd400','--accent-fg':'#000000','--danger':'#ff5050' },
     radii: { '--radius':'8px','--radius-sm':'4px' },
     typography: { '--font-family':'-apple-system, "Segoe UI", Roboto, sans-serif','--font-size':'15px' } },
+  // v0.75 — community-classic themes (verbatim palette IDs, Ethan Schoonover / dracula-theme.com / arcticicestudio).
+  { id: 'solarized-dark', name: 'Solarized Dark', builtin: true,
+    colors: { '--bg':'#002b36','--bg-2':'#073642','--bg-3':'#0a4351','--border':'#1f5566','--text':'#fdf6e3','--text-2':'#93a1a1','--text-3':'#586e75','--accent':'#b58900','--accent-fg':'#002b36','--danger':'#dc322f' },
+    radii: { '--radius':'10px','--radius-sm':'6px' },
+    typography: { '--font-family':'-apple-system, "Segoe UI", Roboto, sans-serif','--font-size':'14px' } },
+  { id: 'solarized-light', name: 'Solarized Light', builtin: true,
+    colors: { '--bg':'#fdf6e3','--bg-2':'#eee8d5','--bg-3':'#e6deca','--border':'#c8c1a8','--text':'#073642','--text-2':'#586e75','--text-3':'#839496','--accent':'#b58900','--accent-fg':'#fdf6e3','--danger':'#dc322f' },
+    radii: { '--radius':'10px','--radius-sm':'6px' },
+    typography: { '--font-family':'-apple-system, "Segoe UI", Roboto, sans-serif','--font-size':'14px' } },
+  { id: 'dracula', name: 'Dracula', builtin: true,
+    colors: { '--bg':'#282a36','--bg-2':'#343746','--bg-3':'#404252','--border':'#44475a','--text':'#f8f8f2','--text-2':'#bfbfbf','--text-3':'#6272a4','--accent':'#bd93f9','--accent-fg':'#282a36','--danger':'#ff5555' },
+    radii: { '--radius':'10px','--radius-sm':'6px' },
+    typography: { '--font-family':'-apple-system, "Segoe UI", Roboto, sans-serif','--font-size':'14px' } },
+  { id: 'nord', name: 'Nord', builtin: true,
+    colors: { '--bg':'#2e3440','--bg-2':'#3b4252','--bg-3':'#434c5e','--border':'#4c566a','--text':'#eceff4','--text-2':'#d8dee9','--text-3':'#81a1c1','--accent':'#88c0d0','--accent-fg':'#2e3440','--danger':'#bf616a' },
+    radii: { '--radius':'10px','--radius-sm':'6px' },
+    typography: { '--font-family':'-apple-system, "Segoe UI", Roboto, sans-serif','--font-size':'14px' } },
 ];
 
 const els = {};
@@ -72,6 +89,8 @@ const els = {};
   'cal-prev-btn','cal-today-btn','cal-next-btn','cal-label','cal-property-input','cal-grid',
   'bulk-bar','bulk-count','bulk-pin','bulk-unpin','bulk-export','bulk-merge','bulk-prop','bulk-trash','bulk-clear',
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
+  // v0.75 — Settings → Sync tab.
+  'opt-sync-policy','opt-sync-connection-override','sync-status-card','sync-v-policy','sync-v-connection','sync-v-peers','sync-v-queued','sync-v-last','sync-v-reason','sync-now-btn','sync-refresh-btn',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 
@@ -93,7 +112,32 @@ const state = {
   navStack: [],   // v0.57 — back/forward history (note ids)
   navIndex: -1,   // current position in navStack
   navSilent: false,
+  lastSavedAt: null, // v0.75 — ms timestamp of last successful save (or note.updated_at on open)
 };
+
+// v0.75 — Last-saved relative timestamp in the editor footer (refreshed every 30s).
+function formatTimeAgo(ms) {
+  if (!ms) return '';
+  const diff = Math.max(0, Date.now() - ms);
+  if (diff < 5_000) return 'just now';
+  if (diff < 60_000) return Math.floor(diff / 1000) + 's ago';
+  if (diff < 3_600_000) return Math.floor(diff / 60_000) + 'm ago';
+  if (diff < 86_400_000) return Math.floor(diff / 3_600_000) + 'h ago';
+  return Math.floor(diff / 86_400_000) + 'd ago';
+}
+function refreshLastSaved() {
+  const el = document.getElementById('stat-saved-ago');
+  if (!el) return;
+  if (!state.lastSavedAt || !state.active) {
+    el.classList.add('hidden');
+    el.textContent = '';
+    return;
+  }
+  const text = 'saved ' + formatTimeAgo(state.lastSavedAt);
+  el.textContent = text;
+  el.title = 'Last saved ' + new Date(state.lastSavedAt).toLocaleString();
+  el.classList.remove('hidden');
+}
 
 // v0.39 — Snapshot diff viewer (LCS-based unified line diff)
 function openDiffModal(historyEntry, oldBody, newBody) {
@@ -436,6 +480,13 @@ function setSaveState(s) {
   if (s === 'saved') els.saveState.classList.add('save-saved');
   else if (s === 'saving...' || s === 'editing...') els.saveState.classList.add('save-saving');
   else if (s === 'save failed') els.saveState.classList.add('save-error');
+  // v0.75 — keep "saved Xs ago" indicator in sync.
+  if (s === 'saved' && state.active) {
+    // openNote() sets lastSavedAt from note.updated_at before calling here; saveNow()
+    // overrides it to Date.now() right after — so we only stamp here if no value yet.
+    if (!state.lastSavedAt) state.lastSavedAt = Date.now();
+    refreshLastSaved();
+  }
 }
 
 // v0.59 — Custom keyboard shortcuts editor + matcher.
@@ -1122,6 +1173,8 @@ async function openNote(id) {
   els.meta.textContent = (note.pinned ? 'Pinned · ' : '') + 'Updated ' + fmtDate(note.updated_at);
   els.pinBtn.classList.toggle('on', !!note.pinned);
   els.pinBtn.title = note.pinned ? 'Unpin' : 'Pin to top';
+  // v0.75 — seed the "saved Xs ago" indicator from the persisted updated_at.
+  state.lastSavedAt = note.updated_at ? new Date(note.updated_at).getTime() : Date.now();
   setSaveState('saved');
   // v0.51 — draft restore prompt: if a local draft is newer than the file's body, offer to restore it.
   const draft = getDraft(id);
@@ -1219,6 +1272,7 @@ async function flushSave() {
     const note = await invoke('update_note', { id, title, body });
     state.active = note;
     els.meta.textContent = (note.pinned ? 'Pinned · ' : '') + 'Updated ' + fmtDate(note.updated_at);
+    state.lastSavedAt = Date.now(); // v0.75 — stamp the actual save moment
     setSaveState('saved');
     clearDraft(id); // v0.51 — drop the local draft once we've persisted to disk
     refreshStats();
@@ -1977,8 +2031,89 @@ async function loadSettings() {
     refreshNavButtons();
     applySpellCheck();
     renderSavedSearches();
+    // v0.75 — Sync tab defaults + UI sync.
+    if (!state.settings.sync_policy) state.settings.sync_policy = 'wifi_only';
+    if (state.settings.sync_connection_override === undefined) state.settings.sync_connection_override = '';
+    if (els.optSyncPolicy) els.optSyncPolicy.value = state.settings.sync_policy;
+    if (els.optSyncConnectionOverride) els.optSyncConnectionOverride.value = state.settings.sync_connection_override;
+    refreshSyncStatus();
   } catch (e) { console.error(e); }
 }
+
+// v0.75 — sync policy + connection detection.
+// Detects the connection class from the Network Information API where the
+// host webview exposes it (Chromium on Windows / Linux; Safari and macOS
+// usually return undefined and we fall back to "unknown"). The Rust side
+// applies the manual override and the policy rules.
+function detectConnectionClass() {
+  try {
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return '';
+    // `type` is the most reliable when present (wifi, cellular, ethernet, none, ...).
+    if (c.type && c.type !== 'unknown') return c.type;
+    // Fall back to effectiveType. 4g / 5g default to "cellular" because that's
+    // the only signal we have; users can override via the Settings dropdown.
+    if (c.effectiveType) {
+      if (c.effectiveType === '4g' || c.effectiveType === '5g') return 'cellular';
+      if (c.effectiveType === '3g' || c.effectiveType === '2g' || c.effectiveType === 'slow-2g') return 'cellular';
+    }
+    return '';
+  } catch (_) { return ''; }
+}
+async function refreshSyncStatus() {
+  if (!els.syncVPolicy) return; // settings modal not built yet
+  let status;
+  try {
+    status = await invoke('sync_status', { connectionHint: detectConnectionClass() });
+  } catch (e) { status = null; }
+  if (!status) {
+    els.syncVReason.textContent = 'Status unavailable.';
+    return;
+  }
+  const policyLabel = {
+    wifi_only: 'WiFi only',
+    wifi_cell_light: 'WiFi + cellular (light)',
+    wifi_cell_full: 'WiFi + cellular (full)',
+    manual: 'Manual',
+  }[status.policy] || status.policy;
+  els.syncVPolicy.textContent = policyLabel;
+  els.syncVConnection.textContent = status.connection || 'unknown';
+  els.syncVPeers.textContent = String(status.peers);
+  els.syncVQueued.textContent = `${status.queued_ops} (${formatBytes(status.queued_bytes)})`;
+  els.syncVLast.textContent = status.last_sync_at ? fmtDate(status.last_sync_at) : 'never';
+  els.syncVReason.textContent = status.reason || '';
+}
+function formatBytes(n) {
+  if (n == null) return '0 B';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+if (els.optSyncPolicy) {
+  els.optSyncPolicy.addEventListener('change', async () => {
+    state.settings.sync_policy = els.optSyncPolicy.value;
+    try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+    refreshSyncStatus();
+  });
+}
+if (els.optSyncConnectionOverride) {
+  els.optSyncConnectionOverride.addEventListener('change', async () => {
+    state.settings.sync_connection_override = els.optSyncConnectionOverride.value;
+    try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+    refreshSyncStatus();
+  });
+}
+if (els.syncRefreshBtn) els.syncRefreshBtn.addEventListener('click', refreshSyncStatus);
+if (els.syncNowBtn) els.syncNowBtn.addEventListener('click', async () => {
+  try { await invoke('sync_now'); setStatus('Sync triggered.'); }
+  catch (e) { setStatus(String(e)); }
+  refreshSyncStatus();
+});
+// React to OS connection changes (Chromium fires this; others silently no-op).
+try {
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (c && typeof c.addEventListener === 'function') c.addEventListener('change', refreshSyncStatus);
+} catch (_) {}
 
 function applySpellCheck() {
   const on = !!state.settings.spell_check;
@@ -5155,4 +5290,6 @@ if (els.calPropertyInput) els.calPropertyInput.addEventListener('keydown', (e) =
   if (state.settings.auto_check_updates) setTimeout(() => checkForUpdates(true), 2500);
   // v0.56 — backup reminder shown 4s after the update check so it doesn't get clobbered.
   setTimeout(maybeShowBackupReminder, 4000);
+  // v0.75 — refresh the "saved Xs ago" indicator every 30s so the editor footer never goes stale.
+  setInterval(refreshLastSaved, 30_000);
 })();

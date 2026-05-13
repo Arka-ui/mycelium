@@ -1,3 +1,37 @@
+# Mycelium v0.75.0-beta.1 - Sync policy + UI Phase 1 + 4 new themes
+
+beta.75 is a triple batch: lays the policy layer for device sync (transport still M1, but the rules and detection are ready), starts the multi-version UI remake with foundational design tokens + an overlap audit, and ships four community-classic themes (Solarized Dark/Light, Dracula, Nord). See `docs/ui-remake-plan.md` for the full multi-version plan.
+
+## New in v0.75.0
+
+### Sync policy scaffolding
+- New Settings → **Sync** tab. Four policies: *WiFi only* (default), *WiFi + cellular (light)* (metadata + small diffs on cellular), *WiFi + cellular (full)* (op-batching + compression on cellular), *Manual*.
+- Frontend detects the connection class via `navigator.connection` (`type` + `effectiveType` fallback). Manual override available for tethering / testing.
+- Live status card: policy, connection class, peers reachable, queued ops, last-sync timestamp, plus a "why this is the answer" reason line.
+- Two new Tauri commands: `sync_status(connection_hint)` returns a `SyncStatus` shape, `sync_now()` returns the honest "not yet implemented (M1)" message. The shape stabilises now so the future Iroh+Loro engine drops straight in.
+- `Settings` gains `sync_policy: String`, `sync_connection_override: String`, `last_sync_at: Option<DateTime>`.
+
+### UI remake — Phase 1 of 5
+- Design tokens: spacing scale `--sp-1` … `--sp-8` (4 / 6 / 8 / 12 / 16 / 24 / 32 / 48 px) and z-index scale `--z-base` … `--z-toast` (0 / 100 / 300 / 800 / 900 / 1000) at `:root`. Both ship now so Phase 2–5 inherit from them.
+- z-index audit: 9 hand-rolled values (`50`, `90`, `95`, `100`, `200`, `250`, `300`, `500`, `9999`) replaced with named tokens. Modal backdrop sits at `--z-modal-backdrop` and modals at `--z-modal` — opening the command palette no longer overlays a Settings modal.
+- Bulk-bar reflows on narrow sidebars (flex-wrap + `min-width: 0` on the count + actions columns) instead of pushing the trash button under the count.
+- Today-section spacing tightened with the new tokens.
+- See `docs/ui-remake-plan.md` for the Phase 2–5 plan (layout grid → typography & icons → motion → settings redesign).
+
+### Theme catalogue: 3 → 7
+- **Solarized Dark** — Ethan Schoonover, `#002b36` ground with yellow `#b58900` accent.
+- **Solarized Light** — same palette, light substrate.
+- **Dracula** — `#282a36` with the signature purple `#bd93f9` accent and pink `#ff5555` danger.
+- **Nord** — `#2e3440` with frost-blue `#88c0d0` accent.
+
+### Last-saved indicator (from the original v0.75 draft, kept)
+- `#stat-saved-ago` in the editor footer: `just now` / `Xs` / `Xm` / `Xh` / `Xd` ago, refreshed every 30s. Tooltip shows the absolute timestamp. Seeded from `note.updated_at` on open, stamped with `Date.now()` on every successful `update_note`.
+
+### Auto-update
+- Pushing v0.75.0-beta.1 triggers signed builds + manifest update.
+
+---
+
 # Mycelium v0.74.0-beta.1 - Encrypted-note lock glyph
 
 beta.74 makes per-note-encrypted notes (v0.66) visually obvious in the sidebar.

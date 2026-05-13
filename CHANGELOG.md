@@ -1,3 +1,34 @@
+# Mycelium v0.76.0-beta.1 - Custom dialogs + Settings polish
+
+beta.76 kills the "tauri.localhost says" leak from native browser dialogs and brings the Settings UI redesign forward from the v0.79 slot in the plan. Two visible changes plus density/line-height controls.
+
+## New in v0.76.0
+
+### Custom dialog modal (no more "tauri.localhost indique")
+- Every `confirm()` / `alert()` / `prompt()` call now goes through a styled in-app modal with our own typography, spacing, focus ring, and Esc-to-cancel behavior.
+- Three flavors: `confirm` (OK / Cancel), `alert` (single OK), `prompt` (with text input). Programmatic API: `Dialog.confirm(msg, opts)`, `Dialog.alert(msg, opts)`, `Dialog.prompt(msg, defaultValue, opts)`. `opts.danger=true` styles the OK button as destructive (used for permanent deletes).
+- Implementation queues concurrent calls so two near-simultaneous `confirm`s no longer race or fight for focus.
+- 149 call sites in `app.js` were converted to `await`; 16 enclosing functions and a few inline arrow callbacks were marked `async`. No behavior changes besides the chrome.
+
+### Settings UI redesign — Phase 2 of the UI remake (brought forward from v0.79)
+- **Fixed the orphan-checkbox bug** visible in v0.75: `.setting-row` used `flex-wrap` with no `flex: 1` on the inner content `<div>`, so on narrower widths the label dropped below the checkbox leaving the box visually unlabeled.
+- **Card-style group panels**: each `.setting-group` now sits in its own bordered card on the page background (matching the modals' chrome). Better visual hierarchy than the old flat list with thin separator lines.
+- **Token-based spacing throughout**: every padding / margin / gap in the Settings panes uses the `--sp-*` tokens shipped in v0.75. Phase 1 prepared them; Phase 2 actually consumes them.
+- **Hover affordance**: hovering a checkbox row tints its label `--accent` so it's obvious where you'll click.
+- **Native checkboxes use the theme accent** (`accent-color: var(--accent)`).
+
+### New settings (the user asked for more)
+- **Density preset**: Compact / Comfortable / Spacious. Multiplies the `--sp-*` tokens at body-class scope so every panel, sidebar, and modal collapses or expands together. Lives in Settings → General → Density.
+- **Editor line height**: 1.3 / 1.45 / 1.6 / 1.8 / 2.0. Same select pattern as the existing font-size control; applies to the textarea AND the preview pane for consistency. Lives in Settings → Editor.
+
+### Backend
+- `Settings` gains `density: String` (default `"comfortable"`) and `editor_line_height: f32` (default `1.6`). Both serde-default-skipped so existing settings.json files migrate transparently.
+
+### Auto-update
+- Pushing v0.76.0-beta.1 triggers signed builds + a manifest update (next chore PR).
+
+---
+
 # Mycelium v0.75.0-beta.1 - Sync policy + UI Phase 1 + 4 new themes
 
 beta.75 is a triple batch: lays the policy layer for device sync (transport still M1, but the rules and detection are ready), starts the multi-version UI remake with foundational design tokens + an overlap audit, and ships four community-classic themes (Solarized Dark/Light, Dracula, Nord). See `docs/ui-remake-plan.md` for the full multi-version plan.

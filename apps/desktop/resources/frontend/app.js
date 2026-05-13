@@ -3,6 +3,95 @@ const invoke = (cmd, args) => T.core.invoke(cmd, args);
 const checkUpdate = async () => (T.updater ? await T.updater.check() : null);
 const RELEASES_URL = 'https://github.com/Arka-ui/mycelium/releases';
 
+// v0.76 — Custom dialog API. Replaces window.confirm / window.alert /
+// window.prompt so the "tauri.localhost says" chrome from the native
+// webview's dialogs never appears. All three return Promises.
+const Dialog = (() => {
+  let busy = false;
+  const queue = [];
+  function el(id) { return document.getElementById(id); }
+  function open({ kind, title, message, okText, cancelText, danger, defaultValue }) {
+    return new Promise((resolve) => {
+      const run = () => {
+        const backdrop = el('dlg-backdrop');
+        const modal = backdrop && backdrop.querySelector('.dlg-modal');
+        const titleEl = el('dlg-title');
+        const msgEl = el('dlg-message');
+        const inputEl = el('dlg-input');
+        const okBtn = el('dlg-ok');
+        const cancelBtn = el('dlg-cancel');
+        if (!backdrop || !msgEl) {
+          resolve(kind === 'confirm' ? false : (kind === 'prompt' ? null : undefined));
+          return;
+        }
+        busy = true;
+        modal.classList.toggle('dlg-danger', !!danger);
+        modal.classList.toggle('dlg-alert', kind === 'alert');
+        titleEl.textContent = title || ({ confirm: 'Confirm', alert: 'Notice', prompt: 'Input' }[kind]);
+        msgEl.textContent = message || '';
+        okBtn.textContent = okText || 'OK';
+        cancelBtn.textContent = cancelText || 'Cancel';
+        if (kind === 'prompt') {
+          inputEl.classList.remove('hidden');
+          inputEl.value = defaultValue || '';
+        } else {
+          inputEl.classList.add('hidden');
+        }
+        backdrop.classList.remove('hidden');
+        const cleanup = (result) => {
+          backdrop.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          backdrop.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          inputEl.removeEventListener('keydown', onInputKey);
+          busy = false;
+          if (queue.length) queue.shift()();
+          resolve(result);
+        };
+        const onOk = () => {
+          if (kind === 'prompt') cleanup(inputEl.value);
+          else if (kind === 'confirm') cleanup(true);
+          else cleanup();
+        };
+        const onCancel = () => {
+          if (kind === 'prompt') cleanup(null);
+          else if (kind === 'confirm') cleanup(false);
+          else cleanup();
+        };
+        const onBackdrop = (e) => { if (e.target === backdrop) onCancel(); };
+        const onKey = (e) => {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); }
+          else if (e.key === 'Enter' && kind !== 'prompt') { e.preventDefault(); onOk(); }
+        };
+        const onInputKey = (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+        };
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        backdrop.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        inputEl.addEventListener('keydown', onInputKey);
+        setTimeout(() => {
+          if (kind === 'prompt') { inputEl.focus(); inputEl.select(); }
+          else okBtn.focus();
+        }, 0);
+      };
+      if (busy) queue.push(run); else run();
+    });
+  }
+  return {
+    confirm: (message, opts = {}) => open({ kind: 'confirm', message, ...opts }),
+    alert:   (message, opts = {}) => open({ kind: 'alert',   message, ...opts }),
+    prompt:  (message, defaultValue = '', opts = {}) => open({ kind: 'prompt', message, defaultValue, ...opts }),
+  };
+})();
+// Override globals: every existing confirm/alert/prompt call site has been
+// converted to await this Promise-based version in the same v0.76 commit.
+window.confirm = (message, opts) => Dialog.confirm(message, opts);
+window.alert = (message, opts) => Dialog.alert(message, opts);
+window.prompt = (message, defaultValue, opts) => Dialog.prompt(message, defaultValue, opts);
+
 const COLOR_KEYS = [
   ['--bg',         'Background'],
   ['--bg-2',       'Surface'],
@@ -91,6 +180,8 @@ const els = {};
   'find-bar','find-input','replace-input','find-next-btn','find-replace-btn','find-replace-all-btn','find-count','find-close-btn',
   // v0.75 — Settings → Sync tab.
   'opt-sync-policy','opt-sync-connection-override','sync-status-card','sync-v-policy','sync-v-connection','sync-v-peers','sync-v-queued','sync-v-last','sync-v-reason','sync-now-btn','sync-refresh-btn',
+  // v0.76 — density preset + editor line-height.
+  'opt-density','opt-line-height',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 
@@ -152,7 +243,7 @@ function closeDiffModal() { if (els.diffModal) els.diffModal.classList.add('hidd
 // v0.53 — Note properties form editor
 state.propsForm = [];
 async function openPropsModal() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   if (!els.propsModal) return;
   let props = {};
   try { props = await invoke('note_properties', { id: state.activeId }); }
@@ -210,7 +301,7 @@ async function savePropsForm() {
     const k = (r.key || '').trim();
     if (!k) continue;
     try { await invoke('set_property', { id: state.activeId, key: k, value: r.value }); }
-    catch (e) { alert('Save failed for ' + k + ': ' + e); return; }
+    catch (e) { await alert('Save failed for ' + k + ': ' + e); return; }
   }
   closePropsModal();
   await loadNotes();
@@ -220,15 +311,15 @@ async function savePropsForm() {
 
 // v0.44 — compare two notes (uses the same diff modal as snapshot diff).
 async function compareWithNote() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   const cur = state.active;
   const candidates = (state._allNotesCache && state._allNotesCache.length ? state._allNotesCache : state.notes)
     .filter(n => n.id !== state.activeId && !n.trashed_at)
     .sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
-  if (!candidates.length) { alert('No other notes to compare with.'); return; }
+  if (!candidates.length) { await alert('No other notes to compare with.'); return; }
   const list = candidates.slice(0, 30).map((n, i) => `${i + 1}. ${n.title || 'Untitled'}`).join('\n');
   const moreNote = candidates.length > 30 ? `\n…and ${candidates.length - 30} more (type a title or substring instead).` : '';
-  const ans = prompt(`Compare "${cur.title || 'Untitled'}" against:\n\n${list}${moreNote}\n\nEnter a number, or type any title / substring:`);
+  const ans = await prompt(`Compare "${cur.title || 'Untitled'}" against:\n\n${list}${moreNote}\n\nEnter a number, or type any title / substring:`);
   if (ans == null) return;
   let target = null;
   const numIdx = parseInt(ans, 10);
@@ -239,11 +330,11 @@ async function compareWithNote() {
     target = candidates.find(n => (n.title || '').toLowerCase() === lc)
           || candidates.find(n => (n.title || '').toLowerCase().includes(lc));
   }
-  if (!target) { alert('No matching note.'); return; }
+  if (!target) { await alert('No matching note.'); return; }
   let other;
   try { other = await invoke('get_note', { id: target.id }); }
-  catch (e) { alert('Load failed: ' + e); return; }
-  if (!other) { alert('Note vanished.'); return; }
+  catch (e) { await alert('Load failed: ' + e); return; }
+  if (!other) { await alert('Note vanished.'); return; }
   // Reuse the diff modal but with a "compare" header.
   if (!els.diffModal) return;
   els.diffMeta.textContent = `Comparing "${cur.title || 'Untitled'}" → "${other.title || 'Untitled'}" (current → other)`;
@@ -504,7 +595,7 @@ function normalizeShortcut(e) {
   parts.push(key);
   return parts.join('+');
 }
-function renderShortcutsTable() {
+async function renderShortcutsTable() {
   if (!els.shortcutsRows) return;
   els.shortcutsRows.innerHTML = '';
   const map = (state.settings && state.settings.custom_shortcuts) || {};
@@ -543,7 +634,7 @@ function renderShortcutsTable() {
     els.shortcutsRows.appendChild(tr);
   }
 }
-function beginShortcutCapture(cmdName, btn) {
+async function beginShortcutCapture(cmdName, btn) {
   btn.textContent = 'Press keys… (Esc to cancel)';
   btn.style.background = 'var(--accent)';
   btn.style.color = 'var(--accent-fg)';
@@ -814,7 +905,7 @@ async function purgeEligibleTrash() {
   } catch (_) { return 0; }
 }
 
-function renderList() {
+async function renderList() {
   let items = state.notes;
   if (state.activeTag) {
     items = items.filter(n => (n.tags || []).includes(state.activeTag));
@@ -995,7 +1086,7 @@ function navigateNoteListAbs(idx) {
 async function promptRenameNote() {
   if (!state.activeId || !state.active) return;
   const cur = state.active.title || '';
-  const next = prompt('Rename note title:', cur);
+  const next = await prompt('Rename note title:', cur);
   if (next === null) return;
   const trimmed = next.trim();
   if (!trimmed || trimmed === cur) return;
@@ -1010,7 +1101,7 @@ async function promptRenameNote() {
     // Re-load the active note so title input reflects the new value.
     await loadNotes();
     if (state.activeId) await openNote(state.activeId);
-  } catch (e) { alert('Rename failed: ' + e); }
+  } catch (e) { await alert('Rename failed: ' + e); }
 }
 
 function clearSelection(rerender) {
@@ -1035,25 +1126,25 @@ async function bulkPin(pin) {
     await invoke('bulk_set_pinned', { ids, pinned: pin });
     clearSelection(false);
     await loadNotes();
-  } catch (e) { alert('Bulk pin failed: ' + e); }
+  } catch (e) { await alert('Bulk pin failed: ' + e); }
 }
 async function bulkTrashSelected() {
   const ids = Array.from(state.selectedIds);
   if (!ids.length) return;
-  if (!confirm('Move ' + ids.length + ' note(s) to trash?')) return;
+  if (!await confirm('Move ' + ids.length + ' note(s) to trash?')) return;
   try {
     await invoke('bulk_trash', { ids });
     if (ids.includes(state.activeId)) showEmpty();
     clearSelection(false);
     await loadNotes();
-  } catch (e) { alert('Bulk trash failed: ' + e); }
+  } catch (e) { await alert('Bulk trash failed: ' + e); }
 }
 async function bulkSetProperty() {
   const ids = Array.from(state.selectedIds);
   if (!ids.length) return;
-  const key = prompt('Property key (e.g. "status", "type"):');
+  const key = await prompt('Property key (e.g. "status", "type"):');
   if (!key || !key.trim()) return;
-  const value = prompt(`Value to set on all ${ids.length} note(s)\n(leave blank to REMOVE the property):`);
+  const value = await prompt(`Value to set on all ${ids.length} note(s)\n(leave blank to REMOVE the property):`);
   if (value === null) return;
   const v = value.trim() ? value.trim() : null;
   try {
@@ -1062,22 +1153,22 @@ async function bulkSetProperty() {
     clearSelection(false);
     await loadNotes();
     if (state.activeId) await openNote(state.activeId);
-  } catch (e) { alert('Bulk property failed: ' + e); }
+  } catch (e) { await alert('Bulk property failed: ' + e); }
 }
 
 async function bulkMergeSelected() {
   const ids = Array.from(state.selectedIds);
-  if (ids.length < 2) { alert('Select at least 2 notes (Ctrl/Cmd-click) to merge.'); return; }
+  if (ids.length < 2) { await alert('Select at least 2 notes (Ctrl/Cmd-click) to merge.'); return; }
   const target = ids[0];
   const sources = ids.slice(1);
   const targetName = (state.notes.find(n => n.id === target) || {}).title || 'first selected';
-  if (!confirm(`Merge ${sources.length} note(s) into "${targetName}"?\n\nSource notes will be moved to trash and their bodies appended (each under "## Title").`)) return;
+  if (!await confirm(`Merge ${sources.length} note(s) into "${targetName}"?\n\nSource notes will be moved to trash and their bodies appended (each under "## Title").`)) return;
   try {
     const merged = await invoke('merge_notes', { targetId: target, sourceIds: sources });
     clearSelection(false);
     await loadNotes();
     openNote(merged.id);
-  } catch (e) { alert('Merge failed: ' + e); }
+  } catch (e) { await alert('Merge failed: ' + e); }
 }
 
 async function bulkExportSelected() {
@@ -1086,7 +1177,7 @@ async function bulkExportSelected() {
   try {
     const out = await invoke('bulk_export_md', { ids });
     downloadJson('mycelium-export-selected.json', { format: 'mycelium-export-v1', exported_at: new Date().toISOString(), notes: out.map(([f, c]) => ({ filename: f, content: c })) });
-  } catch (e) { alert('Bulk export failed: ' + e); }
+  } catch (e) { await alert('Bulk export failed: ' + e); }
 }
 
 // --- drag-reorder pinned ----------------------------------------------
@@ -1180,7 +1271,7 @@ async function openNote(id) {
   const draft = getDraft(id);
   if (draft && typeof draft.body === 'string' && draft.body !== (note.body || '')) {
     const ageMin = Math.round((Date.now() - draft.ts) / 60000);
-    const ok = confirm(
+    const ok = await confirm(
       `A local unsaved draft of this note exists (last edited ${ageMin} min ago).\n\n` +
       `OK = restore the draft (you can save again to persist it)\n` +
       `Cancel = discard the draft and keep the saved version`
@@ -1298,7 +1389,7 @@ function scheduleSave() {
 
 async function deleteActive() {
   if (!state.activeId) return;
-  if (!confirm('Move this note to trash?')) return;
+  if (!await confirm('Move this note to trash?')) return;
   const id = state.activeId;
   if (state.pendingTimer) { clearTimeout(state.pendingTimer); state.pendingTimer = null; }
   try {
@@ -1334,7 +1425,7 @@ function togglePreview() {
   state.preview = !state.preview;
   updatePreviewUI();
 }
-function renderPreview() {
+async function renderPreview() {
   if (!els.preview) return;
   const src = els.body.value || '';
   let { html } = window.Markdown.render(src);
@@ -1350,7 +1441,7 @@ function renderPreview() {
     const anchor = a.dataset.anchor || '';
     // v0.62 — hover preview tooltip with the first ~200 chars of the target note's body.
     let hoverTimer = null;
-    a.addEventListener('mouseenter', () => {
+    a.addEventListenerasync ('mouseenter', () => {
       hoverTimer = setTimeout(async () => {
         const target = state.notes.find(n => (n.title || '').toLowerCase() === title.toLowerCase())
                     || (state._allNotesCache || []).find(n => (n.title || '').toLowerCase() === title.toLowerCase());
@@ -1386,7 +1477,7 @@ function renderPreview() {
         if (resolved.anchor) scrollPreviewToHeading(resolved.anchor);
         return;
       }
-      if (confirm(`No note resolves to "${title}". Create one?`)) {
+      if (await confirm(`No note resolves to "${title}". Create one?`)) {
         const note = await invoke('create_note', { title, body: '' });
         await loadNotes(); openNote(note.id);
       }
@@ -1651,11 +1742,11 @@ async function filterByProperty(key, value) {
 async function promptFilterByProperty() {
   let keys = [];
   try { keys = await invoke('all_property_keys'); } catch (_) { keys = []; }
-  if (!keys.length) { alert('No notes have frontmatter properties yet. Add a `--- key: value ---` block at the top of any note.'); return; }
+  if (!keys.length) { await alert('No notes have frontmatter properties yet. Add a `--- key: value ---` block at the top of any note.'); return; }
   const opts = keys.map(([k, n]) => `${k} (${n} note${n === 1 ? '' : 's'})`).join('\n');
-  const k = prompt(`Filter by property — pick a key:\n\n${opts}\n\nEnter the key:`);
+  const k = await prompt(`Filter by property — pick a key:\n\n${opts}\n\nEnter the key:`);
   if (!k) return;
-  const v = prompt(`Value to match (leave blank for "any value"):`);
+  const v = await prompt(`Value to match (leave blank for "any value"):`);
   await filterByProperty(k.trim(), v && v.trim() ? v.trim() : null);
 }
 
@@ -1761,14 +1852,14 @@ async function exportActiveMd() {
     const md = await invoke('export_note_md', { id: state.activeId });
     const title = (state.active.title || 'Untitled').replace(/[^a-zA-Z0-9_\- ]/g, '_').trim();
     downloadText(`${title || 'Untitled'}.md`, md, 'text/markdown');
-  } catch (e) { alert('Export failed: ' + e); }
+  } catch (e) { await alert('Export failed: ' + e); }
 }
 
 async function exportAllMd() {
   try {
     const bundle = await invoke('export_all_md');
     downloadJson('mycelium-export.json', { format: 'mycelium-export-v1', exported_at: new Date().toISOString(), notes: bundle.map(([f, c]) => ({ filename: f, content: c })) });
-  } catch (e) { alert('Export failed: ' + e); }
+  } catch (e) { await alert('Export failed: ' + e); }
 }
 
 async function importMdFile() {
@@ -1777,7 +1868,7 @@ async function importMdFile() {
   try {
     const note = await invoke('import_md', { content: f.text, suggestedTitle: f.name.replace(/\.[^.]+$/, '') });
     await loadNotes(); openNote(note.id);
-  } catch (e) { alert('Import failed: ' + e); }
+  } catch (e) { await alert('Import failed: ' + e); }
 }
 
 function downloadText(name, text, mime) {
@@ -1789,8 +1880,8 @@ function downloadText(name, text, mime) {
 }
 function downloadJson(name, obj) { downloadText(name, JSON.stringify(obj, null, 2), 'application/json'); }
 
-function pickFile(accept) {
-  return new Promise((resolve) => {
+async function pickFile(accept) {
+  return new Promiseasync ((resolve) => {
     els.fileInput.value = '';
     els.fileInput.accept = accept || '.json';
     els.fileInput.onchange = async () => {
@@ -1913,7 +2004,7 @@ async function openOrphans() {
   } catch (e) { setStatus('orphans load failed: ' + e); }
 }
 
-function renderTrashList(items) {
+async function renderTrashList(items) {
   els.trashList.innerHTML = '';
   if (!items.length) {
     const li = document.createElement('li');
@@ -1938,7 +2029,7 @@ function renderTrashList(items) {
     });
     const purgeBtn = document.createElement('button'); purgeBtn.className = 'danger-btn'; purgeBtn.textContent = 'Delete forever';
     purgeBtn.addEventListener('click', async () => {
-      if (!confirm('Permanently delete "' + (n.title || 'Untitled') + '"? This cannot be undone.')) return;
+      if (!await confirm('Permanently delete "' + (n.title || 'Untitled') + '"? This cannot be undone.')) return;
       await invoke('purge_note', { id: n.id }); openTrash();
     });
     actions.appendChild(restoreBtn); actions.appendChild(purgeBtn);
@@ -1948,9 +2039,9 @@ function renderTrashList(items) {
 }
 
 async function emptyTrash() {
-  if (!confirm('Permanently delete every note in the trash? This cannot be undone.')) return;
+  if (!await confirm('Permanently delete every note in the trash? This cannot be undone.')) return;
   try { const n = await invoke('empty_trash'); setStatus('Purged ' + n + ' note(s).'); openTrash(); }
-  catch (e) { alert('Empty trash failed: ' + e); }
+  catch (e) { await alert('Empty trash failed: ' + e); }
 }
 
 function cycleTheme() {
@@ -2037,8 +2128,38 @@ async function loadSettings() {
     if (els.optSyncPolicy) els.optSyncPolicy.value = state.settings.sync_policy;
     if (els.optSyncConnectionOverride) els.optSyncConnectionOverride.value = state.settings.sync_connection_override;
     refreshSyncStatus();
+    // v0.76 — density + line height.
+    if (!state.settings.density) state.settings.density = 'comfortable';
+    if (!state.settings.editor_line_height) state.settings.editor_line_height = 1.6;
+    if (els.optDensity) els.optDensity.value = state.settings.density;
+    if (els.optLineHeight) els.optLineHeight.value = String(state.settings.editor_line_height);
+    applyDensity();
+    applyEditorLineHeight();
   } catch (e) { console.error(e); }
 }
+
+// v0.76 — UI density preset (CSS class on body), editor line-height inline.
+function applyDensity() {
+  const v = state.settings.density || 'comfortable';
+  document.body.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
+  document.body.classList.add('density-' + v);
+}
+function applyEditorLineHeight() {
+  const lh = parseFloat(state.settings.editor_line_height) || 1.6;
+  if (els.body) els.body.style.lineHeight = String(lh);
+  // Also apply to preview for consistency.
+  if (els.preview) els.preview.style.lineHeight = String(lh);
+}
+if (els.optDensity) els.optDensity.addEventListener('change', async () => {
+  state.settings.density = els.optDensity.value;
+  try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+  applyDensity();
+});
+if (els.optLineHeight) els.optLineHeight.addEventListener('change', async () => {
+  state.settings.editor_line_height = parseFloat(els.optLineHeight.value);
+  try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+  applyEditorLineHeight();
+});
 
 // v0.75 — sync policy + connection detection.
 // Detects the connection class from the Network Information API where the
@@ -2291,7 +2412,7 @@ function sortNotes(notes) {
   return arr;
 }
 
-function renderSavedSearches() {
+async function renderSavedSearches() {
   const list = state.settings.saved_searches || [];
   if (!list.length) { els.savedSearches.classList.add('hidden'); els.savedSearches.innerHTML = ''; return; }
   els.savedSearches.classList.remove('hidden');
@@ -2315,8 +2436,8 @@ function renderSavedSearches() {
 
 async function saveCurrentSearch() {
   const q = state.query.trim();
-  if (!q) { alert('Type something in the search box first.'); return; }
-  const name = prompt('Name for this saved search:', q);
+  if (!q) { await alert('Type something in the search box first.'); return; }
+  const name = await prompt('Name for this saved search:', q);
   if (!name) return;
   state.settings.saved_searches = (state.settings.saved_searches || []).filter(s => s.name !== name);
   state.settings.saved_searches.push({ name, query: q });
@@ -2324,7 +2445,7 @@ async function saveCurrentSearch() {
 }
 
 async function openHistory() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   els.historyModal.classList.remove('hidden');
   await refreshHistoryList();
 }
@@ -2351,16 +2472,16 @@ async function refreshHistoryList() {
       sub.textContent = `${d.toLocaleString()} · ${it.chars} chars · ${(it.body_preview || '').replace(/\n/g, ' ')}`;
       main.appendChild(name); main.appendChild(sub);
       const actions = document.createElement('div'); actions.className = 'row-actions';
-      actions.appendChild(btn('ghost-btn', 'Preview', () => { alert((it.body_preview || '').slice(0, 400) + (it.body_preview && it.body_preview.length > 400 ? '…' : '')); }));
+      actions.appendChild(btn('ghost-btn', 'Preview', async () => { await alert((it.body_preview || '').slice(0, 400) + (it.body_preview && it.body_preview.length > 400 ? '…' : '')); }));
       actions.appendChild(btn('ghost-btn', 'Diff vs current', async () => {
         try {
           const stamp = formatHistoryStamp(it.timestamp);
           const snapBody = await invoke('snapshot_body', { id: state.activeId, timestamp: stamp });
           openDiffModal(it, snapBody, els.body.value || '');
-        } catch (e) { alert('Diff failed: ' + e); }
+        } catch (e) { await alert('Diff failed: ' + e); }
       }));
       actions.appendChild(btn('primary-btn small', 'Restore', async () => {
-        if (!confirm('Restore this snapshot? The current note state is automatically saved as a snapshot first.')) return;
+        if (!await confirm('Restore this snapshot? The current note state is automatically saved as a snapshot first.')) return;
         await invoke('snapshot_note', { id: state.activeId });
         const stamp = formatHistoryStamp(it.timestamp);
         await invoke('restore_history', { id: state.activeId, timestamp: stamp });
@@ -2381,9 +2502,9 @@ function formatHistoryStamp(iso) {
 
 async function purgeHistoryActive() {
   if (!state.activeId) return;
-  if (!confirm('Permanently delete all history for this note?')) return;
-  try { const n = await invoke('purge_history', { id: state.activeId }); alert(`Purged ${n} snapshot(s).`); refreshHistoryList(); }
-  catch (e) { alert('Purge failed: ' + e); }
+  if (!await confirm('Permanently delete all history for this note?')) return;
+  try { const n = await invoke('purge_history', { id: state.activeId }); await alert(`Purged ${n} snapshot(s).`); refreshHistoryList(); }
+  catch (e) { await alert('Purge failed: ' + e); }
 }
 
 let _lastSnapshot = 0;
@@ -2409,8 +2530,8 @@ function readFileAsBase64(file) {
 }
 
 async function attachFile(file) {
-  if (!state.activeId) { alert('Open a note first.'); return; }
-  if (file.size > 5 * 1024 * 1024) { alert('Attachments are limited to 5 MB in beta.4. (Larger attachments need a separate-file storage scheme — coming in beta.5.)'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
+  if (file.size > 5 * 1024 * 1024) { await alert('Attachments are limited to 5 MB in beta.4. (Larger attachments need a separate-file storage scheme — coming in beta.5.)'); return; }
   const mime = file.type || 'application/octet-stream';
   const isImage = mime.startsWith('image/');
   try {
@@ -2420,7 +2541,7 @@ async function attachFile(file) {
     const md = isImage ? `\n\n![${name}](${url})\n\n` : `\n\n[${name}](${url})\n\n`;
     insertAtCursor(els.body, md);
     scheduleSave();
-  } catch (e) { alert('Attach failed: ' + e); }
+  } catch (e) { await alert('Attach failed: ' + e); }
 }
 
 function insertAtCursor(textarea, text) {
@@ -2450,8 +2571,8 @@ async function exportWorkspace() {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     downloadJson(`mycelium-workspace-${stamp}.json`, bundle);
     await markBackupNow(); // v0.56
-    alert('Workspace exported. Keep this file safe.');
-  } catch (e) { alert('Export failed: ' + e); }
+    await alert('Workspace exported. Keep this file safe.');
+  } catch (e) { await alert('Export failed: ' + e); }
 }
 
 // v0.56 — record the time of a successful backup; refresh status text.
@@ -2479,18 +2600,18 @@ function maybeShowBackupReminder() {
 
 // v0.27 — encrypted backup via passphrase
 async function exportWorkspaceEncrypted() {
-  const p = prompt('Backup passphrase (at least 6 characters):');
+  const p = await prompt('Backup passphrase (at least 6 characters):');
   if (!p) return;
-  if (p.length < 6) { alert('Passphrase too short.'); return; }
-  const c = prompt('Confirm passphrase:');
-  if (p !== c) { alert('Passphrases do not match.'); return; }
+  if (p.length < 6) { await alert('Passphrase too short.'); return; }
+  const c = await prompt('Confirm passphrase:');
+  if (p !== c) { await alert('Passphrases do not match.'); return; }
   try {
     const bundle = await invoke('export_workspace_encrypted', { passphrase: p });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     downloadJson(`mycelium-workspace-${stamp}.encrypted.json`, bundle);
     await markBackupNow(); // v0.56
-    alert('Encrypted workspace exported. Lose the passphrase = lose the data.');
-  } catch (e) { alert('Encrypted export failed: ' + e); }
+    await alert('Encrypted workspace exported. Lose the passphrase = lose the data.');
+  } catch (e) { await alert('Encrypted export failed: ' + e); }
 }
 
 async function importWorkspace() {
@@ -2498,18 +2619,18 @@ async function importWorkspace() {
   let bundle = r.json;
   // v0.27 — auto-detect encrypted format and prompt for passphrase.
   if (bundle.format === 'mycelium-workspace-enc-v1') {
-    const p = prompt('This bundle is encrypted. Enter the passphrase:');
+    const p = await prompt('This bundle is encrypted. Enter the passphrase:');
     if (!p) return;
     try { bundle = await invoke('decrypt_workspace_bundle', { bundle, passphrase: p }); }
-    catch (e) { alert('Decrypt failed: ' + e); return; }
+    catch (e) { await alert('Decrypt failed: ' + e); return; }
   }
-  if (bundle.format !== 'mycelium-workspace-v1') { alert('Not a Mycelium workspace bundle.'); return; }
-  const overwrite = confirm('Overwrite notes that already exist with the same ID?\n\nOK = overwrite, Cancel = keep existing copies.');
+  if (bundle.format !== 'mycelium-workspace-v1') { await alert('Not a Mycelium workspace bundle.'); return; }
+  const overwrite = await confirm('Overwrite notes that already exist with the same ID?\n\nOK = overwrite, Cancel = keep existing copies.');
   try {
     const summary = await invoke('import_workspace', { bundle, overwrite });
-    alert(`Restored. Notes: ${summary.notes_imported} imported, ${summary.notes_skipped} skipped. Themes: ${summary.themes_imported}. Templates: ${summary.templates_imported}.`);
+    await alert(`Restored. Notes: ${summary.notes_imported} imported, ${summary.notes_skipped} skipped. Themes: ${summary.themes_imported}. Templates: ${summary.templates_imported}.`);
     await loadThemes(); await loadTemplates(); await loadNotes(); await loadSettings();
-  } catch (e) { alert('Restore failed: ' + e); }
+  } catch (e) { await alert('Restore failed: ' + e); }
 }
 
 async function saveSettings() {
@@ -2613,24 +2734,24 @@ function readThemeFromEditor() {
 }
 async function saveThemeFromEditor() {
   const t = readThemeFromEditor();
-  if (!t.id) { alert('Theme ID is required'); return; }
-  if (!/^[a-z0-9_-]+$/i.test(t.id)) { alert('Theme ID must be alphanumeric / - / _'); return; }
+  if (!t.id) { await alert('Theme ID is required'); return; }
+  if (!/^[a-z0-9_-]+$/i.test(t.id)) { await alert('Theme ID must be alphanumeric / - / _'); return; }
   try { await invoke('save_theme', { theme: t }); state.editingTheme = null; els.themeEditor.classList.add('hidden'); await loadThemes(); applyTheme(t.id); state.settings.theme = t.id; saveSettings(); }
-  catch (e) { alert('Save failed: ' + e); }
+  catch (e) { await alert('Save failed: ' + e); }
 }
 function exportThemeFromEditor() { downloadJson('mycelium-theme-' + (els.teId.value || 'untitled') + '.json', readThemeFromEditor()); }
 async function deleteEditingTheme() {
   if (!state.editingTheme || !state.editingTheme.id || state.editingTheme.builtin) return;
-  if (!confirm('Delete theme "' + state.editingTheme.name + '"?')) return;
+  if (!await confirm('Delete theme "' + state.editingTheme.name + '"?')) return;
   try { await invoke('delete_theme', { id: state.editingTheme.id }); state.editingTheme = null; els.themeEditor.classList.add('hidden'); await loadThemes(); renderThemeList(); renderActiveThemeSelect(); }
-  catch (e) { alert('Delete failed: ' + e); }
+  catch (e) { await alert('Delete failed: ' + e); }
 }
 async function importTheme() {
   const r = await pickFile('.json'); if (!r || !r.json) return;
-  const t = r.json; if (!t.id || !t.colors) { alert('Not a valid theme JSON'); return; }
+  const t = r.json; if (!t.id || !t.colors) { await alert('Not a valid theme JSON'); return; }
   t.builtin = false;
-  try { await invoke('save_theme', { theme: t }); await loadThemes(); alert('Theme imported.'); }
-  catch (e) { alert('Import failed: ' + e); }
+  try { await invoke('save_theme', { theme: t }); await loadThemes(); await alert('Theme imported.'); }
+  catch (e) { await alert('Import failed: ' + e); }
 }
 
 async function loadPlugins() {
@@ -2666,17 +2787,17 @@ async function togglePlugin(p, enable) {
   renderPluginList();
 }
 async function uninstallPlugin(p) {
-  if (!confirm('Uninstall plugin "' + p.manifest.name + '"?')) return;
+  if (!await confirm('Uninstall plugin "' + p.manifest.name + '"?')) return;
   stopPlugin(p.manifest.id);
   try { await invoke('uninstall_plugin', { id: p.manifest.id }); state.settings.enabled_plugins = state.settings.enabled_plugins.filter(id => id !== p.manifest.id); await saveSettings(); await loadPlugins(); }
-  catch (e) { alert('Uninstall failed: ' + e); }
+  catch (e) { await alert('Uninstall failed: ' + e); }
 }
 async function installPluginFromFile() {
   const r = await pickFile('.json'); if (!r || !r.json) return;
   const j = r.json;
-  if (!j.manifest || !j.code) { alert('Not a valid plugin bundle'); return; }
-  try { await invoke('install_plugin', { manifest: j.manifest, code: j.code }); await loadPlugins(); alert('Plugin "' + j.manifest.name + '" installed.'); }
-  catch (e) { alert('Install failed: ' + e); }
+  if (!j.manifest || !j.code) { await alert('Not a valid plugin bundle'); return; }
+  try { await invoke('install_plugin', { manifest: j.manifest, code: j.code }); await loadPlugins(); await alert('Plugin "' + j.manifest.name + '" installed.'); }
+  catch (e) { await alert('Install failed: ' + e); }
 }
 
 const PLUGIN_BOOTSTRAP = `
@@ -2773,7 +2894,7 @@ async function loadTemplates() {
   catch (e) { state.templates = []; }
   renderTemplateList();
 }
-function renderTemplateList() {
+async function renderTemplateList() {
   const ul = els.templateList; if (!ul) return;
   ul.innerHTML = '';
   if (!state.templates.length) {
@@ -2791,14 +2912,14 @@ function renderTemplateList() {
     main.appendChild(name); main.appendChild(sub);
     const actions = document.createElement('div'); actions.className = 'row-actions';
     actions.appendChild(btn('ghost-btn', 'Use', async () => {
-      const title = prompt('New note title:', t.name);
+      const title = await prompt('New note title:', t.name);
       if (title === null) return;
       const note = await invoke('note_from_template', { templateId: t.id, title });
       closeSettings(); await loadNotes(); openNote(note.id);
       placeCursorAtMarker();
     }));
     actions.appendChild(btn('danger-btn', 'Delete', async () => {
-      if (!confirm('Delete template "' + t.name + '"?')) return;
+      if (!await confirm('Delete template "' + t.name + '"?')) return;
       await invoke('delete_template', { id: t.id }); await loadTemplates();
     }));
     li.appendChild(main); li.appendChild(actions);
@@ -2806,11 +2927,11 @@ function renderTemplateList() {
   }
 }
 async function saveActiveAsTemplate() {
-  if (!state.activeId) { alert('Open a note first, then save it as a template.'); return; }
-  const name = prompt('Template name:', state.active.title || 'New template');
+  if (!state.activeId) { await alert('Open a note first, then save it as a template.'); return; }
+  const name = await prompt('Template name:', state.active.title || 'New template');
   if (!name) return;
   try { await invoke('save_template', { name, body: els.body.value }); await loadTemplates(); }
-  catch (e) { alert('Save failed: ' + e); }
+  catch (e) { await alert('Save failed: ' + e); }
 }
 
 async function openTemplateMenu(anchor) {
@@ -2854,7 +2975,7 @@ function placeCursorAtMarker() {
 }
 
 // v0.15 — context menu for tag chips (rename / filter / clear filter)
-function showTagContextMenu(x, y, tag) {
+async function showTagContextMenu(x, y, tag) {
   const menu = els.ctxMenu; menu.innerHTML = '';
   const items = [
     { label: 'Filter by #' + tag, run: () => { state.activeTag = tag; renderList(); renderTagBar(); } },
@@ -2863,34 +2984,34 @@ function showTagContextMenu(x, y, tag) {
     // v0.64 — set tag color
     { label: 'Set color for #' + tag + '...', run: async () => {
         const cur = ((state.settings && state.settings.tag_colors) || {})[tag] || '';
-        const next = prompt('CSS color for #' + tag + ' (hex like #7aa6ff, named like blue, or blank to clear):', cur);
+        const next = await prompt('CSS color for #' + tag + ' (hex like #7aa6ff, named like blue, or blank to clear):', cur);
         if (next === null) return;
         const v = next.trim();
         const colors = { ...(state.settings.tag_colors || {}) };
         if (!v) delete colors[tag];
         else if (isSafeCssColor(v)) colors[tag] = v;
-        else { alert('Not a recognised color form.'); return; }
+        else { await alert('Not a recognised color form.'); return; }
         state.settings.tag_colors = colors;
         try { await invoke('set_settings', { settings: state.settings }); }
-        catch (e) { alert('Save failed: ' + e); return; }
+        catch (e) { await alert('Save failed: ' + e); return; }
         renderTagBar();
         renderList();
     } },
     { sep: true },
     { label: 'Rename tag (#' + tag + ' → ...)...', run: async () => {
-        const next = prompt('Rename #' + tag + ' to:', tag);
+        const next = await prompt('Rename #' + tag + ' to:', tag);
         if (!next) return;
         const clean = next.trim().replace(/^#/, '').toLowerCase();
-        if (!/^[a-z0-9_-]+$/.test(clean)) { alert('Tag name must be alphanumeric / - / _.'); return; }
+        if (!/^[a-z0-9_-]+$/.test(clean)) { await alert('Tag name must be alphanumeric / - / _.'); return; }
         if (clean === tag) return;
-        if (!confirm(`Rename #${tag} to #${clean} across every non-trashed note? This rewrites note bodies.`)) return;
+        if (!await confirm(`Rename #${tag} to #${clean} across every non-trashed note? This rewrites note bodies.`)) return;
         try {
           const n = await invoke('rename_tag', { oldTag: tag, newTag: clean });
           setStatus(`Renamed #${tag} → #${clean} in ${n} note${n === 1 ? '' : 's'}.`);
           if (state.activeTag === tag) state.activeTag = clean;
           await loadNotes();
           if (state.activeId) await openNote(state.activeId);
-        } catch (e) { alert('Rename failed: ' + e); }
+        } catch (e) { await alert('Rename failed: ' + e); }
     } },
   ];
   for (const it of items) {
@@ -2907,24 +3028,24 @@ function showTagContextMenu(x, y, tag) {
   if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
 }
 
-function showContextMenu(x, y, note) {
+async function showContextMenu(x, y, note) {
   const menu = els.ctxMenu; menu.innerHTML = '';
   const items = [
     { label: note.pinned ? 'Unpin' : 'Pin to top', run: async () => { await invoke('set_pinned', { id: note.id, pinned: !note.pinned }); await loadNotes(); if (state.activeId === note.id) await openNote(note.id); } },
     { label: 'Duplicate', run: async () => { const dup = await invoke('duplicate_note', { id: note.id }); await loadNotes(); openNote(dup.id); } },
     { label: 'Export as Markdown', run: async () => {
       try { const md = await invoke('export_note_md', { id: note.id }); const safe = (note.title || 'Untitled').replace(/[^a-zA-Z0-9_\- ]/g, '_').trim(); downloadText((safe || 'Untitled') + '.md', md, 'text/markdown'); }
-      catch (e) { alert('Export failed: ' + e); }
+      catch (e) { await alert('Export failed: ' + e); }
     } },
     { sep: true },
     // v0.55 — reveal note's .json file in OS file manager
     { label: 'Reveal note file in OS', run: async () => {
       try { await invoke('reveal_note', { id: note.id }); }
-      catch (e) { alert('Reveal failed: ' + e); }
+      catch (e) { await alert('Reveal failed: ' + e); }
     } },
     { sep: true },
     { label: 'Move to trash', danger: true, run: async () => {
-      if (!confirm('Move this note to trash?')) return;
+      if (!await confirm('Move this note to trash?')) return;
       await invoke('delete_note', { id: note.id });
       if (state.activeId === note.id) showEmpty();
       await loadNotes();
@@ -2972,7 +3093,7 @@ function wrapSelection(textarea, before, after, placeholder) {
   scheduleSave();
 }
 
-function applyFormat(fmt) {
+async function applyFormat(fmt) {
   if (!state.activeId) return;
   const ta = els.body;
   switch (fmt) {
@@ -2981,7 +3102,7 @@ function applyFormat(fmt) {
     case 'code':   wrapSelection(ta, '`', '`', 'code'); break;
     case 'strike': wrapSelection(ta, '~~', '~~', 'struck text'); break;
     case 'link': {
-      const url = prompt('URL:', 'https://');
+      const url = await prompt('URL:', 'https://');
       if (!url) return;
       const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
       wrapSelection(ta, '[', `](${url})`, sel || 'link text');
@@ -3070,10 +3191,10 @@ async function saveSnippetsFromTable() {
   try {
     await invoke('save_snippets', { snippets: state.snippets });
     setStatus('Saved ' + state.snippets.length + ' snippet' + (state.snippets.length === 1 ? '' : 's') + '.');
-  } catch (e) { alert('Save failed: ' + e); }
+  } catch (e) { await alert('Save failed: ' + e); }
 }
 async function resetSnippetsToDefaults() {
-  if (!confirm('Reset to default snippets? Your custom snippets will be lost.')) return;
+  if (!await confirm('Reset to default snippets? Your custom snippets will be lost.')) return;
   // Send an empty array — backend default kicks in on next list_snippets call when file is missing.
   // We instead delete the file by saving empty and re-loading.
   try { await invoke('save_snippets', { snippets: [] }); } catch (_) {}
@@ -3154,7 +3275,7 @@ async function quickCaptureSubmit() {
     els.quickCaptureInput.value = '';
     setStatus('Captured to daily note.');
     await loadNotes();
-  } catch (e) { alert('Capture failed: ' + e); }
+  } catch (e) { await alert('Capture failed: ' + e); }
   finally { els.quickCaptureInput.disabled = false; els.quickCaptureInput.focus(); }
 }
 if (els.quickCaptureInput) {
@@ -3165,29 +3286,29 @@ if (els.quickCaptureInput) {
 
 // v0.22 — copy current note's Markdown to clipboard
 async function copyActiveAsMarkdown() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   try {
     const md = await invoke('export_note_md', { id: state.activeId });
     await navigator.clipboard.writeText(md);
     setStatus('Markdown copied to clipboard.');
-  } catch (e) { alert('Copy failed: ' + e); }
+  } catch (e) { await alert('Copy failed: ' + e); }
 }
 
 // v0.26 — copy current note's rendered HTML
 async function copyActiveAsHtml() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   const src = els.body.value || '';
   let { html } = window.Markdown.render(src);
   if (state.settings.smart_typography) { try { html = smartTypography(html); } catch(_){} }
   try {
     await navigator.clipboard.writeText(html);
     setStatus('HTML copied to clipboard.');
-  } catch (e) { alert('Copy failed: ' + e); }
+  } catch (e) { await alert('Copy failed: ' + e); }
 }
 
 // v0.26 — save current note as a self-contained .html file
-function saveActiveAsHtml() {
-  if (!state.activeId) { alert('Open a note first.'); return; }
+async function saveActiveAsHtml() {
+  if (!state.activeId) { await alert('Open a note first.'); return; }
   const src = els.body.value || '';
   let { html } = window.Markdown.render(src);
   if (state.settings.smart_typography) { try { html = smartTypography(html); } catch(_){} }
@@ -3233,7 +3354,7 @@ async function importMultipleMd() {
 
 // v0.40 — auto-lock workspace after N minutes of idle.
 state.idle = { lastActive: Date.now(), interval: null };
-function setupIdleAutoLock() {
+async function setupIdleAutoLock() {
   // Always (re)bind activity listeners.
   if (!state.idle._bound) {
     const reset = () => { state.idle.lastActive = Date.now(); };
@@ -3309,7 +3430,7 @@ function finishPomodoro() {
 
 // v0.66 — Per-note encryption (passphrase per note, kept in memory for the session).
 state.notePassphrases = new Map(); // noteId → plaintext passphrase
-function isNoteEncrypted(body) {
+async function isNoteEncrypted(body) {
   if (!body || body.length < 30 || body.length > 2_000_000) return false;
   if (!body.startsWith('{')) return false;
   try {
@@ -3318,16 +3439,16 @@ function isNoteEncrypted(body) {
   } catch (_) { return false; }
 }
 async function encryptCurrentNote() {
-  if (!state.activeId || !state.active) { alert('Open a note first.'); return; }
+  if (!state.activeId || !state.active) { await alert('Open a note first.'); return; }
   if (isNoteEncrypted(state.active.body || els.body.value || '')) {
-    alert('This note is already encrypted.');
+    await alert('This note is already encrypted.');
     return;
   }
-  const p = prompt('Encrypt this note with passphrase (≥6 chars):');
+  const p = await prompt('Encrypt this note with passphrase (≥6 chars):');
   if (!p) return;
-  if (p.length < 6) { alert('Too short.'); return; }
-  const c = prompt('Confirm passphrase:');
-  if (p !== c) { alert('Passphrases do not match.'); return; }
+  if (p.length < 6) { await alert('Too short.'); return; }
+  const c = await prompt('Confirm passphrase:');
+  if (p !== c) { await alert('Passphrases do not match.'); return; }
   try {
     const envelope = await invoke('encrypt_note_body', { plaintext: els.body.value || '', passphrase: p });
     state.notePassphrases.set(state.activeId, p);
@@ -3338,13 +3459,13 @@ async function encryptCurrentNote() {
     setStatus('Note encrypted.');
     await loadNotes();
     await openNote(state.activeId);
-  } catch (e) { alert('Encrypt failed: ' + e); }
+  } catch (e) { await alert('Encrypt failed: ' + e); }
 }
 async function unlockCurrentNote() {
   if (!state.activeId || !state.active) return;
   const body = els.body.value || state.active.body || '';
-  if (!isNoteEncrypted(body)) { alert('This note is not encrypted.'); return; }
-  const p = prompt('Enter the note\'s passphrase:');
+  if (!isNoteEncrypted(body)) { await alert('This note is not encrypted.'); return; }
+  const p = await prompt('Enter the note\'s passphrase:');
   if (!p) return;
   try {
     const plaintext = await invoke('decrypt_note_body', { envelope: body, passphrase: p });
@@ -3355,7 +3476,7 @@ async function unlockCurrentNote() {
     if (state.preview) renderPreview();
     refreshStats();
     refreshProps();
-  } catch (e) { alert('Unlock failed: ' + e); }
+  } catch (e) { await alert('Unlock failed: ' + e); }
 }
 async function decryptCurrentNotePermanently() {
   if (!state.activeId || !state.active) return;
@@ -3365,13 +3486,13 @@ async function decryptCurrentNotePermanently() {
     await unlockCurrentNote();
     if (isNoteEncrypted(els.body.value || '')) return; // unlock failed
   }
-  if (!confirm('Permanently decrypt this note? Future saves will store plaintext on disk.')) return;
+  if (!await confirm('Permanently decrypt this note? Future saves will store plaintext on disk.')) return;
   state.notePassphrases.delete(state.activeId);
   try {
     await invoke('update_note', { id: state.activeId, title: null, body: els.body.value || '' });
     setStatus('Note permanently decrypted.');
     await loadNotes();
-  } catch (e) { alert('Save failed: ' + e); }
+  } catch (e) { await alert('Save failed: ' + e); }
 }
 
 // v0.62 — wiki-link hover preview.
@@ -4123,40 +4244,40 @@ async function attemptUnlock() {
 }
 
 async function enableLockFlow() {
-  const p = prompt('New passphrase (at least 6 characters):');
+  const p = await prompt('New passphrase (at least 6 characters):');
   if (!p) return;
-  if (p.length < 6) { alert('Passphrase must be at least 6 characters.'); return; }
-  const confirm2 = prompt('Confirm passphrase:');
-  if (p !== confirm2) { alert('Passphrases do not match.'); return; }
+  if (p.length < 6) { await alert('Passphrase must be at least 6 characters.'); return; }
+  const confirm2 = await prompt('Confirm passphrase:');
+  if (p !== confirm2) { await alert('Passphrases do not match.'); return; }
   try {
     await invoke('lock_set', { oldPassphrase: null, newPassphrase: p });
-    alert('Workspace lock enabled. You will be prompted on next launch.');
+    await alert('Workspace lock enabled. You will be prompted on next launch.');
     refreshLockUi();
-  } catch (e) { alert('Failed to enable: ' + e); }
+  } catch (e) { await alert('Failed to enable: ' + e); }
 }
 
 async function changePassphraseFlow() {
-  const oldP = prompt('Current passphrase:');
+  const oldP = await prompt('Current passphrase:');
   if (!oldP) return;
-  const newP = prompt('New passphrase (at least 6 characters):');
+  const newP = await prompt('New passphrase (at least 6 characters):');
   if (!newP) return;
-  if (newP.length < 6) { alert('Passphrase must be at least 6 characters.'); return; }
-  const confirm2 = prompt('Confirm new passphrase:');
-  if (newP !== confirm2) { alert('Passphrases do not match.'); return; }
+  if (newP.length < 6) { await alert('Passphrase must be at least 6 characters.'); return; }
+  const confirm2 = await prompt('Confirm new passphrase:');
+  if (newP !== confirm2) { await alert('Passphrases do not match.'); return; }
   try {
     await invoke('lock_set', { oldPassphrase: oldP, newPassphrase: newP });
-    alert('Passphrase changed.');
-  } catch (e) { alert('Failed: ' + e); }
+    await alert('Passphrase changed.');
+  } catch (e) { await alert('Failed: ' + e); }
 }
 
 async function disableLockFlow() {
-  const p = prompt('Current passphrase to disable lock:');
+  const p = await prompt('Current passphrase to disable lock:');
   if (!p) return;
   try {
     await invoke('lock_disable', { passphrase: p });
-    alert('Workspace lock disabled.');
+    await alert('Workspace lock disabled.');
     refreshLockUi();
-  } catch (e) { alert('Failed: ' + e); }
+  } catch (e) { await alert('Failed: ' + e); }
 }
 
 async function lockNowFlow() {
@@ -4166,7 +4287,7 @@ async function lockNowFlow() {
     if (state.notePassphrases) state.notePassphrases.clear(); // v0.67
     closeSettings();
     showLockScreen();
-  } catch (e) { alert('Lock failed: ' + e); }
+  } catch (e) { await alert('Lock failed: ' + e); }
 }
 
 const PALETTE_COMMANDS = [
@@ -4220,22 +4341,22 @@ const PALETTE_COMMANDS = [
   { name: 'Rename current note...', shortcut: 'F2', run: promptRenameNote },
   { name: 'Edit note properties (frontmatter)...', shortcut: '', run: openPropsModal },
   { name: 'Reveal current note file in OS', shortcut: '', run: async () => {
-      if (!state.activeId) { alert('Open a note first.'); return; }
+      if (!state.activeId) { await alert('Open a note first.'); return; }
       try { await invoke('reveal_note', { id: state.activeId }); }
-      catch (e) { alert('Reveal failed: ' + e); }
+      catch (e) { await alert('Reveal failed: ' + e); }
   } },
   // v0.60 — quick wins
   { name: 'New note from clipboard', shortcut: '', run: async () => {
       let text = '';
       try { text = await navigator.clipboard.readText(); } catch (_) { text = ''; }
-      if (!text || !text.trim()) { alert('Clipboard is empty (or permission denied).'); return; }
+      if (!text || !text.trim()) { await alert('Clipboard is empty (or permission denied).'); return; }
       const lines = text.replace(/\r\n?/g, '\n').split('\n');
       const title = (lines[0] || '').trim().replace(/^#+\s*/, '').slice(0, 120) || 'From clipboard';
       const body = text;
       try {
         const note = await invoke('create_note', { title, body });
         await loadNotes(); openNote(note.id);
-      } catch (e) { alert('Create failed: ' + e); }
+      } catch (e) { await alert('Create failed: ' + e); }
   } },
   { name: 'Insert today\'s date at caret', shortcut: '', run: () => {
       if (!els.body) return;
@@ -4258,11 +4379,11 @@ const PALETTE_COMMANDS = [
       try {
         await invoke('set_always_on_top', { value: !!state.alwaysOnTop });
         setStatus('Always-on-top: ' + (state.alwaysOnTop ? 'ON' : 'OFF'));
-      } catch (e) { alert('Failed: ' + e); }
+      } catch (e) { await alert('Failed: ' + e); }
   } },
   { name: 'Compare current note with another...', shortcut: '', run: compareWithNote },
-  { name: 'Show this note\'s top words', shortcut: '', run: () => {
-      if (!state.activeId) { alert('Open a note first.'); return; }
+  { name: 'Show this note\'s top words', shortcut: '', run: async () => {
+      if (!state.activeId) { await alert('Open a note first.'); return; }
       const text = (els.body && els.body.value) || '';
       const stop = new Set([
         'the','a','an','of','to','and','or','but','is','are','was','were','in','on','at','by','for','with','as','be','been','being','have','has','had','do','does','did','will','would','shall','should','can','could','may','might','must','this','that','these','those','i','you','he','she','we','they','it','me','him','her','us','them','my','your','his','their','its','our','if','then','than','so','up','down','out','from','into','about','over','under','more','most','some','any','no','not','only','just','also','very','too','such','what','which','who','whom','whose','where','when','why','how','all','each','every','many','much','few','other','another','same','own','new','old','see'
@@ -4276,9 +4397,9 @@ const PALETTE_COMMANDS = [
         counts.set(w, (counts.get(w) || 0) + 1);
       }
       const top = Array.from(counts.entries()).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0, 30);
-      if (!top.length) { alert('No words.'); return; }
+      if (!top.length) { await alert('No words.'); return; }
       const lines = top.map(([w, c], i) => `${(i+1).toString().padStart(2,' ')}. ${w}  (${c})`);
-      alert('Top words in this note:\n\n' + lines.join('\n'));
+      await alert('Top words in this note:\n\n' + lines.join('\n'));
   } },
   // v0.73 — workspace overview as a single dialog (no UI dependencies; reuses dashboard_stats).
   { name: 'Show workspace overview', shortcut: '', run: async () => {
@@ -4301,26 +4422,26 @@ const PALETTE_COMMANDS = [
           (s.earliest ? `Earliest note:   ${new Date(s.earliest).toLocaleString()}` : ''),
           (s.latest   ? `Latest note:     ${new Date(s.latest).toLocaleString()}` : ''),
         ].filter(Boolean);
-        alert(lines.join('\n'));
-      } catch (e) { alert('Overview failed: ' + e); }
+        await alert(lines.join('\n'));
+      } catch (e) { await alert('Overview failed: ' + e); }
   } },
   { name: 'Show top 30 words across all notes', shortcut: '', run: async () => {
     try {
       const top = await invoke('top_words', { limit: 30 });
-      if (!top.length) { alert('No words yet — write some notes first.'); return; }
+      if (!top.length) { await alert('No words yet — write some notes first.'); return; }
       const lines = top.map(([w, c], i) => `${(i + 1).toString().padStart(2,' ')}. ${w}  (${c})`);
-      alert('Top words across the workspace:\n\n' + lines.join('\n'));
-    } catch (e) { alert('Failed: ' + e); }
+      await alert('Top words across the workspace:\n\n' + lines.join('\n'));
+    } catch (e) { await alert('Failed: ' + e); }
   } },
   { name: 'Duplicate current note as...', shortcut: '', run: async () => {
     if (!state.activeId) return;
-    const newTitle = prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
+    const newTitle = await prompt('New title for the copy:', (state.active && state.active.title || 'Untitled') + ' (copy)');
     if (newTitle === null) return;
     try {
       const dup = await invoke('duplicate_note', { id: state.activeId });
       await invoke('update_note', { id: dup.id, title: newTitle, body: null });
       await loadNotes(); openNote(dup.id);
-    } catch (e) { alert('Duplicate failed: ' + e); }
+    } catch (e) { await alert('Duplicate failed: ' + e); }
   } },
   { name: 'Editor: increase font', shortcut: 'Ctrl+=', run: () => bumpFontSize(1) },
   { name: 'Editor: decrease font', shortcut: 'Ctrl+-', run: () => bumpFontSize(-1) },
@@ -4632,7 +4753,7 @@ els.openReleasesBtn.addEventListener('click', openReleasesPage);
 
 els.activeThemeSelect.addEventListener('change', () => { const id = els.activeThemeSelect.value; applyTheme(id); state.settings.theme = id; saveSettings(); renderThemeList(); });
 els.openThemeEditorBtn.addEventListener('click', () => switchTab('themes'));
-els.openDataBtn.addEventListener('click', () => invoke('open_data_dir').catch(e => alert('Open failed: ' + e)));
+els.openDataBtn.addEventListener('click', () => invoke('open_data_dir').catch(async (e) => await alert('Open failed: ' + e)));
 els.newThemeBtn.addEventListener('click', () => openThemeEditor(blankTheme()));
 els.importThemeBtn.addEventListener('click', importTheme);
 els.teSaveBtn.addEventListener('click', saveThemeFromEditor);
@@ -4695,13 +4816,13 @@ els.exportWorkspaceBtn.addEventListener('click', exportWorkspace);
 els.importWorkspaceBtn.addEventListener('click', importWorkspace);
 if (els.exportWorkspaceEncBtn) els.exportWorkspaceEncBtn.addEventListener('click', exportWorkspaceEncrypted);
 if (els.resetSettingsBtn) els.resetSettingsBtn.addEventListener('click', async () => {
-  if (!confirm('Reset every setting to its default? Notes / themes / templates / plugins / snippets are not touched.')) return;
+  if (!await confirm('Reset every setting to its default? Notes / themes / templates / plugins / snippets are not touched.')) return;
   try {
     const fresh = await invoke('reset_settings');
     state.settings = fresh;
     await loadSettings();
     setStatus('Settings reset to defaults.');
-  } catch (e) { alert('Reset failed: ' + e); }
+  } catch (e) { await alert('Reset failed: ' + e); }
 });
 if (els.optBackupReminder) els.optBackupReminder.addEventListener('change', saveSettings);
 if (els.navBackBtn) els.navBackBtn.addEventListener('click', navBack);
@@ -4722,7 +4843,7 @@ if (els.pomodoro) els.pomodoro.addEventListener('click', () => { if (state.pomod
 if (els.purgeNowBtn) els.purgeNowBtn.addEventListener('click', async () => {
   const n = await purgeEligibleTrash();
   refreshTrashBadge();
-  if (n === 0) alert('No trashed notes are old enough to purge.');
+  if (n === 0) await alert('No trashed notes are old enough to purge.');
 });
 
 // v0.30 — Search modal listeners
@@ -4837,7 +4958,7 @@ if (els.sidebar) {
       try {
         const note = await invoke('import_md', { content: text, suggestedTitle: 'Dropped text' });
         await loadNotes(); openNote(note.id);
-      } catch (e2) { alert('Create failed: ' + e2); }
+      } catch (e2) { await alert('Create failed: ' + e2); }
     }
   });
 }
@@ -5170,7 +5291,7 @@ async function refreshBoard() {
         await refreshBoard();
         if (state.activeId === cardId) await openNote(cardId);
         await loadNotes();
-      } catch (e2) { alert('Failed: ' + e2); }
+      } catch (e2) { await alert('Failed: ' + e2); }
     });
     els.boardGrid.appendChild(colEl);
   }

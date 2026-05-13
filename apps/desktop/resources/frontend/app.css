@@ -248,24 +248,65 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
 
-.setting-group { padding: 6px 0 14px; border-bottom: 1px solid var(--border); }
-.setting-group:last-child { border-bottom: none; padding-bottom: 0; }
+/* v0.76 — Settings polish: card-style groups + token-based spacing.
+   Phase-2 of the UI remake plan, brought forward from v0.79. */
+.setting-group {
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.setting-group:last-child { margin-bottom: 0; }
 .setting-group h3 {
-  margin: 0 0 8px; font-size: 12px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.7px;
+  margin: 0 0 var(--sp-4); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
   color: var(--text-3);
 }
-.setting-group h4 { margin: 14px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
+.setting-group h4 { margin: var(--sp-5) 0 var(--sp-3); font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+
+/* v0.76 — Setting rows. Wrapper <label> spans the whole row so a click on
+   the row text toggles the checkbox. The inner <div> grows to fill so the
+   help line never orphans below the checkbox (the bug from v0.75). */
 .setting-row {
-  display: flex; gap: 12px; align-items: center;
-  padding: 10px 0; flex-wrap: wrap;
+  display: flex; gap: var(--sp-4); align-items: flex-start;
+  padding: var(--sp-3) 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
-.setting-row > label { display: flex; align-items: center; gap: 8px; }
-.setting-row input[type=checkbox] { margin-top: 0; cursor: pointer; }
-.setting-name { color: var(--text); font-size: 13.5px; font-weight: 500; }
-.setting-help { color: var(--text-2); font-size: 12.5px; line-height: 1.45; margin: 4px 0 0; }
+.setting-row:first-of-type { border-top: none; padding-top: var(--sp-2); }
+.setting-row:last-child { padding-bottom: var(--sp-2); }
+label.setting-row { cursor: pointer; }
+label.setting-row:hover .setting-name { color: var(--accent); }
+.setting-row input[type=checkbox] {
+  margin: 2px 0 0; cursor: pointer; flex-shrink: 0;
+  width: 16px; height: 16px; accent-color: var(--accent);
+}
+.setting-row > div { flex: 1; min-width: 0; }
+.setting-row > label:not(.setting-row) {
+  display: flex; align-items: center; gap: var(--sp-3);
+  font-size: 13.5px; color: var(--text);
+}
+.setting-name { color: var(--text); font-size: 13.5px; font-weight: 500; line-height: 1.4; }
+.setting-help { color: var(--text-2); font-size: 12.5px; line-height: 1.5; margin: var(--sp-1) 0 0; }
 .setting-help a { color: var(--accent); text-decoration: none; }
 .setting-help a:hover { text-decoration: underline; }
+.setting-row .select { min-width: 180px; max-width: 320px; }
+
+/* v0.76 — Custom dialog modal */
+.dlg-modal { width: min(440px, 92vw); }
+.dlg-modal .modal-head h2 { font-size: 15px; }
+.dlg-message {
+  color: var(--text); font-size: 13.5px; line-height: 1.5;
+  margin: 0 0 var(--sp-4); white-space: pre-line;
+}
+.dlg-input { width: 100%; margin-top: var(--sp-3); font-size: 13.5px; }
+.dlg-foot {
+  display: flex; justify-content: flex-end; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+.dlg-modal.dlg-danger #dlg-ok { background: var(--danger); color: white; }
+.dlg-modal.dlg-alert #dlg-cancel { display: none; }
 
 .select, .text-input {
   background: var(--bg); color: var(--text);
@@ -1384,3 +1425,16 @@ body.resizing-sidebar .sidebar-divider { background: var(--accent); opacity: 0.6
   color: var(--text-2); font-style: italic; font-size: 12px;
   display: block; /* override row alignment */
 }
+
+/* --- v0.76 — Density presets ----------------------------------------- */
+/* Multiplies every spacing token at :root scope. Phase-1 (v0.75) shipped
+   the tokens; this is what they're for. */
+body.density-compact {
+  --sp-1: 3px; --sp-2: 4px; --sp-3: 6px; --sp-4: 9px;
+  --sp-5: 12px; --sp-6: 18px; --sp-7: 24px; --sp-8: 36px;
+}
+body.density-spacious {
+  --sp-1: 5px; --sp-2: 8px; --sp-3: 11px; --sp-4: 16px;
+  --sp-5: 22px; --sp-6: 32px; --sp-7: 44px; --sp-8: 64px;
+}
+/* density-comfortable inherits the :root tokens (default values). */

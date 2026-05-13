@@ -1,16 +1,16 @@
 {
   "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated alongside each tagged release. The signature field carries a minisign signature of the corresponding installer; the matching public key is baked into apps/desktop/tauri.conf.json under plugins.updater.pubkey.",
-  "version": "0.10.0",
-  "notes": "Mycelium v0.10.0-beta.1 — quality of life: drag-reorder pinned notes, multi-select sidebar with bulk pin / unpin / trash / export, in-editor find & replace (Ctrl+H), locale + i18n stub. Includes the v0.9.0 visualization work (Dashboard tab with at-a-glance stats, top tags, 12-week activity heatmap, interactive [[wiki-link]] note graph). See https://github.com/Arka-ui/mycelium/releases/tag/v0.10.0-beta.1 for full notes.",
-  "pub_date": "2026-05-12T04:30:00Z",
+  "version": "0.75.0",
+  "notes": "Mycelium v0.75.0-beta.1 — 65 betas of accumulated work since v0.10.0. Highlights: per-note encryption (v0.66), encrypted-note lock glyph (v0.74), pinned-section split (v0.71), back/forward navigation (v0.57), board / calendar / tasks views, snapshot diff, smart paste, drop-to-create, custom keyboard shortcuts, draft restore, properties form, rename rewrites wiki-links, LaTeX expansion (v0.72), workspace overview palette command (v0.73). v0.75 itself adds: sync policy scaffold (Settings → Sync; transport M1-pending), UI remake Phase 1 (spacing tokens, z-index audit, overlap fixes), 4 new themes (Solarized Dark/Light, Dracula, Nord), and a 'Saved X ago' editor footer indicator. See https://github.com/Arka-ui/mycelium/releases/tag/v0.75.0-beta.1 for the full per-version detail in CHANGELOG.md.",
+  "pub_date": "2026-05-13T20:22:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WU0wT2lDZldVMnlSZVJpWXdPQWhBc3JvWTZ0SDdUcE03SHRtRHlZblFOVVNJaDNNNVNYZXJvbXB4ZVR1QlFJV0UrVWFyLzE4L3FMck9JRXpmRi9KZVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTU5Mjg3CWZpbGU6TXljZWxpdW1fMC4xMC4wX3g2NC1zZXR1cC5leGUKdU5rdFRmREo5SlZpb1VDLzBnaWVabU1XaGZVRUkvNWRKWEtiVmtHazc5NjF6bFhTUk5zUGNLekRwell0d3FWVlQzWGV5bFJMVDlpQTVTeEd6SDgxREE9PQo=",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WU01WC9mQnNwODdjaGUzZFlWNXV3V1VIT0xEMFFIbnlxOW9TbmdNWEpLQmVKcVdrL3dRcGEyMGpqYXBBSkpTZFB2QVdMMTF0MFZ6d2JsbUFSRnRKOUFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzAyNzM5CWZpbGU6TXljZWxpdW1fMC43NS4wX3g2NC1zZXR1cC5leGUKTnJTWk9tVzRvZTJNaFBsWnRJSTRONTZGYUJNOEZSdzRoN0pjZXE3MncyNnhNTWtjYjFkNjZCd0dIYmVqRkwxOHBnUkgzVUluT1BYMkR1MTFIM2U5QlE9PQo=",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.75.0-beta.1/Mycelium_0.75.0_x64-setup.exe"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUEwbEluUEs1Rzc3d3JxL3VERmRtTkcxalZRMUJvTy9hVUNTaElTb3h6Qk5QYi9pSjFyNmJtRFA5bTd6ci9aZWNBZU9hRkxuMENVVUJPaE1qZmtwOWdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NTU4OTE2CWZpbGU6TXljZWxpdW1fMC4xMC4wX2FtZDY0LkFwcEltYWdlCjRSa0xTZDVTQ3RWVW5FQUtjRWhzakl2bWRoeVpscDNubWNaQTNRUkFHanRUWFZTYjU3R1d3TFY1dkcvWCs2Vm5VNDY0MHo3Ym5LV0NZSGRUVDBUQ0RnPT0K",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.10.0-beta.1/Mycelium_0.10.0_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUJMcTRsNTVXRjFSSEtwVEJ6cElMMjdkMTNhVmRqcmRXMUVuTURGWW9PWVlUY2VYejAyN2xvVDdSMytjVmQzWFlmZFFOVlR3U1pBalJqMWFmSU9jVWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzAyNDM0CWZpbGU6TXljZWxpdW1fMC43NS4wX2FtZDY0LkFwcEltYWdlCitzVHJJallJMXoxQ3orZWhmSS9qRUsxd0hIYlo5cHhQOHJsWHg5WThHdVhyZk1wQ0hERkdFNW9iRlpPS2x3S3FrOGRqazR2Uzg3UVJESlBXdHNTcER3PT0K",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.75.0-beta.1/Mycelium_0.75.0_amd64.AppImage"
     }
   }
 }

@@ -160,6 +160,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <span id="stat-chars">0 chars</span>
           <span id="stat-read">~1 min read</span>
           <span id="stat-goal" class="hidden"></span>
+          <span id="stat-saved-ago" class="muted-sep hidden" title="Last saved"></span>
         </div>
         <span id="save-state">saved</span>
       </footer>
@@ -201,6 +202,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <button class="tab-btn" data-tab="themes">Themes</button>
       <button class="tab-btn" data-tab="plugins">Plugins</button>
       <button class="tab-btn" data-tab="data">Data</button>
+      <button class="tab-btn" data-tab="sync">Sync</button>
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="board">Board</button>
       <button class="tab-btn" data-tab="calendar">Calendar</button>
@@ -494,6 +496,50 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             <button id="open-data-btn" class="ghost-btn">Open data folder</button>
           </div>
           <p class="setting-help">Notes, themes, plugins, templates and history live in <code>%APPDATA%\Mycelium\</code>.</p>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="sync">
+        <div class="setting-group">
+          <h3>Sync policy</h3>
+          <div class="setting-row">
+            <select id="opt-sync-policy" class="select">
+              <option value="wifi_only">WiFi only — never sync on cellular</option>
+              <option value="wifi_cell_light">WiFi + cellular (light) — metadata &amp; small diffs only on cellular</option>
+              <option value="wifi_cell_full">WiFi + cellular (full) — sync everything; cellular uses op-batching and compression</option>
+              <option value="manual">Manual — only sync when you press the button</option>
+            </select>
+          </div>
+          <p class="setting-help">Real device sync (Iroh + Loro CRDT) lands in milestone M1. The policy you choose here is the authoritative contract that the future sync engine will read.</p>
+        </div>
+
+        <div class="setting-group">
+          <h3>Connection</h3>
+          <div class="setting-row">
+            <select id="opt-sync-connection-override" class="select">
+              <option value="">Auto-detect (recommended)</option>
+              <option value="wifi">Force WiFi</option>
+              <option value="cellular">Force cellular</option>
+              <option value="ethernet">Force ethernet</option>
+            </select>
+          </div>
+          <p class="setting-help">Auto-detect uses the OS-reported connection class. Override it if you are tethering and the OS reports the wrong type, or to test policy rules.</p>
+        </div>
+
+        <div class="setting-group">
+          <h3>Status</h3>
+          <div id="sync-status-card" class="sync-status">
+            <div class="sync-row"><span class="sync-k">Policy</span><span id="sync-v-policy" class="sync-v">—</span></div>
+            <div class="sync-row"><span class="sync-k">Connection</span><span id="sync-v-connection" class="sync-v">—</span></div>
+            <div class="sync-row"><span class="sync-k">Peers reachable</span><span id="sync-v-peers" class="sync-v">—</span></div>
+            <div class="sync-row"><span class="sync-k">Queued operations</span><span id="sync-v-queued" class="sync-v">—</span></div>
+            <div class="sync-row"><span class="sync-k">Last sync</span><span id="sync-v-last" class="sync-v">—</span></div>
+            <div class="sync-row sync-reason"><span id="sync-v-reason"></span></div>
+          </div>
+          <div class="setting-row" style="margin-top:8px;">
+            <button id="sync-now-btn" class="ghost-btn">Sync now</button>
+            <button id="sync-refresh-btn" class="ghost-btn">Refresh status</button>
+          </div>
         </div>
       </section>
 

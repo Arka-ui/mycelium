@@ -24,11 +24,14 @@
   --sp-6: 24px;
   --sp-7: 32px;
   --sp-8: 48px;
-  /* v0.75 — Phase-1 z-index scale. Replaces ad-hoc `z-index: 9999`. */
+  /* v0.75 — Phase-1 z-index scale. Replaces ad-hoc `z-index: 9999`.
+     `--z-palette` sits between the modal backdrop and the modal itself, so
+     when both are open the modal still wins without relying on DOM order. */
   --z-base: 0;
   --z-sticky: 100;
   --z-floating: 300;
   --z-modal-backdrop: 800;
+  --z-palette: 850;
   --z-modal: 900;
   --z-toast: 1000;
   color-scheme: dark;
@@ -461,7 +464,7 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
 }
 /* v0.75 — last-saved relative timestamp in the editor footer */
 .stats .muted-sep { color: var(--text-3); opacity: 0.85; cursor: default; }
-.stats .muted-sep::before { content: "·"; margin-right: 10px; opacity: 0.55; }
+.stats .muted-sep::before { content: "·"; margin-right: var(--sp-3); opacity: 0.55; }
 
 .trash-pane {
   display: flex; flex-direction: column;
@@ -486,8 +489,10 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);
   display: flex; align-items: flex-start; justify-content: center;
-  /* v0.75 — Phase-1: palette is a modal (not a popover); should outrank floating layers. */
-  z-index: var(--z-modal); padding-top: 18vh;
+  /* v0.75 — Phase-1: palette gets its own layer between modal-backdrop and
+     modal so opening Settings deterministically covers it (no DOM-order
+     dependency), but opening the palette over the editor still works. */
+  z-index: var(--z-palette); padding-top: 18vh;
   backdrop-filter: blur(2px);
 }
 .cmd-palette.hidden { display: none; }

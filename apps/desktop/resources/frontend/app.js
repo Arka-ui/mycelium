@@ -2049,13 +2049,19 @@ function detectConnectionClass() {
   try {
     const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     if (!c) return '';
-    // `type` is the most reliable when present (wifi, cellular, ethernet, none, ...).
-    if (c.type && c.type !== 'unknown') return c.type;
-    // Fall back to effectiveType. 4g / 5g default to "cellular" because that's
-    // the only signal we have; users can override via the Settings dropdown.
+    // Normalize `type` into the four classes the Rust matches arm understands.
+    // The NetInfo spec defines more values (`none`, `bluetooth`, `wimax`, `mixed`, `other`)
+    // that we collapse so the backend doesn't have to track every transport.
+    if (c.type) {
+      if (c.type === 'wifi' || c.type === 'ethernet' || c.type === 'cellular') return c.type;
+      if (c.type === 'wimax' || c.type === 'bluetooth') return 'cellular'; // metered-ish — treat conservatively
+      if (c.type === 'none') return 'offline';
+      // `mixed`, `other`, `unknown` → let the manual override decide.
+      return '';
+    }
+    // Fall back to effectiveType.
     if (c.effectiveType) {
-      if (c.effectiveType === '4g' || c.effectiveType === '5g') return 'cellular';
-      if (c.effectiveType === '3g' || c.effectiveType === '2g' || c.effectiveType === 'slow-2g') return 'cellular';
+      if (['2g', 'slow-2g', '3g', '4g', '5g'].includes(c.effectiveType)) return 'cellular';
     }
     return '';
   } catch (_) { return ''; }
@@ -2105,8 +2111,18 @@ if (els.optSyncConnectionOverride) {
 }
 if (els.syncRefreshBtn) els.syncRefreshBtn.addEventListener('click', refreshSyncStatus);
 if (els.syncNowBtn) els.syncNowBtn.addEventListener('click', async () => {
-  try { await invoke('sync_now'); setStatus('Sync triggered.'); }
-  catch (e) { setStatus(String(e)); }
+  // v0.75 quality-fix — sync_now returns a structured result (not an Err) so
+  // the M1-pending case displays as info rather than a runtime error.
+  try {
+    const r = await invoke('sync_now');
+    if (r && r.kind === 'pending_m1') setStatus(r.message);
+    else if (r && r.kind === 'ok') setStatus('Sync complete.');
+    else if (r && r.message) setStatus(r.message);
+    else setStatus('Sync triggered.');
+  } catch (e) {
+    // Genuine error path — only reached if the command itself panics.
+    setStatus('Sync error: ' + String(e));
+  }
   refreshSyncStatus();
 });
 // React to OS connection changes (Chromium fires this; others silently no-op).

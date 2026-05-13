@@ -13,12 +13,15 @@ This document is the source of truth. Each phase has a concrete deliverable and 
 **Goal**: stop the bleeding on overlap bugs and establish design tokens everything downstream depends on.
 
 - Replace inline `gap: 8px`, `padding: 12px 16px` literals scattered across `app.css` with a CSS-variable scale `--sp-1` through `--sp-8` (4px / 6px / 8px / 12px / 16px / 24px / 32px / 48px).
-- Add a `--z-*` token group: `--z-base: 0`, `--z-sticky: 100`, `--z-floating: 300`, `--z-modal-backdrop: 800`, `--z-modal: 900`, `--z-toast: 1000`. Replace ad-hoc `z-index: 9999` with named tokens.
-- Fix the three audited overlaps:
-  - **Bulk-bar over editor footer** — bulk-bar is a sticky panel with `bottom: 0`; it competes with `.ed-foot`. Phase 1 lifts bulk-bar to `bottom: 32px` when the footer is visible, and adds a 10px backdrop blur so the footer remains readable.
-  - **Filter pill + tab bar** — the filter pill is currently absolutely positioned and can sit on top of the tab bar when the sidebar is narrow. Phase 1 reflows the pill as part of the tab-bar row when width < 320px.
-  - **Today-section header + note list** — the collapse caret has no padding-left, so on first render the caret sits flush against the section title. Phase 1 adds `gap: var(--sp-2)`.
-- Audit modal z-indexes: all six modals (settings, theme editor, history, snapshot diff, search, properties) now share `--z-modal`, and the global `#modal-backdrop` uses `--z-modal-backdrop`. The command palette uses `--z-floating` because it is dismissible by Esc and lets you keep interacting with the underlying editor.
+- Add a `--z-*` token group: `--z-base: 0`, `--z-sticky: 100`, `--z-floating: 300`, `--z-modal-backdrop: 800`, `--z-palette: 850`, `--z-modal: 900`, `--z-toast: 1000`. Replace ad-hoc `z-index: 9999` and the nine pre-existing values (50 / 90 / 95 / 100 / 200 / 250 / 300 / 500) with named tokens.
+- Fix the audited overlaps that have a real reproduction in v0.75:
+  - **Bulk-bar buttons clipping at narrow sidebar widths** — the bulk-action row had a fixed flex layout that overflowed under ~280 px sidebar width. Phase 1 adds `flex-wrap` + `min-width: 0` and rebases padding/margin on `--sp-*` tokens.
+  - **Today-section spacing** — re-based padding/margin on the new tokens.
+- Audit modal z-indexes: all six modals (settings, theme editor, history, snapshot diff, search, properties) sit at `--z-modal`; the global `#modal-backdrop` uses `--z-modal-backdrop`; **the command palette sits at the dedicated `--z-palette` layer between backdrop and modal**, so opening Settings deterministically covers an already-open palette without relying on DOM order.
+
+### Deferred from Phase 1 (moved into Phase 2)
+- **Bulk-bar floating mode** (sticky panel with `bottom: 32px` and a backdrop-blur over the editor footer) — only useful once the bulk-bar leaves the sidebar, which is a Phase-2 layout-grid task.
+- **Filter pill below 320 px** — needs the container-query infrastructure from Phase 2 to do cleanly without media-query fragility.
 
 **Acceptance**: open all six modals one after another, then resize the window to 600 × 400. No layout artifact, no stacked backdrops, no scroll trap.
 

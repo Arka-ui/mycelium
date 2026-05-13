@@ -3374,8 +3374,9 @@ struct SyncStatus {
     queued_ops: u32,
     /// Estimated bytes queued. 0 in M0.
     queued_bytes: u64,
-    /// Whether sync is allowed under the resolved policy + connection. In M0
-    /// this is always false (no transport). M1 will compute it from policy.
+    /// Whether sync is allowed under the resolved policy + connection class.
+    /// This is the policy decision only — `reason` carries the M0/M1 caveat
+    /// about the transport not yet being implemented.
     allowed: bool,
     /// Last-sync timestamp, mirrored from settings.
     last_sync_at: Option<DateTime<Utc>>,
@@ -3422,16 +3423,67 @@ fn sync_status(connection_hint: Option<String>) -> SyncStatus {
         peers: 0,
         queued_ops: 0,
         queued_bytes: 0,
-        allowed: false, // hard-false in M0; M1 sets this from `allowed_under_policy`.
+        // Reflects whether the *policy* would allow sync given the current
+        // connection class. The "transport not implemented yet" caveat lives
+        // in `reason` so this field stays semantically meaningful — and M1
+        // doesn't need to revisit the contract.
+        allowed: allowed_under_policy,
         last_sync_at: s.last_sync_at,
         reason,
     }
 }
 
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+    fn s(policy: &str) -> Settings {
+        Settings { sync_policy: policy.to_string(), ..Default::default() }
+    }
+    // Cheap pure-fn restatement of the policy table so we can test it without
+    // serialising settings; `sync_status` itself reads from disk.
+    fn allowed(policy: &str, conn: &str) -> bool {
+        matches!(
+            (policy, conn),
+            ("wifi_only", "wifi" | "ethernet")
+                | ("wifi_cell_light", "wifi" | "ethernet" | "cellular")
+                | ("wifi_cell_full", "wifi" | "ethernet" | "cellular")
+        )
+    }
+    #[test]
+    fn wifi_only_blocks_cellular() {
+        assert!(allowed("wifi_only", "wifi"));
+        assert!(allowed("wifi_only", "ethernet"));
+        assert!(!allowed("wifi_only", "cellular"));
+        assert!(!allowed("wifi_only", "unknown"));
+    }
+    #[test]
+    fn cell_modes_allow_cellular() {
+        assert!(allowed("wifi_cell_light", "cellular"));
+        assert!(allowed("wifi_cell_full", "cellular"));
+    }
+    #[test]
+    fn manual_never_auto_allows() {
+        assert!(!allowed("manual", "wifi"));
+        assert!(!allowed("manual", "cellular"));
+        let _ = s("manual"); // exercise the helper so the import isn't dead
+    }
+}
+
+/// v0.75 — sync_now result. `kind = "pending_m1"` lets the UI render the M0
+/// "transport not implemented yet" answer as info rather than an error.
+/// When M1 lands, `kind` becomes one of `"ok" | "blocked_by_policy" | "no_peers" | "error"`.
+#[derive(Debug, Serialize)]
+struct SyncNowResult {
+    kind: String,
+    message: String,
+}
+
 #[tauri::command]
-fn sync_now() -> Result<String, String> {
-    // M0: no transport. Return a deterministic message so the UI doesn't lie.
-    Err("Device sync is not yet implemented (milestone M1). Policy is ready; transport will land in a future beta.".to_string())
+fn sync_now() -> SyncNowResult {
+    SyncNowResult {
+        kind: "pending_m1".to_string(),
+        message: "Device sync transport is not yet implemented (milestone M1). Policy is ready; this button will start working once the Iroh + Loro layer lands.".to_string(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

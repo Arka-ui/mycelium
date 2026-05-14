@@ -182,6 +182,8 @@ const els = {};
   'opt-sync-policy','opt-sync-connection-override','sync-status-card','sync-v-policy','sync-v-connection','sync-v-peers','sync-v-queued','sync-v-last','sync-v-reason','sync-now-btn','sync-refresh-btn',
   // v0.76 — density preset + editor line-height.
   'opt-density','opt-line-height',
+  // v0.77 — Settings UX: search, advanced toggle, two new auto-update controls.
+  'settings-search','opt-show-advanced','opt-auto-install-updates','opt-beta-updates',
 ].forEach(id => { els[toCamel(id)] = document.getElementById(id); });
 function toCamel(s) { return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase()); }
 
@@ -2135,8 +2137,59 @@ async function loadSettings() {
     if (els.optLineHeight) els.optLineHeight.value = String(state.settings.editor_line_height);
     applyDensity();
     applyEditorLineHeight();
+    // v0.77 — Updates tab settings + Show-advanced toggle UX.
+    if (state.settings.auto_install_updates_on_launch === undefined) state.settings.auto_install_updates_on_launch = false;
+    if (state.settings.beta_updates === undefined) state.settings.beta_updates = false;
+    if (state.settings.show_advanced_settings === undefined) state.settings.show_advanced_settings = false;
+    if (els.optAutoInstallUpdates) els.optAutoInstallUpdates.checked = !!state.settings.auto_install_updates_on_launch;
+    if (els.optBetaUpdates) els.optBetaUpdates.checked = !!state.settings.beta_updates;
+    if (els.optShowAdvanced) els.optShowAdvanced.checked = !!state.settings.show_advanced_settings;
+    applyShowAdvanced();
   } catch (e) { console.error(e); }
 }
+
+// v0.77 — Show-advanced toggle. Adds/removes a body class that flips the
+// CSS rule hiding [data-advanced] rows in the Settings modal.
+function applyShowAdvanced() {
+  document.body.classList.toggle('show-advanced-settings', !!state.settings.show_advanced_settings);
+}
+if (els.optShowAdvanced) els.optShowAdvanced.addEventListener('change', async () => {
+  state.settings.show_advanced_settings = els.optShowAdvanced.checked;
+  try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+  applyShowAdvanced();
+});
+
+// v0.77 — Search filter for Settings. Type in the modal-head search input;
+// rows whose label/help text don't include the query get hidden. Empty
+// groups fade out.
+function filterSettings() {
+  const q = ((els.settingsSearch && els.settingsSearch.value) || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#modal-backdrop .setting-row');
+  if (!q) {
+    rows.forEach(r => r.classList.remove('settings-hidden'));
+    document.querySelectorAll('#modal-backdrop .setting-group').forEach(g => g.classList.remove('settings-empty-group'));
+    return;
+  }
+  rows.forEach(r => {
+    const txt = r.textContent.toLowerCase();
+    r.classList.toggle('settings-hidden', !txt.includes(q));
+  });
+  document.querySelectorAll('#modal-backdrop .setting-group').forEach(g => {
+    const visible = g.querySelectorAll('.setting-row:not(.settings-hidden)').length;
+    g.classList.toggle('settings-empty-group', visible === 0);
+  });
+}
+if (els.settingsSearch) els.settingsSearch.addEventListener('input', filterSettings);
+
+// v0.77 — Updates tab handlers.
+if (els.optAutoInstallUpdates) els.optAutoInstallUpdates.addEventListener('change', async () => {
+  state.settings.auto_install_updates_on_launch = els.optAutoInstallUpdates.checked;
+  try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+});
+if (els.optBetaUpdates) els.optBetaUpdates.addEventListener('change', async () => {
+  state.settings.beta_updates = els.optBetaUpdates.checked;
+  try { await invoke('set_settings', { settings: state.settings }); } catch (e) {}
+});
 
 // v0.76 — UI density preset (CSS class on body), editor line-height inline.
 function applyDensity() {
@@ -4523,12 +4576,36 @@ async function checkForUpdates(quiet) {
   try {
     const u = await checkUpdate();
     if (u && u.available) {
+      // v0.77 — Beta-channel gating. If the user has not opted into beta
+      // updates, skip any pre-release version (semver pre-release identifier
+      // present, or version contains -beta / -rc / -alpha). When Mycelium
+      // ships its first stable release this becomes the meaningful path; for
+      // now every release is a beta and the toggle defaults off, so we DON'T
+      // gate yet — once stable releases exist, flip the comment below.
+      const isPrerelease = /-(beta|rc|alpha|preview|dev)/i.test(u.version || '');
+      // const STABLE_RELEASES_EXIST = false; // becomes true at first stable
+      // if (isPrerelease && STABLE_RELEASES_EXIST && !state.settings.beta_updates) {
+      //   state.pendingUpdate = null;
+      //   els.updateAvailable.classList.add('hidden');
+      //   if (!quiet) els.updateStatus.textContent = 'A pre-release update was available, but beta updates are disabled in Settings → Updates.';
+      //   return;
+      // }
       state.pendingUpdate = u;
       els.updateAvailable.classList.remove('hidden');
-      els.updateVersion.textContent = 'v' + u.version;
+      els.updateVersion.textContent = 'v' + u.version + (isPrerelease ? ' (pre-release)' : '');
       els.updateNotes.textContent = (u.body || '').trim() || '(no release notes)';
       els.updateStatus.textContent = '';
       setStatus('update available: v' + u.version);
+      // v0.77 — Auto-install on launch. When `quiet` is true (boot-time check)
+      // and the user opted into auto-install-on-launch, fire the install
+      // immediately. We still respect the once-per-launch contract by guarding
+      // on `state._autoInstallFiredThisLaunch`.
+      if (quiet && state.settings.auto_install_updates_on_launch && !state._autoInstallFiredThisLaunch) {
+        state._autoInstallFiredThisLaunch = true;
+        // Tiny delay so the user sees the "update available" toast before the
+        // download dialog takes over.
+        setTimeout(() => installUpdate(), 1200);
+      }
     } else {
       state.pendingUpdate = null;
       els.updateAvailable.classList.add('hidden');

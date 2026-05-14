@@ -192,26 +192,32 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
 </div>
 
 <div id="modal-backdrop" class="modal-backdrop hidden">
-  <div class="modal" role="dialog" aria-labelledby="modal-title">
-    <header class="modal-head">
+  <div class="modal modal-settings" role="dialog" aria-labelledby="modal-title">
+    <header class="modal-head settings-head">
       <h2 id="modal-title">Settings</h2>
+      <input id="settings-search" class="text-input settings-search" type="search" placeholder="Search settings…" autocomplete="off" spellcheck="false">
+      <label class="settings-advanced-toggle" title="Reveal less-used options">
+        <input id="opt-show-advanced" type="checkbox">
+        <span>Show advanced</span>
+      </label>
       <button id="modal-close" class="icon-btn" title="Close (Esc)">&times;</button>
     </header>
-    <nav class="modal-tabs">
-      <button class="tab-btn active" data-tab="general">General</button>
-      <button class="tab-btn" data-tab="themes">Themes</button>
-      <button class="tab-btn" data-tab="plugins">Plugins</button>
-      <button class="tab-btn" data-tab="data">Data</button>
-      <button class="tab-btn" data-tab="sync">Sync</button>
-      <button class="tab-btn" data-tab="dashboard">Dashboard</button>
-      <button class="tab-btn" data-tab="board">Board</button>
-      <button class="tab-btn" data-tab="calendar">Calendar</button>
-      <button class="tab-btn" data-tab="snippets">Snippets</button>
-      <button class="tab-btn" data-tab="shortcuts">Shortcuts</button>
-      <button class="tab-btn" data-tab="updates">Updates</button>
-      <button class="tab-btn" data-tab="about">About</button>
-    </nav>
-    <div class="modal-body">
+    <div class="settings-layout">
+      <nav class="modal-tabs settings-side-nav" aria-label="Settings sections">
+        <button class="tab-btn active" data-tab="general"><span class="tab-icon">◐</span><span>General</span></button>
+        <button class="tab-btn" data-tab="themes"><span class="tab-icon">◑</span><span>Themes</span></button>
+        <button class="tab-btn" data-tab="plugins"><span class="tab-icon">◇</span><span>Plugins</span></button>
+        <button class="tab-btn" data-tab="data"><span class="tab-icon">◰</span><span>Data</span></button>
+        <button class="tab-btn" data-tab="sync"><span class="tab-icon">↻</span><span>Sync</span></button>
+        <button class="tab-btn" data-tab="dashboard"><span class="tab-icon">◧</span><span>Dashboard</span></button>
+        <button class="tab-btn" data-tab="board"><span class="tab-icon">◨</span><span>Board</span></button>
+        <button class="tab-btn" data-tab="calendar"><span class="tab-icon">▤</span><span>Calendar</span></button>
+        <button class="tab-btn" data-tab="snippets"><span class="tab-icon">≡</span><span>Snippets</span></button>
+        <button class="tab-btn" data-tab="shortcuts"><span class="tab-icon">⌘</span><span>Shortcuts</span></button>
+        <button class="tab-btn" data-tab="updates"><span class="tab-icon">↥</span><span>Updates</span></button>
+        <button class="tab-btn" data-tab="about"><span class="tab-icon">ⓘ</span><span>About</span></button>
+      </nav>
+    <div class="modal-body settings-content">
 
       <section class="tab-pane active" data-pane="general">
         <div class="setting-group">
@@ -265,16 +271,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">A persistent input above the note list — type a thought, press Enter, and it gets appended (timestamped) to today's daily note. The daily note is created if it doesn't exist.</div>
             </div>
           </label>
-          <label class="setting-row">
-            <input id="opt-auto-wiki-link" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-auto-wiki-link" type="checkbox">
             <div>
               <div class="setting-name">Auto-link known note titles in preview</div>
               <div class="setting-help">When on, plain-text occurrences of any existing note title (3+ chars) become clickable wiki-links in preview. Source text is unchanged.</div>
             </div>
           </label>
-          <div class="setting-row">
-            <label>Focus timer (Pomodoro)
-              <select id="opt-pomodoro" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="5">5 min</option>
                 <option value="10">10 min</option>
                 <option value="15">15 min</option>
@@ -288,29 +291,25 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             </label>
             <span class="setting-help">Start the timer from the palette ("Start focus timer"). Footer shows the live countdown.</span>
           </div>
-          <label class="setting-row">
-            <input id="opt-spell-check" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-spell-check" type="checkbox">
             <div>
               <div class="setting-name">Browser spell-check in title and body</div>
               <div class="setting-help">Underlines misspelled words. Right-click for suggestions. Off by default to keep code-text clean.</div>
             </div>
           </label>
-          <label class="setting-row">
-            <input id="opt-auto-pair" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-auto-pair" type="checkbox">
             <div>
               <div class="setting-name">Auto-pair brackets and quotes</div>
               <div class="setting-help">Typing <code>(</code>, <code>[</code>, <code>{</code>, <code>"</code>, <code>'</code> or <code>`</code> auto-inserts the closing pair. With a selection, surrounds it.</div>
             </div>
           </label>
-          <label class="setting-row">
-            <input id="opt-smart-lists" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-smart-lists" type="checkbox">
             <div>
               <div class="setting-name">Smart list continuation &amp; indent</div>
               <div class="setting-help">Enter on <code>- foo</code> starts a new <code>-</code> bullet (ditto for <code>1.</code> numbered lists). Enter on an empty bullet exits the list. <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> indent / outdent within lists. Auto-indent matches leading whitespace of the previous line.</div>
             </div>
           </label>
-          <label class="setting-row">
-            <input id="opt-strip-trailing-ws" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-strip-trailing-ws" type="checkbox">
             <div>
               <div class="setting-name">Strip trailing whitespace on save</div>
               <div class="setting-help">Removes trailing spaces and tabs from every line before persisting. Off by default; turn on for cleaner Markdown diffs in version control.</div>
@@ -323,16 +322,13 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
               <div class="setting-help">When off, long lines scroll horizontally instead of wrapping. Useful for tables and ASCII art.</div>
             </div>
           </label>
-          <label class="setting-row">
-            <input id="opt-smart-typography" type="checkbox">
+          <label class="setting-row" data-advanced><input id="opt-smart-typography" type="checkbox">
             <div>
               <div class="setting-name">Smart typography in preview</div>
               <div class="setting-help">In preview only: <code>--</code> becomes &mdash;, <code>...</code> becomes &hellip;, straight quotes become typographic quotes. Source text is unchanged.</div>
             </div>
           </label>
-          <div class="setting-row">
-            <label>Editor line height
-              <select id="opt-line-height" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="1.3">1.3 — tight</option>
                 <option value="1.45">1.45</option>
                 <option value="1.6" selected>1.6 (default)</option>
@@ -342,9 +338,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             </label>
             <span class="setting-help">Vertical spacing between lines in the editor.</span>
           </div>
-          <div class="setting-row">
-            <label>Editor font size
-              <select id="opt-editor-font-size" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="12">12 px</option>
                 <option value="13">13 px</option>
                 <option value="14">14 px</option>
@@ -360,9 +354,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <div class="setting-group">
           <h3>Note list</h3>
-          <div class="setting-row">
-            <label>Sort by
-              <select id="opt-sort" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="updated">Updated (newest first)</option>
                 <option value="created">Created (newest first)</option>
                 <option value="title">Title (A-Z)</option>
@@ -373,9 +365,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <div class="setting-group">
           <h3>Language</h3>
-          <div class="setting-row">
-            <label>Locale
-              <select id="opt-locale" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="en">English</option>
                 <option value="fr">Français (community)</option>
                 <option value="de">Deutsch (community)</option>
@@ -392,9 +382,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <p class="setting-help" id="lock-state-text">Loading...</p>
           <div class="setting-row" id="lock-controls"></div>
           <p class="setting-help">When the workspace lock is enabled, the app starts on a passphrase prompt and every note is encrypted at rest with ChaCha20-Poly1305 (key derived from your passphrase via 50,000 iterations of BLAKE3). With a strong passphrase, even disk-level access cannot read your notes without it. Lose the passphrase = lose the data.</p>
-          <div class="setting-row">
-            <label>Auto-lock after idle
-              <select id="opt-auto-lock-idle" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="0">Disabled</option>
                 <option value="1">1 minute</option>
                 <option value="5">5 minutes</option>
@@ -478,9 +466,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         <div class="setting-group">
           <h3>Backup &amp; restore</h3>
           <p class="setting-help">A workspace backup is one JSON file containing every note, theme, template and your settings. Use it to migrate to another machine, archive a snapshot in time, or recover after a disk failure.</p>
-          <div class="setting-row">
-            <label>Backup reminder
-              <select id="opt-backup-reminder" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="0">Off</option>
                 <option value="3">Every 3 days</option>
                 <option value="7">Weekly</option>
@@ -498,9 +484,7 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
         </div>
         <div class="setting-group">
           <h3>Trash retention</h3>
-          <div class="setting-row">
-            <label>Auto-purge trashed notes after
-              <select id="opt-trash-days" class="select">
+          <div class="setting-row" data-advanced> class="select">
                 <option value="0">Never</option>
                 <option value="7">7 days</option>
                 <option value="14">14 days</option>
@@ -658,7 +642,27 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
             <input id="opt-auto-update" type="checkbox">
             <div>
               <div class="setting-name">Check for updates automatically</div>
-              <div class="setting-help">Mycelium looks for new versions on launch. Updates are minisign-signed; only matching signatures are installed.</div>
+              <div class="setting-help">Mycelium looks for new versions on launch. Updates are minisign-signed; only matching signatures are installed. Default <strong>on</strong>.</div>
+            </div>
+          </label>
+          <label class="setting-row">
+            <input id="opt-auto-install-updates" type="checkbox">
+            <div>
+              <div class="setting-name">Install updates automatically at launch</div>
+              <div class="setting-help">When a stable update is found at startup, install it without prompting and restart. Skips the "Update available" dialog. Only fires once per launch. Default <strong>off</strong> — explicit consent required.</div>
+            </div>
+          </label>
+          <label class="setting-row" data-advanced>
+            <input id="opt-beta-updates" type="checkbox">
+            <div>
+              <div class="setting-name">Allow beta updates</div>
+              <div class="setting-help">
+                <strong>Recommended off.</strong> When on, Mycelium accepts pre-release builds (tags ending in <code>-beta.N</code>) as valid updates. Pre-release builds may contain bugs, change behavior between releases, and occasionally require a one-shot note migration on first launch. Stable releases stay the default channel.
+                <br><br>
+                Pair with <em>Install updates automatically at launch</em> only if you accept the risk; the safer combination for beta-channel users is to leave auto-install <strong>off</strong> so you can read the release notes before installing.
+                <br><br>
+                <em>Note: Mycelium has no stable releases yet — every published version is currently a beta. This toggle is groundwork for when stable shipping starts.</em>
+              </div>
             </div>
           </label>
           <div class="setting-row">
@@ -687,16 +691,17 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
       <section class="tab-pane" data-pane="about">
         <div class="setting-group">
           <h3>About Mycelium</h3>
-          <p>Version: <strong id="about-version">v0.74.0</strong></p>
+          <p>Version: <strong id="about-version">v0.77.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.74: encrypted-note lock glyph — every per-note-encrypted note now shows a 🔒 next to its title in the sidebar so you can spot which ones still need a passphrase to read.</p>
+          <p class="setting-help">Beta.77: full UI/UX softening pass — vertical sidebar nav for Settings, search-as-you-type filter, "Show advanced" toggle to hide power-user options, softer borders + larger radii throughout, and two new auto-update controls in the Updates tab.</p>
           <div class="setting-row">
             <button id="reset-settings-btn" class="danger-btn">Reset settings to defaults</button>
           </div>
         </div>
       </section>
 
+    </div>
     </div>
   </div>
 </div>

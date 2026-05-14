@@ -1,3 +1,36 @@
+# Mycelium v0.77.0-beta.1 - Soft UI/UX remake + auto-update controls
+
+beta.77 is a serious UI/UX softening pass and brings two requested update controls. Direct response to v0.76 feedback ("looks horrible, too many elements at once").
+
+## New in v0.77.0
+
+### Settings UX overhaul
+- **Vertical sidebar** replaces the cramped horizontal tab strip. Each tab gets a small glyph + label; active tab shows an accent-tinted pill background.
+- **Search box** in the modal header. Type any word — settings rows whose label or help text don't match get hidden. Empty groups fade out.
+- **"Show advanced" toggle** in the modal header. 14 niche options (locale, smart-typography, auto-pair, smart-lists, strip-trailing-ws, auto-link, auto-lock-idle, sort-by, line-height, font-size, etc.) are tagged `data-advanced` and hidden by default. Power users flip the toggle to reveal them.
+- Modal grew to 960 px wide (was 720) to accommodate the sidebar without crowding the content area.
+
+### Visual softening
+- Modal chrome: 14 px radius (was 10), softer 70 %-alpha border, layered drop shadow (1 px hairline + 12 px halo).
+- Setting cards: 14 px radius, 40 %-alpha border, inset 4 %-alpha highlight + 2 px shadow. Reads as "elevated surface" instead of "boxed-in container".
+- Focus rings: dropped from solid `--accent` to 70 %-alpha `--accent`. Less shouty.
+- Card backgrounds: subtle blend of `--bg` and `--bg-2` instead of pure `--bg` (less stark contrast against the modal body).
+- Tab buttons: 120 ms ease transitions on hover/active.
+
+### Updates tab — two new controls (user-requested)
+- **Install updates automatically at launch** (default off). When on, the boot-time update check skips the "Update available" dialog and installs immediately. Fires once per launch. Explicit consent — off by default.
+- **Allow beta updates** (advanced; default off). Opt-in to pre-release builds (tags ending in `-beta.N`). Detailed warning text in the help line:
+  > Pre-release builds may contain bugs, change behavior between releases, and occasionally require a one-shot note migration on first launch. Stable releases stay the default channel. Pair with auto-install only if you accept the risk.
+- Implementation note: every Mycelium release today is still a beta, so the gating is **dormant** (commented gate in `checkForUpdates`). The toggle and storage are scaffolded so the moment Mycelium ships its first stable release, flipping the gate is a one-line change. Pre-release versions also get a "(pre-release)" badge in the update card.
+
+### Backend
+- `Settings` gains `auto_install_updates_on_launch: bool`, `beta_updates: bool`, `show_advanced_settings: bool`. All `#[serde(default)]` for transparent migration.
+
+### Auto-update
+- Pushing v0.77.0-beta.1 triggers signed builds + a manifest update.
+
+---
+
 # Mycelium v0.76.0-beta.1 - Custom dialogs + Settings polish
 
 beta.76 kills the "tauri.localhost says" leak from native browser dialogs and brings the Settings UI redesign forward from the v0.79 slot in the plan. Two visible changes plus density/line-height controls.

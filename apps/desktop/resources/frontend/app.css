@@ -113,7 +113,7 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 7px 10px;
 }
-#search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#search:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
 
 .primary-btn {
   margin: 6px 12px 8px;
@@ -226,36 +226,124 @@ body.sidebar-collapsed #app { grid-template-columns: 0 0 1fr; }
 .modal-backdrop > .modal { z-index: var(--z-modal); position: relative; }
 .modal {
   background: var(--bg-2); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
+  /* v0.77 — softer chrome: lighter border, larger radius, layered shadow. */
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 14px;
   width: min(720px, 94vw); max-height: 88vh;
   display: flex; flex-direction: column;
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18), 0 12px 40px rgba(0,0,0,0.32);
 }
 .modal-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 .modal-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
-.modal-tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--border); }
+.modal-tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
 .tab-btn {
   background: transparent; border: none; color: var(--text-2);
   padding: 10px 14px; cursor: pointer; font-size: 13px;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 120ms ease, background-color 120ms ease;
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
-.modal-body { padding: 14px 18px; overflow-y: auto; }
+.modal-body { padding: var(--sp-5); overflow-y: auto; }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
 
-/* v0.76 — Settings polish: card-style groups + token-based spacing.
-   Phase-2 of the UI remake plan, brought forward from v0.79. */
+/* v0.77 — Settings modal: vertical sidebar layout + search + advanced toggle.
+   Replaces the previously cramped horizontal tab strip. */
+.modal-settings { width: min(960px, 96vw); }
+.modal-settings .modal-head { gap: var(--sp-4); }
+.modal-settings .modal-head h2 { flex-shrink: 0; }
+.settings-search {
+  flex: 1; min-width: 0; max-width: 280px;
+  padding: 7px 12px; font-size: 13px;
+  background: color-mix(in srgb, var(--bg-3) 70%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: 999px;
+}
+.settings-search:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 1px; }
+.settings-advanced-toggle {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: 12.5px; color: var(--text-2);
+  cursor: pointer; padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.settings-advanced-toggle:hover { background: var(--bg-3); color: var(--text); }
+.settings-advanced-toggle input[type=checkbox] {
+  accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer;
+}
+.settings-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  flex: 1; min-height: 0; overflow: hidden;
+}
+.settings-side-nav {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: var(--sp-3);
+  border-bottom: none;
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--bg) 50%, var(--bg-2));
+  overflow-y: auto;
+}
+.settings-side-nav .tab-btn {
+  display: flex; align-items: center; gap: var(--sp-3);
+  text-align: left; padding: var(--sp-3) var(--sp-4);
+  border: none; border-radius: var(--radius-sm);
+  margin-bottom: 0; font-size: 13.5px; color: var(--text-2);
+  width: 100%;
+}
+.settings-side-nav .tab-btn .tab-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  font-size: 14px; color: var(--text-3);
+  border-radius: 6px; background: transparent;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.settings-side-nav .tab-btn:hover {
+  background: color-mix(in srgb, var(--bg-3) 60%, transparent);
+}
+.settings-side-nav .tab-btn:hover .tab-icon { color: var(--text); }
+.settings-side-nav .tab-btn.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-2));
+  color: var(--text);
+}
+.settings-side-nav .tab-btn.active .tab-icon {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+}
+.settings-content {
+  padding: var(--sp-5) var(--sp-6);
+  background: var(--bg-2);
+  overflow-y: auto;
+}
+/* "No matches" empty state for the search filter */
+.settings-content .settings-empty {
+  text-align: center; padding: var(--sp-6) var(--sp-4);
+  color: var(--text-3); font-size: 13px;
+}
+/* "Show advanced" controls progressive disclosure of niche options. */
+body:not(.show-advanced-settings) .modal-settings [data-advanced] { display: none !important; }
+/* Search-as-you-type uses .settings-hidden to hide non-matching rows. */
+.settings-content .settings-hidden { display: none !important; }
+/* When all rows in a group are hidden, fade out the empty group */
+.setting-group.settings-empty-group { opacity: 0.4; }
+
+/* v0.76+v0.77 — Settings cards: progressively softer chrome.
+   v0.77 drops the hard border to a hairline and adds a subtle inner
+   highlight + drop shadow so cards read as "elevated surface" rather
+   than "boxed-in container". */
 .setting-group {
-  padding: var(--sp-5);
-  margin-bottom: var(--sp-4);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--sp-5) var(--sp-6);
+  margin-bottom: var(--sp-5);
+  background: color-mix(in srgb, var(--bg) 85%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent) inset,
+              0 2px 8px rgba(0,0,0,0.08);
 }
 .setting-group:last-child { margin-bottom: 0; }
 .setting-group h3 {
@@ -313,7 +401,7 @@ label.setting-row:hover .setting-name { color: var(--accent); }
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 6px 9px; min-width: 180px; max-width: 100%;
 }
-.select:focus, .text-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.select:focus, .text-input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
 
 .update-card {
   margin-top: 8px; padding: 12px;
@@ -786,7 +874,7 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 10px 12px; font-size: 14px;
 }
-.lock-card input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.lock-card input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
 .lock-card .primary-btn { width: 100%; margin: 0; padding: 10px 16px; }
 .lock-err { color: var(--danger); margin-top: 12px; min-height: 18px; }
 
@@ -874,7 +962,7 @@ body.theme-hc .preview pre code .hl-num { color: #ff80ff; }
   padding: 5px 8px;
   flex: 1; min-width: 80px;
 }
-.find-bar input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.find-bar input[type="text"]:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
 .find-bar .ghost-btn { padding: 4px 9px; font-size: 12px; }
 .find-count { color: var(--text-3); font-size: 11.5px; min-width: 50px; text-align: right; }
 
@@ -1051,7 +1139,7 @@ textarea.body-input { tab-size: 2; }
   padding: 6px 10px; font-size: 12.5px;
 }
 #quick-capture-input::placeholder { color: var(--text-3); }
-#quick-capture-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-style: solid; }
+#quick-capture-input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; border-style: solid; }
 #quick-capture-input:disabled { opacity: 0.5; }
 
 /* --- v0.24 — sidebar resize / collapse ------------------------------- */

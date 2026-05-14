@@ -3237,6 +3237,20 @@ struct Settings {
     /// v0.76 — editor line-height in CSS units. Default `1.6`. Range 1.2..2.4.
     #[serde(default = "default_line_height")]
     editor_line_height: f32,
+    /// v0.77 — install updates automatically at launch (default off, explicit
+    /// consent). When on, the boot-time update check skips the "Update
+    /// available" dialog and installs immediately. Frontend-driven.
+    #[serde(default)]
+    auto_install_updates_on_launch: bool,
+    /// v0.77 — opt into pre-release / beta updates. Default off. When off and
+    /// stable releases exist, the updater skips any version with a -beta /
+    /// -rc / -alpha marker. (No-op until Mycelium ships its first stable.)
+    #[serde(default)]
+    beta_updates: bool,
+    /// v0.77 — Settings: reveal advanced options (locale, smart-typography,
+    /// auto-pair, etc.) by default. Default off so the modal stays calm.
+    #[serde(default)]
+    show_advanced_settings: bool,
 }
 
 fn default_backup_reminder_days() -> u32 {
@@ -3337,6 +3351,9 @@ impl Default for Settings {
             last_sync_at: None,
             density: "comfortable".to_string(),
             editor_line_height: 1.6,
+            auto_install_updates_on_launch: false,
+            beta_updates: false,
+            show_advanced_settings: false,
         }
     }
 }

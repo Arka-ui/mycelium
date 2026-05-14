@@ -1,16 +1,16 @@
 {
   "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated alongside each tagged release. The signature field carries a minisign signature of the corresponding installer; the matching public key is baked into apps/desktop/tauri.conf.json under plugins.updater.pubkey.",
-  "version": "0.76.0",
-  "notes": "Mycelium v0.76.0-beta.1 — direct UX response to the v0.75 feedback. (1) Custom in-app modal replaces window.confirm/alert/prompt — no more 'tauri.localhost says' chrome on delete confirms or anywhere else. (2) Settings UI redesign (Phase 2 of the remake plan, brought forward): orphan-checkbox bug fixed, card-style group panels, token-based spacing, hover-row tinting. (3) Two new settings: UI density preset (Compact / Comfortable / Spacious) and editor line-height (1.3..2.0). See https://github.com/Arka-ui/mycelium/releases/tag/v0.76.0-beta.1 for full notes.",
-  "pub_date": "2026-05-13T23:04:00Z",
+  "version": "0.77.0",
+  "notes": "Mycelium v0.77.0-beta.1 — direct response to v0.76 feedback. Settings UX overhaul: vertical sidebar nav (was cramped horizontal tabs), search box that filters rows live, and 'Show advanced' toggle that hides 14 niche options by default so the modal stays calm. Visual softening throughout: 14px radii, 70%-alpha borders, layered shadows, gentler focus rings. New Updates-tab controls: 'Install updates automatically at launch' (default off, explicit consent — boot-time check installs without prompting) and 'Allow beta updates' (advanced; default off; warning explains breakage / migration risk; gating dormant until first stable ships). See https://github.com/Arka-ui/mycelium/releases/tag/v0.77.0-beta.1 for full notes.",
+  "pub_date": "2026-05-14T03:13:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WU5ZNGtGaEZ3Y3RlVEp3R0lZU01HWFZPVkIvcytUNkJpR2N4U3J5QVFGZTdCeDUrMjNodXQxVjJJVC9zbE9qUVUwWDJrT2dNWjZhNGlXaWVacnZYQmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzEyNjExCWZpbGU6TXljZWxpdW1fMC43Ni4wX3g2NC1zZXR1cC5leGUKc3Y5dEFkZmRvR005akgyRXh6UVk1Q002Q1k5bW96OVBIZjFoTTJJZlVQa3NTYWc2d29OdjV0L3dlZExUVWw0ZHloaktPdWp4R205UXd3aVRPcGVQQXc9PQo=",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.76.0-beta.1/Mycelium_0.76.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUsrUVBCaEVoUktLTzhCR1QveEN6MXdsU21DL1g5aEVTSm5ESEdLWXF0dElTNFo3MElYcXF3cTY5Mk55bG9XTFdtUHM5K05oQVR4OE5MU3FzVi9ZMndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzI3NzYzCWZpbGU6TXljZWxpdW1fMC43Ny4wX3g2NC1zZXR1cC5leGUKczIvVHF1Z1VnakxjZUlOV0oyc0xBR0JIcU9ab0xaQmdZZFpGSFkxMUwwT2t3ZmJPTTBLN0RFNWdmODlzWHVRZ0pyRllZNGczelNyQzdHMFZXMWtLQkE9PQo=",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.77.0-beta.1/Mycelium_0.77.0_x64-setup.exe"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WU0zWkhka3VOWmswSGpvWmhrb1NQT3p4OThrUFVNR0docjdEekFvdS96aXVoZGNmOG92SERTTFc4dTdtUmhwQ1VwZTgvQUtTeWYxbk5VWXhQOThjN0FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzEyMjE3CWZpbGU6TXljZWxpdW1fMC43Ni4wX2FtZDY0LkFwcEltYWdlCk5RdjBWVEM2bFVySVhzUWZ3RHVxWThKVUw3b2QwNnh2T0EwZTAvWnJtQkVuN2VOY0dLVW5rMThpbnFQVVVtcDMyMnhxNk5BN213TE0yV04rN3pZbEJRPT0K",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.76.0-beta.1/Mycelium_0.76.0_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUZMME1kNzl1V1hlVUh4VGJmNjkybEhmOHRuTFczMHhBb1QySEQ5MS9IeFFHN2VXZ0J2MEV1eVhNbTVhK0tHdTdlOVJabG9TMjRWcFBXbWVNM0xVMVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzI3MTc4CWZpbGU6TXljZWxpdW1fMC43Ny4wX2FtZDY0LkFwcEltYWdlCndWd3V5YndBclV3bUl6ZWsxeVhNV3Q0bnd2YU50SEpnMDFtMFVINU92UDVVVEpwVXhyZnZuZFFOTUdFSjA5VThzQkFmV2UvaVQxL3lrRUlyaTJrU0R3PT0K",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.77.0-beta.1/Mycelium_0.77.0_amd64.AppImage"
     }
   }
 }

@@ -4637,6 +4637,8 @@ async function installUpdate() {
 }
 function skipUpdate() { state.pendingUpdate = null; els.updateAvailable.classList.add('hidden'); els.updateStatus.textContent = ''; }
 function openReleasesPage() { try { window.open(RELEASES_URL, '_blank', 'noopener'); } catch (e) {} }
+// v0.78 — open the canonical Promise document on GitHub.
+function openPromisePage() { try { window.open('https://github.com/Arka-ui/mycelium/blob/main/PROMISE.md', '_blank', 'noopener'); } catch (e) {} }
 
 document.addEventListener('keydown', (e) => {
   const target = e.target;
@@ -4827,6 +4829,7 @@ els.checkUpdateBtn.addEventListener('click', () => checkForUpdates(false));
 els.installUpdateBtn.addEventListener('click', installUpdate);
 els.skipUpdateBtn.addEventListener('click', skipUpdate);
 els.openReleasesBtn.addEventListener('click', openReleasesPage);
+{ const pb = document.getElementById('open-promise-btn'); if (pb) pb.addEventListener('click', openPromisePage); }
 
 els.activeThemeSelect.addEventListener('change', () => { const id = els.activeThemeSelect.value; applyTheme(id); state.settings.theme = id; saveSettings(); renderThemeList(); });
 els.openThemeEditorBtn.addEventListener('click', () => switchTab('themes'));

@@ -1,3 +1,28 @@
+# Mycelium v0.78.0-beta.1 - The Mycelium Promise
+
+beta.78 adds **The Mycelium Promise**: a binding, versioned commitment that the official version stays free, server-less, and uncollectable — with an honest disclaimer that the promise binds the official build only and that forks can break it.
+
+## New in v0.78.0
+
+### `PROMISE.md` (repo root, canonical)
+- Free / open source / staying that way.
+- **Your data**: the promise is framed honestly as an *architectural* guarantee, not a trust-me policy. Local-first, no server, no account, no telemetry. Precise crypto spec: ChaCha20-Poly1305 AEAD, 256-bit key derived via 50,000 iterations of BLAKE3 over a domain-separated, per-workspace-salted input, 96-bit OS-random nonce per encryption, passphrase never persisted, no master key / no backdoor.
+- **Money**: no subscriptions / paywalls / ads; no one asks for or accepts money; the single narrow exception (a user spontaneously thanking a developer) is spelled out with the "no developer may ask, may always refuse" guard.
+- **Transparency**: project costs always public.
+- **Fork disclaimer**: explicitly scopes the promise to the official source + signed releases; states plainly that open source means anyone can fork, that we don't control forks, and that a malicious fork can strip encryption / add telemetry / inject ads / exfiltrate notes and still call itself "Mycelium." Tells users to install only from the official releases page and trust the signed auto-updater.
+
+### In-app surfacing
+- New **About → The Mycelium Promise** panel renders the full promise (your data / money / transparency) plus the fork disclaimer styled as a left-bordered warning block, with a "Read the full promise on GitHub" button linking to `PROMISE.md`.
+- README gains a quoted Promise callout linking to `PROMISE.md`.
+
+### No code-behavior changes
+- Pure documentation + UI surfacing. No new Tauri commands, no settings, no migration. Crypto wording was cross-checked against the actual implementation in `apps/desktop/src/main.rs` (`derive_master_key`, `encrypt_for_disk`) so the spec in the promise is exact, not aspirational.
+
+### Auto-update
+- Pushing v0.78.0-beta.1 triggers signed builds + a manifest update.
+
+---
+
 # Mycelium v0.77.0-beta.1 - Soft UI/UX remake + auto-update controls
 
 beta.77 is a serious UI/UX softening pass and brings two requested update controls. Direct response to v0.76 feedback ("looks horrible, too many elements at once").

@@ -1526,3 +1526,23 @@ body.density-spacious {
   --sp-5: 22px; --sp-6: 32px; --sp-7: 44px; --sp-8: 64px;
 }
 /* density-comfortable inherits the :root tokens (default values). */
+
+/* --- v0.78 — The Mycelium Promise (About tab) ------------------------ */
+.promise-group {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+}
+.promise-group h3 { color: var(--accent); }
+.promise-lead {
+  font-size: 14px; color: var(--text); margin: 0 0 var(--sp-3);
+}
+.promise-group h4 {
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-size: 12px; font-weight: 700; color: var(--text);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.promise-warn {
+  border-left: 2px solid var(--danger);
+  padding-left: var(--sp-4);
+  color: var(--text-2);
+}

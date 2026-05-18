@@ -694,9 +694,33 @@ Use # heading, **bold**, *italic*, `code`, - bullet, - [ ] task, | tables |, > q
           <p>Version: <strong id="about-version">v0.77.0</strong></p>
           <p>Local-first notes. Source: <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a></p>
           <p>Issues: <a href="https://github.com/Arka-ui/mycelium/issues" target="_blank" rel="noopener">file a bug</a></p>
-          <p class="setting-help">Beta.77: full UI/UX softening pass — vertical sidebar nav for Settings, search-as-you-type filter, "Show advanced" toggle to hide power-user options, softer borders + larger radii throughout, and two new auto-update controls in the Updates tab.</p>
+          <p class="setting-help">Beta.78: introduces <strong>The Mycelium Promise</strong> (below) — a binding commitment that the official version stays free, server-less, and uncollectable.</p>
           <div class="setting-row">
             <button id="reset-settings-btn" class="danger-btn">Reset settings to defaults</button>
+          </div>
+        </div>
+
+        <div class="setting-group promise-group">
+          <h3>🌱 The Mycelium Promise</h3>
+          <p class="promise-lead"><strong>Mycelium is free, open, and open source. It will stay that way.</strong></p>
+
+          <h4>Your data</h4>
+          <p class="setting-help">Mycelium cannot collect your notes — that's an architectural fact, not a policy you have to trust. The app is <strong>local-first</strong>: your notes live only on this device, in your OS app-data folder. There is no Mycelium server, no account, no telemetry, no analytics. The only network call the official app makes on its own is the update check against the public GitHub release manifest — and you can turn that off.</p>
+          <p class="setting-help">When you enable the workspace lock or per-note encryption, content is sealed with <strong>ChaCha20-Poly1305</strong> using a 256-bit key derived from your passphrase via <strong>50,000 iterations of BLAKE3</strong> over a domain-separated, per-workspace-salted input, with a fresh 96-bit OS-random nonce per encryption. Your passphrase is never written to disk. There is no master key and no backdoor — nobody on the project, the author included, can read your notes.</p>
+
+          <h4>Money</h4>
+          <p class="setting-help">No subscriptions, no paywalls, no "pro" tier, no ads in the official version. The author does not ask for or accept money for this project, and neither does anyone else on the team. The only exception: a user may, on their own initiative, thank an individual developer — but no developer is ever allowed to ask, nothing is gated behind it, and every developer stays free to refuse.</p>
+
+          <h4>Transparency</h4>
+          <p class="setting-help">The project's running costs will always be communicated publicly.</p>
+
+          <p class="setting-help">Mycelium exists for a freer, safer internet, accessible to everyone.</p>
+
+          <h4>Official version vs. forks — please read</h4>
+          <p class="setting-help promise-warn">This promise binds the <strong>official Mycelium</strong> only: the source at <a href="https://github.com/Arka-ui/mycelium" target="_blank" rel="noopener">github.com/Arka-ui/mycelium</a> and the signed release binaries from that repository (verified by the updater's built-in signing key). The official version will keep this promise <strong>no matter what</strong>.</p>
+          <p class="setting-help promise-warn">Mycelium is open source, so anyone may legally fork it. We do not control or endorse forks or third-party rebuilds. A malicious fork <strong>can</strong> strip the encryption, add telemetry, inject ads, or exfiltrate your notes — and still call itself "Mycelium." Only install from the official releases page, and let the in-app updater (which verifies the official signature) handle updates.</p>
+          <div class="setting-row">
+            <button id="open-promise-btn" class="ghost-btn">Read the full promise on GitHub</button>
           </div>
         </div>
       </section>

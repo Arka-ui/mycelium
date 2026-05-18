@@ -12,6 +12,9 @@
 
 > **Mycelium** is a local-first, end-to-end encrypted, peer-to-peer collaborative knowledge workspace. Notes, documents, tasks, links, attachments, and structured collections — running on your devices, syncing directly between them over QUIC, with semantic search powered by an on-device language model. The cloud is optional. The system never trusts a third party with your content.
 
+> ### 🌱 [The Mycelium Promise](PROMISE.md)
+> Free, open source, and staying that way. No server, no account, no telemetry, no ads, no subscriptions — your notes physically cannot be collected. **[Read the full promise →](PROMISE.md)** (includes an honest disclaimer about forks: the promise binds the *official* version only).
+
 ---
 
 ## Download

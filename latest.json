@@ -1,16 +1,16 @@
 {
   "_comment": "Auto-update manifest consumed by tauri-plugin-updater. Updated alongside each tagged release. The signature field carries a minisign signature of the corresponding installer; the matching public key is baked into apps/desktop/tauri.conf.json under plugins.updater.pubkey.",
-  "version": "0.77.0",
-  "notes": "Mycelium v0.77.0-beta.1 — direct response to v0.76 feedback. Settings UX overhaul: vertical sidebar nav (was cramped horizontal tabs), search box that filters rows live, and 'Show advanced' toggle that hides 14 niche options by default so the modal stays calm. Visual softening throughout: 14px radii, 70%-alpha borders, layered shadows, gentler focus rings. New Updates-tab controls: 'Install updates automatically at launch' (default off, explicit consent — boot-time check installs without prompting) and 'Allow beta updates' (advanced; default off; warning explains breakage / migration risk; gating dormant until first stable ships). See https://github.com/Arka-ui/mycelium/releases/tag/v0.77.0-beta.1 for full notes.",
-  "pub_date": "2026-05-14T03:13:00Z",
+  "version": "0.78.0",
+  "notes": "Mycelium v0.78.0-beta.1 - The Mycelium Promise: a binding, versioned commitment that the official version stays free, server-less, and uncollectable. Local-first - no server, no account, no telemetry; at-rest encryption is ChaCha20-Poly1305 with a 256-bit key from 50,000 iterations of BLAKE3, no master key and no backdoor. Includes an honest disclaimer that the promise binds the official signed build ONLY - open source means anyone can fork, and a malicious fork can strip these protections. Surfaced in Settings -> About and in PROMISE.md at the repo root. See https://github.com/Arka-ui/mycelium/releases/tag/v0.78.0-beta.1 for full notes.",
+  "pub_date": "2026-05-18T19:42:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUsrUVBCaEVoUktLTzhCR1QveEN6MXdsU21DL1g5aEVTSm5ESEdLWXF0dElTNFo3MElYcXF3cTY5Mk55bG9XTFdtUHM5K05oQVR4OE5MU3FzVi9ZMndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzI3NzYzCWZpbGU6TXljZWxpdW1fMC43Ny4wX3g2NC1zZXR1cC5leGUKczIvVHF1Z1VnakxjZUlOV0oyc0xBR0JIcU9ab0xaQmdZZFpGSFkxMUwwT2t3ZmJPTTBLN0RFNWdmODlzWHVRZ0pyRllZNGczelNyQzdHMFZXMWtLQkE9PQo=",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.77.0-beta.1/Mycelium_0.77.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WVA0NENuOUVUU29KRFc4Y25TdVkvbC9iSUZPcHl6bk9tSXM5dXpFejJVZ1JJdmRBemVZR1V4ckIxUVgydUVjQ2dnZTJZcm1tRlhjbmpWUlNwYldpL0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MTMyNjM5CWZpbGU6TXljZWxpdW1fMC43OC4wX3g2NC1zZXR1cC5leGUKRGtmTUM2QzRVaFJKRVA5Rll4cWl5ZzAvZk5tM2JxeGtoVWFkNkpJR3M3aVh0VTFydHdSYjI0TEl5amRjbW1aSXRKTHQyQzRkRHF2OWlCT2x4QTlLQ2c9PQo=",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.78.0-beta.1/Mycelium_0.78.0_x64-setup.exe"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUZMME1kNzl1V1hlVUh4VGJmNjkybEhmOHRuTFczMHhBb1QySEQ5MS9IeFFHN2VXZ0J2MEV1eVhNbTVhK0tHdTdlOVJabG9TMjRWcFBXbWVNM0xVMVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4NzI3MTc4CWZpbGU6TXljZWxpdW1fMC43Ny4wX2FtZDY0LkFwcEltYWdlCndWd3V5YndBclV3bUl6ZWsxeVhNV3Q0bnd2YU50SEpnMDFtMFVINU92UDVVVEpwVXhyZnZuZFFOTUdFSjA5VThzQkFmV2UvaVQxL3lrRUlyaTJrU0R3PT0K",
-      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.77.0-beta.1/Mycelium_0.77.0_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdXVNblJRaTc4WUUzeUxyTWswUmpydDRzb0pDTXp1S1BhSFBpSFh1dVcrdFBKaXlmWG1rZWdUSG1xakVSajNwN2N4M1Nja2pyM0JJNHp2RndDM29CbFlhWGtXa0czdFFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MTMyMTIyCWZpbGU6TXljZWxpdW1fMC43OC4wX2FtZDY0LkFwcEltYWdlCkVXMUgxVjJ4TDh2NVQ2UWw5eGpVSDVibzlueEFqRmxsRkd3dkMyL1h1bE9aemllS3RqOG04YlN2UEphcUlrL0JWb1BNdWxVTEw1TlVaODZHa2NqU0FBPT0K",
+      "url": "https://github.com/Arka-ui/mycelium/releases/download/v0.78.0-beta.1/Mycelium_0.78.0_amd64.AppImage"
     }
   }
 }
